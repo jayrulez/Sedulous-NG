@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", OpenALNative = "*", "Sedulous.Engine.Audio" = "*"}
+
+[Project]
+Name = "Sedulous.Engine.Audio.OpenAL"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Engine.Audio.OpenAL.Program"

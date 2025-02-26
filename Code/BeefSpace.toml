@@ -1,0 +1,12 @@
+FileVersion = 1
+Projects = {"Sedulous.Engine.Core" = {Path = "Sedulous/Sedulous.Engine.Core"}, Sandbox = {Path = "Samples/Sandbox"}, "Sedulous.Engine.Audio" = {Path = "Sedulous/Sedulous.Engine.Audio"}, Bulkan = {Path = "Dependencies/Bulkan"}, OpenALNative = {Path = "Dependencies/OpenALNative"}, "Sedulous.Platform.Core" = {Path = "Sedulous/Sedulous.Platform.Core"}, "Sedulous.Engine.Audio.OpenAL" = {Path = "Sedulous/Sedulous.Engine.Audio.OpenAL"}, Dxc-Beef = {Path = "Dependencies/Dxc-Beef"}, SDL3Native = {Path = "Dependencies/SDL3Native"}, "Sedulous.Platform.SDL3" = {Path = "Sedulous/Sedulous.Platform.SDL3"}, SDL3Test = {Path = "Samples/SDL3Test"}, SDL3_shadercross = {Path = "Dependencies/SDL3_shadercross"}, SDLGPUTest = {Path = "Samples/SDLGPUTest"}, "Sedulous.Engine.Physics" = {Path = "Sedulous/Sedulous.Engine.Physics"}, "Sedulous.Engine.Navigation" = {Path = "Sedulous/Sedulous.Engine.Navigation"}, "Sedulous.Engine.Jobs" = {Path = "Sedulous/Sedulous.Engine.Jobs"}, "Sedulous.Engine.Resources" = {Path = "Sedulous/Sedulous.Engine.Resources"}, "Sedulous.Engine.SceneGraph" = {Path = "Sedulous/Sedulous.Engine.SceneGraph"}, "Sedulous.Foundation" = {Path = "Sedulous/Sedulous.Foundation"}, "Sedulous.Engine.Renderer.SDL" = {Path = "Sedulous/Sedulous.Engine.Renderer.SDL"}, "Sedulous.Engine.Renderer" = {Path = "Sedulous/Sedulous.Engine.Renderer"}}
+WorkspaceFolders = {Dependencies = ["corlib", "Bulkan", "OpenALNative", "Dxc-Beef", "SDL3Native", "SDL3_shadercross"], Samples = ["Sandbox", "SDL3Test", "SDLGPUTest"], Sedulous = ["Sedulous.Engine.Audio", "Sedulous.Engine.Audio.OpenAL", "Sedulous.Engine.Core", "Sedulous.Engine.Jobs", "Sedulous.Engine.Navigation", "Sedulous.Engine.Physics", "Sedulous.Engine.Resources", "Sedulous.Engine.SceneGraph", "Sedulous.Platform.Core", "Sedulous.Platform.SDL3", "Sedulous.Foundation", "Sedulous.Engine.Renderer.SDL", "Sedulous.Engine.Renderer"]}
+
+[Workspace]
+StartupProject = "Sandbox"
+
+[Configs.Test.Win32]
+ConfigSelections = {"Sedulous.Engine.Core" = {Config = "Debug"}}
+
+[Configs.Test.Win64]
+ConfigSelections = {"Sedulous.Engine.Core" = {Config = "Debug"}}

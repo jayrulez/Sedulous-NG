@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Engine.Core" = "*"}
+
+[Project]
+Name = "Sedulous.Engine.Audio"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Engine.Audio.Program"

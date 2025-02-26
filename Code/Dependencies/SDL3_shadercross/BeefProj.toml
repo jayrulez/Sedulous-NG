@@ -1,0 +1,15 @@
+FileVersion = 1
+Dependencies = {corlib = "*", SDL3Native = "*"}
+
+[Project]
+Name = "SDL3_shadercross"
+TargetType = "BeefLib"
+StartupObject = "SDL3_shadercross.Program"
+
+[Configs.Debug.Win64]
+LibPaths = ["$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/lib/SDL3_shadercross.lib", "$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/lib/SDL3_shadercross-static.lib"]
+PostBuildCmds = ["CopyToDependents(\"$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/bin/dxcompiler.dll\")", "CopyToDependents(\"$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/bin/dxil.dll\")", "CopyToDependents(\"$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/bin/SDL3_shadercross.dll\")", "CopyToDependents(\"$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/bin/spirv-cross-c-shared.dll\")"]
+
+[Configs.Release.Win64]
+LibPaths = ["$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/lib/SDL3_shadercross.lib", "$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/lib/SDL3_shadercross-static.lib"]
+PostBuildCmds = ["CopyToDependents(\"$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/bin/dxcompiler.dll\")", "CopyToDependents(\"$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/bin/dxil.dll\")", "CopyToDependents(\"$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/bin/SDL3_shadercross.dll\")", "CopyToDependents(\"$(ProjectDir)/dist/SDL3_shadercross-3.0.0-windows-VC-x64/bin/spirv-cross-c-shared.dll\")"]

@@ -1,0 +1,6 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.Engine.SceneGraph"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Engine.SceneGraph.Program"

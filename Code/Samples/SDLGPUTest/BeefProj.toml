@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", SDL3Native = "*", SDL3_shadercross = "*"}
+
+[Project]
+Name = "SDLGPUTest"
+StartupObject = "SDLGPUTest.Program"

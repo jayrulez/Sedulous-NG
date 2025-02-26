@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", SDL3Native = "*", "Sedulous.Platform.Core" = "*"}
+
+[Project]
+Name = "Sedulous.Platform.SDL3"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Platform.SDL3.Program"

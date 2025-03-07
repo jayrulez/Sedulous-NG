@@ -9,9 +9,10 @@ abstract class WindowSystem
 
 	public abstract Window PrimaryWindow {get;}
 
-	public abstract Window GetWindowById(int32 windowId);
+	public abstract Window GetWindowById(uint32 windowId);
 
 	public abstract void StartMainLoop();
 	public abstract void StopMainLoop();
 	public abstract void RunOneFrame(FrameCallback callback);
+	public abstract void RequestExit();
 }

@@ -31,7 +31,7 @@ namespace Sedulous.Platform.SDL3.Input
 
             if ((this.controller = SDL_OpenGamepad(joystickIndex)) == null)
             {
-                Runtime.SDL2Error();
+                Runtime.SDL3Error();
             }
 
             this.name = new .(SDL_GetGamepadName(this.controller));
@@ -42,7 +42,7 @@ namespace Sedulous.Platform.SDL3.Input
 
             if ((this.instanceID = SDL_GetJoystickID(joystick)) == 0)
             {
-                Runtime.SDL2Error();
+                Runtime.SDL3Error();
             }
         }
 

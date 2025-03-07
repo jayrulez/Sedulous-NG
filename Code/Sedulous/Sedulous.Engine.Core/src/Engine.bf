@@ -3,13 +3,21 @@ using Sedulous.Foundation.Logging.Abstractions;
 using System.Collections;
 using System.Threading;
 using Sedulous.Foundation.Logging.Debug;
+using Sedulous.Engine.Jobs;
+using Sedulous.Engine.Resources;
+using Sedulous.Engine.SceneGraph;
 namespace Sedulous.Engine.Core;
 
 using internal Sedulous.Engine.Core;
+using internal Sedulous.Engine.SceneGraph;
+using internal Sedulous.Engine.Resources;
+using internal Sedulous.Engine.Jobs;
 
 sealed class Engine : IEngine
 {
 	private List<Subsystem> mSubsystems = new .() ~ delete _;
+
+	public Span<Subsystem> Subsystems => mSubsystems;
 
 	public IEngine.EngineState State { get; private set; } = .Stopped;
 
@@ -23,6 +31,18 @@ sealed class Engine : IEngine
 	private bool mOwnsLogger = false;
 
 	public ILogger Logger => mLogger;
+
+	private readonly JobSystem mJobSystem;
+
+	public JobSystem JobSystem => mJobSystem;
+
+	private readonly ResourceSystem mResourceSystem;
+
+	public ResourceSystem ResourceSystem => mResourceSystem;
+
+	private readonly SceneGraphSystem mSceneGraphSystem;
+
+	public SceneGraphSystem SceneGraphSystem => mSceneGraphSystem;
 
 	// Current tick state.
 	private static readonly TimeSpan MaxElapsedTime = TimeSpan.FromMilliseconds(500);
@@ -43,9 +63,9 @@ sealed class Engine : IEngine
 	public TimeSpan TargetElapsedTime { get; set; } = DefaultTargetElapsedTime;
 	public TimeSpan InactiveSleepTime { get; set; } = DefaultInactiveSleepTime;
 
-	//private readonly IEngineHost mHost;
+	private readonly IEngineHost mHost;
 
-	public this(/*IEngineHost host,*/ ILogger logger = null)
+	public this(IEngineHost host, ILogger logger = null)
 	{
 		//mHost = host;
 		if (logger == null)
@@ -62,10 +82,22 @@ sealed class Engine : IEngine
 			{
 				mUpdateFunctions.Add(member, new .());
 			});
+
+		mJobSystem = new .(mLogger, /*mHost.SupportsMultipleThreads*/true ? 1 : 0);
+
+		mResourceSystem = new .();
+
+		mSceneGraphSystem = new .(this);
 	}
 
 	public ~this()
 	{
+		delete mSceneGraphSystem;
+
+		delete mResourceSystem;
+
+		delete mJobSystem;
+
 		Enum.MapValues<IEngine.UpdateStage>(scope (member) =>
 			{
 				delete mUpdateFunctions[member];
@@ -130,6 +162,12 @@ sealed class Engine : IEngine
 
 		State = .Running;
 
+		mJobSystem.Startup();
+
+		mResourceSystem.Startup();
+
+		mSceneGraphSystem.Startup();
+
 		return .Ok;
 	}
 
@@ -140,6 +178,12 @@ sealed class Engine : IEngine
 			mLogger.LogWarning("Engine was not previously initialized.");
 			return;
 		}
+
+		mSceneGraphSystem.Shutdown();
+
+		mResourceSystem.Shutdown();
+
+		mJobSystem.Shutdown();
 
 		State = .Stopped;
 
@@ -221,6 +265,9 @@ sealed class Engine : IEngine
 
 
 #endregion
+
+		mJobSystem.Update(elapsedTicks);
+		mResourceSystem.Update(elapsedTicks);
 
 		//if (InactiveSleepTime.Ticks > 0 /*&& mHost.IsSuspended*/)
 		//	Thread.Sleep(InactiveSleepTime);

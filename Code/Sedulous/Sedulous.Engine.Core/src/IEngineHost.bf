@@ -1,6 +1,6 @@
 namespace Sedulous.Engine.Core;
 
-/*interface IEngineHost
+interface IEngineHost
 {
 	IEngine Engine { get; }
 
@@ -11,4 +11,4 @@ namespace Sedulous.Engine.Core;
 	bool SupportsMultipleThreads { get; }
 
 	void Exit();
-}*/
+}

@@ -1,4 +1,5 @@
 using System;
+using Sedulous.Engine.SceneGraph;
 namespace Sedulous.Engine.Core;
 
 abstract class Subsystem
@@ -14,7 +15,7 @@ abstract class Subsystem
 			return .Ok;
 
 		mEngine = engine;
-		if(OnInitializing(mEngine) case .Ok)
+		if (OnInitializing(mEngine) case .Ok)
 		{
 			mInitialized = true;
 			return .Ok;
@@ -33,7 +34,7 @@ abstract class Subsystem
 		return .Ok;
 	}
 
-	protected virtual void OnInitialized(IEngine engine) {}
+	protected virtual void OnInitialized(IEngine engine) { }
 
 	internal void Uninitialize()
 	{
@@ -47,4 +48,18 @@ abstract class Subsystem
 	}
 
 	protected virtual void OnUnitializing(IEngine engine) { }
+
+	internal void SceneCreated(Scene scene)
+	{
+		OnSceneCreated(scene);
+	}
+
+	protected virtual void OnSceneCreated(Scene scene) { }
+
+	internal void SceneDestroyed(Scene scene)
+	{
+		OnSceneDestroyed(scene);
+	}
+
+	protected virtual void OnSceneDestroyed(Scene scene) { }
 }

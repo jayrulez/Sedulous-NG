@@ -25,7 +25,7 @@ namespace Sedulous.Platform.Core.Input
     /// current position and the x-coordinate of the mouse's previous position.</param>
     /// <param name="dy">The difference between the y-coordinate of the mouse's 
     /// current position and the y-coordinate of the mouse's previous position.</param>
-    public delegate void MouseMoveEventHandler(Window window, MouseDevice device, int32 x, int32 y, int32 dx, int32 dy);
+    public delegate void MouseMoveEventHandler(Window window, MouseDevice device, float x, float y, float dx, float dy);
 
     /// <summary>
     /// Represents the method that is called when the mouse's wheel is scrolled.
@@ -34,7 +34,7 @@ namespace Sedulous.Platform.Core.Input
     /// <param name="device">The <see cref="MouseDevice"/> that raised the event.</param>
     /// <param name="x">The amount that the wheel was scrolled along the horizontal axis.</param>
     /// <param name="y">The amount that the wheel was scrolled along the vertical axis.</param>
-    public delegate void MouseWheelEventHandler(Window window, MouseDevice device, int32 x, int32 y);
+    public delegate void MouseWheelEventHandler(Window window, MouseDevice device, float x, float y);
 
     /// <summary>
     /// Represents a mouse device.
@@ -125,7 +125,7 @@ namespace Sedulous.Platform.Core.Input
         /// <summary>
         /// Gets the mouse's current position.
         /// </summary>
-        public abstract Point2 Position
+        public abstract Vector2 Position
         {
             get;
         }
@@ -133,7 +133,7 @@ namespace Sedulous.Platform.Core.Input
         /// <summary>
         /// Gets the x-coordinate of the mouse's current position.
         /// </summary>
-        public abstract int32 X
+        public abstract float X
         {
             get;
         }
@@ -141,7 +141,7 @@ namespace Sedulous.Platform.Core.Input
         /// <summary>
         /// Gets the y-coordinate of the mouse's current position.
         /// </summary>
-        public abstract int32 Y
+        public abstract float Y
         {
             get;
         }
@@ -149,7 +149,7 @@ namespace Sedulous.Platform.Core.Input
         /// <summary>
         /// Gets the mouse's horizontal scroll wheel delta in the last frame.
         /// </summary>
-        public abstract int32 WheelDeltaX
+        public abstract float WheelDeltaX
         {
             get;
         }
@@ -157,7 +157,7 @@ namespace Sedulous.Platform.Core.Input
         /// <summary>
         /// Gets the mouse's vertical scroll wheel delta in the last frame.
         /// </summary>
-        public abstract int32 WheelDeltaY
+        public abstract float WheelDeltaY
         {
             get;
         }
@@ -282,7 +282,7 @@ namespace Sedulous.Platform.Core.Input
         /// current position and the x-coordinate of the mouse's previous position.</param>
         /// <param name="dy">The difference between the y-coordinate of the mouse's 
         /// current position and the y-coordinate of the mouse's previous position.</param>
-        protected virtual void OnMoved(Window window, int32 x, int32 y, int32 dx, int32 dy) =>
+        protected virtual void OnMoved(Window window, float x, float y, float dx, float dy) =>
             Moved?.Invoke(window, this, x, y, dx, dy);
 
         /// <summary>
@@ -291,7 +291,7 @@ namespace Sedulous.Platform.Core.Input
         /// <param name="window">The window in which the input event took place.</param>
         /// <param name="x">The amount that the wheel was scrolled along the horizontal axis.</param>
         /// <param name="y">The amount that the wheel was scrolled along the vertical axis.</param>
-        protected virtual void OnWheelScrolled(Window window, int32 x, int32 y) =>
+        protected virtual void OnWheelScrolled(Window window, float x, float y) =>
             WheelScrolled?.Invoke(window, this, x, y);
     }
 }

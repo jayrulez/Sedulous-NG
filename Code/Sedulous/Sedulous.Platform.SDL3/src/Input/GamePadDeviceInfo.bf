@@ -26,13 +26,16 @@ namespace Sedulous.Platform.SDL3.Input
         {
 			mInputSystem = inputSystem;
 
-            this.devicesByPlayer = new SDL3GamePadDevice[SDL_NumJoysticks()];
+			int32 joystickCount = 0;
+			SDL_JoystickID* joysticks = SDL_GetJoysticks(&joystickCount);
+
+            this.devicesByPlayer = new SDL3GamePadDevice[joystickCount];
 
             for (int32 i = 0; i < this.devicesByPlayer.Count; i++)
             {
-                if (SDL_IsGameController(i))
+                if (SDL_IsGamepad(joysticks[i]))
                 {
-                    OnControllerDeviceAdded(i);
+                    OnControllerDeviceAdded(joysticks[i]);
                 }
             }
         }
@@ -52,14 +55,14 @@ namespace Sedulous.Platform.SDL3.Input
         /// <inheritdoc/>
         internal bool HandleEvent(SDL_Event evt)
         {
-            switch (evt.type)
+            switch ((SDL_EventType)evt.type)
             {
-                case .SDL_CONTROLLERDEVICEADDED:
-                    OnControllerDeviceAdded(evt.cdevice.which);
+                case .SDL_EVENT_GAMEPAD_ADDED:
+                    OnControllerDeviceAdded(evt.gdevice.which);
                     return true;
 
-                case .SDL_CONTROLLERDEVICEREMOVED:
-                    OnControllerDeviceRemoved(evt.cdevice.which);
+                case .SDL_EVENT_GAMEPAD_REMOVED:
+                    OnControllerDeviceRemoved(evt.gdevice.which);
                     return true;
 
 			default: return false;
@@ -154,11 +157,11 @@ namespace Sedulous.Platform.SDL3.Input
         /// Called when a controller device is added.
         /// </summary>
         /// <param name="joystickIndex">The index of the device to add.</param>
-        private void OnControllerDeviceAdded(uint32 joystickIndex)
+        private void OnControllerDeviceAdded(SDL_JoystickID joystickInstanceID)
         {
-            var gamecontroller = SDL_OpenGamepad(joystickIndex);
-            var joystick       = SDL_GetGamepadJoystick(gamecontroller);
-            var joystickID     = SDL_GetJoystickID(joystick);
+            SDL_Gamepad* gamepad = SDL_OpenGamepad(joystickInstanceID);
+            SDL_Joystick* joystick       = SDL_GetGamepadJoystick(gamepad);
+            SDL_JoystickID joystickID     = SDL_GetJoystickID(joystick);
 
             for (int i = 0; i < devicesByPlayer.Count; i++)
             {
@@ -169,7 +172,7 @@ namespace Sedulous.Platform.SDL3.Input
             }
 
             var playerIndex = GetFirstAvailablePlayerIndex();
-            var device = new SDL3GamePadDevice(mInputSystem, joystickIndex, playerIndex);
+            var device = new SDL3GamePadDevice(mInputSystem, joystickID, playerIndex);
 
             devicesByPlayer[playerIndex] = device;
             count++;
@@ -181,7 +184,7 @@ namespace Sedulous.Platform.SDL3.Input
         /// Called when a controller device is removed.
         /// </summary>
         /// <param name="instanceID">The instance identifier of the device to remove.</param>
-        private void OnControllerDeviceRemoved(int32 instanceID)
+        private void OnControllerDeviceRemoved(uint32 instanceID)
         {
             for (int32 i = 0; i < devicesByPlayer.Count; i++)
             {

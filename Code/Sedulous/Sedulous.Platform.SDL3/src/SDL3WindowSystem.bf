@@ -128,7 +128,7 @@ class SDL3WindowSystem : WindowSystem
 			default:
 				if (ev.type >= (uint32)SDL_EventType.SDL_EVENT_WINDOW_FIRST && ev.type <= (uint32)SDL_EventType.SDL_EVENT_WINDOW_LAST)
 				{
-					var window = GetWindowById(ev.window.windowID);
+					var window = GetWindowById(ev.window.windowID) as SDL3Window;
 					window?.HandleEvent(ev.window);
 				} else
 				{
@@ -150,7 +150,7 @@ class SDL3WindowSystem : WindowSystem
 		// todo: update input
 	}
 
-	private SDL3Window GetWindowById(uint32 windowId)
+	public override Window GetWindowById(uint32 windowId)
 	{
 		for(var window in mWindows)
 		{
@@ -160,5 +160,10 @@ class SDL3WindowSystem : WindowSystem
 			}
 		}
 		return null;
+	}
+
+	public override void RequestExit()
+	{
+		mIsRunning = false;
 	}
 }

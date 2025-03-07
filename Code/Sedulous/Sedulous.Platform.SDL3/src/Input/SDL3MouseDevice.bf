@@ -115,7 +115,7 @@ namespace Sedulous.Platform.SDL3.Input
         {
             Contract.Require(window, nameof(window));
 
-            window.WarpMouseWithinWindow(x, y);
+            //window.WarpMouseWithinWindow(x, y);
         }
 
         /// <inheritdoc/>
@@ -123,8 +123,8 @@ namespace Sedulous.Platform.SDL3.Input
         {
             Contract.Require(window, nameof(window));
 
-            var size = window.ClientSize;
-            window.WarpMouseWithinWindow(size.Width / 2, size.Height / 2);
+            //var size = window.ClientSize;
+            //window.WarpMouseWithinWindow(size.Width / 2, size.Height / 2);
         }
 
         /// <inheritdoc/>
@@ -134,7 +134,7 @@ namespace Sedulous.Platform.SDL3.Input
             if (primary == null)
                 Runtime.InvalidOperationError("NoPrimaryWindow");
 
-            primary.WarpMouseWithinWindow(x, y);
+            //primary.WarpMouseWithinWindow(x, y);
         }
 
         /// <inheritdoc/>
@@ -144,8 +144,8 @@ namespace Sedulous.Platform.SDL3.Input
             if (primary == null)
                 Runtime.InvalidOperationError("NoPrimaryWindow");
 
-            var size = primary.ClientSize;
-            primary.WarpMouseWithinWindow(size.Width / 2, size.Height / 2);
+            //var size = primary.ClientSize;
+            //primary.WarpMouseWithinWindow(size.Width / 2, size.Height / 2);
         }
 
         /// <inheritdoc/>
@@ -202,20 +202,20 @@ namespace Sedulous.Platform.SDL3.Input
         /// <inheritdoc/>
         public override bool GetIsRelativeModeEnabled()
         {
-            return SDL_GetRelativeMouseMode();
+            return false;// SDL_GetRelativeMouseMode();
         }
 
         /// <inheritdoc/>
         public override bool SetIsRelativeModeEnabled(bool enabled)
         {
-            var result = SDL_SetRelativeMouseMode(enabled);
+            /*var result = SDL_SetRelativeMouseMode(enabled);
             if (result == -1)
                 return false;
 
             if (result < 0)
                 Runtime.SDL2Error();
 
-            relativeMode = enabled;
+            relativeMode = enabled;*/
             return true;
         }
 
@@ -223,19 +223,19 @@ namespace Sedulous.Platform.SDL3.Input
         public override Window Window => window;
 
         /// <inheritdoc/>
-        public override Point2 Position => Point2(x, y);
+        public override Vector2 Position => Vector2(x, y);
 
         /// <inheritdoc/>
-        public override int32 X => x;
+        public override float X => x;
 
         /// <inheritdoc/>
-        public override int32 Y => y;
+        public override float Y => y;
 
         /// <inheritdoc/>
-        public override int32 WheelDeltaX => wheelDeltaX;
+        public override float WheelDeltaX => wheelDeltaX;
 
         /// <inheritdoc/>
-        public override int32 WheelDeltaY => wheelDeltaY;
+        public override float WheelDeltaY => wheelDeltaY;
 
         /// <inheritdoc/>
         public override bool IsRegistered => isRegistered;
@@ -308,7 +308,7 @@ namespace Sedulous.Platform.SDL3.Input
         /// </summary>
         private void OnMouseMotion(in SDL_MouseMotionEvent evt)
         {
-            if (!InputSystem.EmulateMouseWithTouchInput && evt.which == SDL_TOUCH_MOUSEID)
+            if (/*!InputSystem.EmulateMouseWithTouchInput &&*/ evt.which == SDL_TOUCH_MOUSEID)
                 return;
 
             if (relativeMode)
@@ -328,10 +328,10 @@ namespace Sedulous.Platform.SDL3.Input
         /// </summary>
         private void OnMouseButtonDown(in SDL_MouseButtonEvent evt)
         {
-            if (!InputSystem.EmulateMouseWithTouchInput && evt.which == SDL_TOUCH_MOUSEID)
+            if (/*!InputSystem.EmulateMouseWithTouchInput &&*/ evt.which == SDL_TOUCH_MOUSEID)
                 return;
 
-            var window = InputSystem.Backend.GetWindowById((int32)evt.windowID);
+            var window = InputSystem.Backend.GetWindowById((uint32)evt.windowID);
             var button = GetFrameworkButton(evt.button);
 
             this.states[(int)button].OnDown(false);
@@ -347,7 +347,7 @@ namespace Sedulous.Platform.SDL3.Input
             if (evt.which == SDL_TOUCH_MOUSEID)
                 return;
 
-            var window = InputSystem.Backend.GetWindowById((int32)evt.windowID);
+            var window = InputSystem.Backend.GetWindowById((uint32)evt.windowID);
             var button = GetFrameworkButton(evt.button);
 
             this.states[(int)button].OnUp();
@@ -375,7 +375,7 @@ namespace Sedulous.Platform.SDL3.Input
             if (evt.which == SDL_TOUCH_MOUSEID)
                 return;
 
-            var window = InputSystem.Backend.GetWindowById((int32)evt.windowID);
+            var window = InputSystem.Backend.GetWindowById((uint32)evt.windowID);
             wheelDeltaX = evt.x;
             wheelDeltaY = evt.y;
             OnWheelScrolled(window, evt.x, evt.y);
@@ -398,15 +398,15 @@ namespace Sedulous.Platform.SDL3.Input
         /// </summary>
         private void SetMousePosition(uint32 windowID, float x, float y)
         {
-            this.window = InputSystem.Backend.GetWindowById((int32)windowID);
+            this.window = InputSystem.Backend.GetWindowById((uint32)windowID);
 
-            if (InputSystem.Backend.SupportsHighDensityDisplayModes)
+            /*if (InputSystem.Backend.SupportsHighDensityDisplayModes)
             {
                 var scale = window?.Display.DeviceScale ?? 1f;
                 this.x = (int32)(x * scale);
                 this.y = (int32)(y * scale);
             }
-            else
+            else*/
             {
                 this.x = x;
                 this.y = y;

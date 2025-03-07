@@ -55,10 +55,11 @@ interface IEngine
 		public UpdateFunction Function;
 	}
 
+	Span<Subsystem> Subsystems { get; }
 	EngineState State { get; }
 	ILogger Logger { get; }
 
-	[NoDiscard]IEngine.RegisteredUpdateFunctionInfo RegisterUpdateFunction(UpdateFunctionInfo info);
+	[NoDiscard] IEngine.RegisteredUpdateFunctionInfo RegisterUpdateFunction(UpdateFunctionInfo info);
 
 	void RegisterUpdateFunctions(Span<UpdateFunctionInfo> infos, List<IEngine.RegisteredUpdateFunctionInfo> registrations);
 

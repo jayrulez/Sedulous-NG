@@ -190,7 +190,7 @@ namespace Sedulous.Platform.SDL3.Input
         /// </summary>
         private void OnKeyDown(in SDL_KeyboardEvent evt)
         {
-            var window = InputSystem.Backend.GetWindowById((int32)evt.windowID);
+            var window = InputSystem.Backend.GetWindowById((uint32)evt.windowID);
             var mods   = evt.mod;
             var ctrl   = (mods & .SDL_KMOD_CTRL) != 0;
             var alt    = (mods & .SDL_KMOD_ALT) != 0;
@@ -211,7 +211,7 @@ namespace Sedulous.Platform.SDL3.Input
         /// </summary>
         private void OnKeyUp(in SDL_KeyboardEvent evt)
         {
-            var window = InputSystem.Backend.GetWindowById((int32)evt.windowID);
+            var window = InputSystem.Backend.GetWindowById((uint32)evt.windowID);
 
             states[(int)evt.scancode].OnUp();
 
@@ -224,7 +224,7 @@ namespace Sedulous.Platform.SDL3.Input
         /// </summary>
         private void OnTextEditing(in SDL_TextEditingEvent evt)
         {
-            var window = InputSystem.Backend.GetWindowById((int32)evt.windowID);
+            var window = InputSystem.Backend.GetWindowById((uint32)evt.windowID);
             if (GetText(evt.text))
                 {
                     OnTextEditing(window);
@@ -236,7 +236,7 @@ namespace Sedulous.Platform.SDL3.Input
         /// </summary>
         private void OnTextInput(in SDL_TextInputEvent evt)
         {
-            var window = InputSystem.Backend.GetWindowById((int32)evt.windowID);
+            var window = InputSystem.Backend.GetWindowById((uint32)evt.windowID);
             if (GetText(evt.text))
                 {
                     OnTextInput(window);
@@ -248,11 +248,11 @@ namespace Sedulous.Platform.SDL3.Input
         /// </summary>
         /// <param name="input">A pointer to the inputted text.</param>
         /// <returns><see langword="true"/> if the input data was successfully converted; otherwise, <see langword="false"/>.</returns>
-        private bool GetText(in char8[SDL_TextInputEvent.SDL_TEXT_SIZE] input)
+        private bool GetText(in char8* input)
         {
 			//mText.Clear();
 			var input;
-			String text = scope .(&input);
+			String text = scope .(input);
 			if(text.Length == 0)
 				return false;
 

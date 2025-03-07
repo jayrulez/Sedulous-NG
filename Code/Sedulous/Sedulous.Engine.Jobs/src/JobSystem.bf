@@ -142,7 +142,7 @@ class JobSystem
 		mIsRunning = false;
 	}
 
-	internal void Update()
+	internal void Update(int64 elapsedTicks)
 	{
 		if (!mIsRunning)
 		{

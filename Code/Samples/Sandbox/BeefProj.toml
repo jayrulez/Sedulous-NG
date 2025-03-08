@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Engine.Audio.OpenAL" = "*", "Sedulous.Engine.Navigation" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Platform.SDL3" = "*", "Sedulous.Engine.Renderer.SDL" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Engine.Audio.OpenAL" = "*", "Sedulous.Engine.Navigation" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Platform.SDL3" = "*", "Sedulous.Engine.Renderer.SDL" = "*", "Sedulous.Runtime" = "*"}
 
 [Project]
 Name = "Sandbox"

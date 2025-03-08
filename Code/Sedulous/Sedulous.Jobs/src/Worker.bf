@@ -1,9 +1,9 @@
 using System;
 using System.Threading;
 using System.Collections;
-namespace Sedulous.Engine.Jobs;
+namespace Sedulous.Jobs;
 
-using internal Sedulous.Engine.Jobs;
+using internal Sedulous.Jobs;
 
 internal abstract class Worker
 {

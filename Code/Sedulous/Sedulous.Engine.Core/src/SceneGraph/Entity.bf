@@ -1,4 +1,4 @@
-namespace Sedulous.Engine.SceneGraph;
+namespace Sedulous.Engine.Core.SceneGraph;
 
 public typealias EntityId = uint64;
 

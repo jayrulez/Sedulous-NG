@@ -3,15 +3,15 @@ using Sedulous.Foundation.Logging.Abstractions;
 using System.Collections;
 using System.Threading;
 using Sedulous.Foundation.Logging.Debug;
-using Sedulous.Engine.Jobs;
-using Sedulous.Engine.Resources;
-using Sedulous.Engine.SceneGraph;
+using Sedulous.Jobs;
+using Sedulous.Engine.Core.Resources;
+using Sedulous.Engine.Core.SceneGraph;
 namespace Sedulous.Engine.Core;
 
 using internal Sedulous.Engine.Core;
-using internal Sedulous.Engine.SceneGraph;
-using internal Sedulous.Engine.Resources;
-using internal Sedulous.Engine.Jobs;
+using internal Sedulous.Engine.Core.SceneGraph;
+using internal Sedulous.Engine.Core.Resources;
+using internal Sedulous.Jobs;
 
 sealed class Engine : IEngine
 {
@@ -67,7 +67,8 @@ sealed class Engine : IEngine
 
 	public this(IEngineHost host, ILogger logger = null)
 	{
-		//mHost = host;
+		mHost = host;
+
 		if (logger == null)
 		{
 			mLogger = new DebugLogger(.Debug);
@@ -83,7 +84,7 @@ sealed class Engine : IEngine
 				mUpdateFunctions.Add(member, new .());
 			});
 
-		mJobSystem = new .(mLogger, /*mHost.SupportsMultipleThreads*/true ? 1 : 0);
+		mJobSystem = new .(mLogger, mHost.SupportsMultipleThreads ? 1 : 0);
 
 		mResourceSystem = new .();
 
@@ -269,8 +270,8 @@ sealed class Engine : IEngine
 		mJobSystem.Update(elapsedTicks);
 		mResourceSystem.Update(elapsedTicks);
 
-		//if (InactiveSleepTime.Ticks > 0 /*&& mHost.IsSuspended*/)
-		//	Thread.Sleep(InactiveSleepTime);
+		if (InactiveSleepTime.Ticks > 0 && mHost.IsSuspended)
+			Thread.Sleep(InactiveSleepTime);
 
 		mAccumulatedElapsedTime += elapsedTicks;
 		if (mAccumulatedElapsedTime > MaxElapsedTime.Ticks)

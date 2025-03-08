@@ -1,4 +1,4 @@
-namespace Sedulous.Engine.Jobs;
+namespace Sedulous.Jobs;
 
 enum JobPriority
 {

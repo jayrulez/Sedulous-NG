@@ -1,5 +1,5 @@
 using System;
-namespace Sedulous.Engine.Jobs;
+namespace Sedulous.Jobs;
 
 class DelegateJob : Job
 {

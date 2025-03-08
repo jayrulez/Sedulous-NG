@@ -3,9 +3,9 @@ using System.Threading;
 using System.Collections;
 using Sedulous.Foundation.Logging.Abstractions;
 using static System.Platform;
-namespace Sedulous.Engine.Jobs;
+namespace Sedulous.Jobs;
 
-using internal Sedulous.Engine.Jobs;
+using internal Sedulous.Jobs;
 
 class JobSystem
 {

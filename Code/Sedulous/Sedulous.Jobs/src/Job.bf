@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-namespace Sedulous.Engine.Jobs;
+namespace Sedulous.Jobs;
 
 abstract class Job : JobBase
 {

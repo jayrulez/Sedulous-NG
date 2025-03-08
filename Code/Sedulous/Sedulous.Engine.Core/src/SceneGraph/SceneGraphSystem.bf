@@ -1,9 +1,9 @@
 using System.Collections;
 using Sedulous.Engine.Core;
 using System;
-namespace Sedulous.Engine.SceneGraph;
+namespace Sedulous.Engine.Core.SceneGraph;
 
-using internal Sedulous.Engine.SceneGraph;
+using internal Sedulous.Engine.Core.SceneGraph;
 using internal Sedulous.Engine.Core;
 
 class SceneGraphSystem

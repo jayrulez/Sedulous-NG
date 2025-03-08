@@ -1,8 +1,8 @@
 using System.Threading;
 using System;
-namespace Sedulous.Engine.Jobs;
+namespace Sedulous.Jobs;
 
-using internal Sedulous.Engine.Jobs;
+using internal Sedulous.Jobs;
 
 internal class BackgroundWorker : Worker
 {

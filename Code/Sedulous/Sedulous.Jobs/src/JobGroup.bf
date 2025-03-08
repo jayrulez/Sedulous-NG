@@ -1,6 +1,6 @@
 using System.Collections;
 using System;
-namespace Sedulous.Engine.Jobs;
+namespace Sedulous.Jobs;
 
 class JobGroup : Job
 {

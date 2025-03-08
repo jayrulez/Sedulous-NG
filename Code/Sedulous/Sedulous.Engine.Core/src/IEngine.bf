@@ -1,6 +1,9 @@
 using System;
 using Sedulous.Foundation.Logging.Abstractions;
 using System.Collections;
+using Sedulous.Jobs;
+using Sedulous.Engine.Core.Resources;
+using Sedulous.Engine.Core.SceneGraph;
 namespace Sedulous.Engine.Core;
 
 typealias EngineInitializingCallback = delegate Result<void>(EngineInitializer initializer);
@@ -58,6 +61,9 @@ interface IEngine
 	Span<Subsystem> Subsystems { get; }
 	EngineState State { get; }
 	ILogger Logger { get; }
+	JobSystem JobSystem { get; }
+	ResourceSystem ResourceSystem { get; }
+	SceneGraphSystem SceneGraphSystem { get; }
 
 	[NoDiscard] IEngine.RegisteredUpdateFunctionInfo RegisterUpdateFunction(UpdateFunctionInfo info);
 

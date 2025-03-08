@@ -86,7 +86,7 @@ sealed class Engine : IEngine
 
 		mJobSystem = new .(mLogger, mHost.SupportsMultipleThreads ? 1 : 0);
 
-		mResourceSystem = new .();
+		mResourceSystem = new .(mLogger, mJobSystem);
 
 		mSceneGraphSystem = new .(this);
 	}

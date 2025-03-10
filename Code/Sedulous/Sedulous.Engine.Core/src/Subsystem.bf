@@ -1,5 +1,4 @@
 using System;
-using Sedulous.Engine.SceneGraph;
 using Sedulous.Engine.Core.SceneGraph;
 namespace Sedulous.Engine.Core;
 

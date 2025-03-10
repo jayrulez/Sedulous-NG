@@ -81,6 +81,22 @@ struct FixedList<T, TCapacity> where TCapacity : const int
 		mCurrentSize = 0;
 	}
 
+	public void Add(T item) mut
+	{
+		Runtime.Assert(mCurrentSize < TCapacity);
+		mData[mCurrentSize++] = item;
+	}
+
+	public void AddRange(Span<T> items) mut
+	{
+		Runtime.Assert(mCurrentSize + items.Length <= TCapacity);
+
+		for (int i = 0; i < items.Length; i++)
+		{
+			mData[mCurrentSize++] = items[i];
+		}
+	}
+
 	public void Clear() mut
 	{
 		mData = .();

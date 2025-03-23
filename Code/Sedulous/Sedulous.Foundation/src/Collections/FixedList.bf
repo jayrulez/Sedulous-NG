@@ -97,6 +97,15 @@ struct FixedList<T, TCapacity> where TCapacity : const int
 		}
 	}
 
+	public void SetRange(Span<T> items) mut
+	{
+		Runtime.Assert(items.Length <= TCapacity);
+
+		Clear();
+
+		AddRange(items);
+	}
+
 	public void Clear() mut
 	{
 		mData = .();

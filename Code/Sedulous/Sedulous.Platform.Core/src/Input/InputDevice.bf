@@ -22,7 +22,7 @@ namespace Sedulous.Platform.Core.Input
 		/// Updates the device's state.
 		/// </summary>
 		/// <param name="time">Time elapsed since the last call to <see cref="Context.Update(Time)"/>.</param>
-		public abstract void Update(PlatformTime time);
+		public abstract void Update(Time time);
 
 		/// <summary>
 		/// Gets a value indicating whether the device has been registered with the context

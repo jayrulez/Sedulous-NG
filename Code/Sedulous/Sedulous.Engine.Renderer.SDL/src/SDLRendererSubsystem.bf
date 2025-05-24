@@ -7,36 +7,37 @@ using SDL3Native;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Platform.Core;
 using Sedulous.Platform.SDL3;
+using Sedulous.Engine.Core.SceneGraph;
 namespace Sedulous.Engine.Renderer.SDL;
 
 class SDLRendererSubsystem : Subsystem
 {
 	public override StringView Name => "SDLRenderer";
 
-	internal SDL_GPUDevice* mDevice;
+	private Camera mActiveCamera;
 	private readonly SDL3Window mPrimaryWindow;
+	private RenderPipeline mRenderPipeline;
+
+	private SDL_GPUViewport mViewport = .();
+	private SDL_Rect mScissor = .();
 
 	private IEngine.RegisteredUpdateFunctionInfo? mUpdateFunctionRegistration;
 	private IEngine.RegisteredUpdateFunctionInfo? mRenderFunctionRegistration;
 
 	private delegate void(uint32 width, uint32 height) mWindowResizeDelegate = null ~ delete _;
 
-	private Camera mActiveCamera;
 
 	public Camera Camera
 	{
 		get => mActiveCamera;
 		set => mActiveCamera = value;
 	}
-
-	private RenderPipeline mRenderPipeline;
+	
+	internal SDL_GPUDevice* mDevice;
 
 	internal SDL_GPUBuffer* CameraBuffer;
 
 	internal SDL_GPUShader* FullscreenVertexShader;
-
-	private SDL_GPUViewport mViewport = .();
-	private SDL_Rect mScissor = .();
 
 	internal SDL_GPUShaderFormat ShaderFormat = .SDL_GPU_SHADERFORMAT_INVALID;
 
@@ -178,6 +179,15 @@ class SDLRendererSubsystem : Subsystem
 
 		base.OnUnitializing(engine);
 	}
+
+    protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
+    {
+        // Create multiple render-related modules
+        modules.Add(new RenderModule(this));           // Main rendering
+        modules.Add(new CullingModule(this));          // Frustum culling
+        modules.Add(new LightingModule(this));         // Light management
+        modules.Add(new PostProcessModule(this));      // Post-processing effects
+    }
 
 	private void OnUpdate(IEngine.UpdateInfo info)
 	{

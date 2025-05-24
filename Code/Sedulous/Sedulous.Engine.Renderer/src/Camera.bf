@@ -1,18 +1,36 @@
 using Sedulous.Foundation.Mathematics;
+using Sedulous.Engine.Core.SceneGraph;
 namespace Sedulous.Engine.Renderer;
 
-class Camera
+class Camera : Component
 {
-	public Vector3 Position;
-	public Vector3 Forward = Vector3.Forward;
-	public Vector3 Up = Vector3.Up;
+    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Camera>();
+    public override ComponentTypeId TypeId => sTypeId;
 
-	public float FOV = 60.0f;
-	public float AspectRatio = 16.0f / 9.0f;
-	public float NearClip = 0.1f;
-	public float FarClip = 100.0f;
+    public float FOV { get; set; } = 60.0f;
+    public float AspectRatio { get; set; } = 16.0f / 9.0f;
+    public float NearClip { get; set; } = 0.1f;
+    public float FarClip { get; set; } = 1000.0f;
 
-	public Matrix ViewMatrix => Matrix.CreateLookAt(Position, Position + Forward, Up);
+    public Matrix ViewMatrix => CalculateViewMatrix();
+    public Matrix ProjectionMatrix => CalculateProjectionMatrix();
 
-	public Matrix ProjectionMatrix => Matrix.CreatePerspectiveFieldOfView(Radians.FromDegrees(FOV), AspectRatio, NearClip, FarClip);
+    private Matrix CalculateViewMatrix()
+    {
+        return Matrix.CreateLookAt(
+            Entity.Transform.Position,
+            Entity.Transform.Position + Entity.Transform.Forward,
+            Entity.Transform.Up
+        );
+    }
+
+    private Matrix CalculateProjectionMatrix()
+    {
+        return Matrix.CreatePerspectiveFieldOfView(
+            Radians.FromDegrees(FOV),
+            AspectRatio,
+            NearClip,
+            FarClip
+        );
+    }
 }

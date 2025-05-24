@@ -105,7 +105,7 @@ namespace Sedulous.Platform.SDL3.Input
         }
 
         /// <inheritdoc/>
-        public override void Update(PlatformTime time)
+        public override void Update(Time time)
         {
 
         }

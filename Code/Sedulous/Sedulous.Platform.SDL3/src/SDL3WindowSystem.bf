@@ -3,6 +3,9 @@ using System.Diagnostics;
 using SDL3Native;
 using System;
 using System.Collections;
+using Sedulous.Platform.SDL3.Input;
+using Sedulous.Platform.Core.Input;
+using Sedulous.Foundation.Utilities;
 namespace Sedulous.Platform.SDL3;
 
 using internal Sedulous.Platform.SDL3;
@@ -41,6 +44,12 @@ class SDL3WindowSystem : WindowSystem
 	private bool mIsRunning = false;
 
 	public override bool IsRunning => mIsRunning;
+
+	private readonly SDL3InputSystem mInputSystem = null;
+
+	public InputSystem InputSystem => mInputSystem;
+
+	private readonly TimeTracker mTimeTracker = new .() ~ delete _;
 
 	private static bool SDLEventFilter(void* userData, SDL_Event* event)
 	{
@@ -85,10 +94,13 @@ class SDL3WindowSystem : WindowSystem
 	{
 		mPrimaryWindow = new SDL3Window(windowTitle, windowWidth, windowHeight);
 		mWindows.Add(mPrimaryWindow);
+
+		mInputSystem = new .(this);
 	}
 
 	public ~this()
 	{
+		delete mInputSystem;
 		delete mPrimaryWindow;
 	}
 
@@ -114,7 +126,7 @@ class SDL3WindowSystem : WindowSystem
 
 	public override void RunOneFrame(FrameCallback callback)
 	{
-		// todo: reset input devices
+		mInputSystem.ResetDeviceStates();
 
 		SDL_Event ev = .();
 
@@ -137,6 +149,7 @@ class SDL3WindowSystem : WindowSystem
 					/*if (mInputSystem.HandleEvent(ev))
 					{
 					}*/
+					mInputSystem.HandleEvent(ev);
 				}
 				break;
 			}
@@ -145,9 +158,9 @@ class SDL3WindowSystem : WindowSystem
 		var elapsedTicks = mTimer.Elapsed.Ticks;
 		mTimer.Restart();
 
-		callback?.Invoke(elapsedTicks);
+		mInputSystem.Update(mTimeTracker.Increment(TimeSpan(elapsedTicks)));
 
-		// todo: update input
+		callback?.Invoke(elapsedTicks);
 	}
 
 	public override Window GetWindowById(uint32 windowId)

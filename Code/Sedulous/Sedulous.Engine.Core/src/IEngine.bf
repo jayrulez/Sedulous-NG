@@ -4,6 +4,8 @@ using System.Collections;
 using Sedulous.Jobs;
 using Sedulous.Engine.Core.Resources;
 using Sedulous.Engine.Core.SceneGraph;
+using Sedulous.Messaging;
+using Sedulous.Foundation.Utilities;
 namespace Sedulous.Engine.Core;
 
 typealias EngineInitializingCallback = delegate Result<void>(EngineInitializer initializer);
@@ -30,7 +32,7 @@ interface IEngine
 	public struct UpdateInfo
 	{
 		public IEngine Engine;
-		public EngineTime Time;
+		public Time Time;
 	}
 
 	public struct RegisteredUpdateFunctionInfo
@@ -57,7 +59,8 @@ interface IEngine
 		public UpdateStage Stage;
 		public UpdateFunction Function;
 	}
-
+	
+	MessageBus Messages { get; }
 	Span<Subsystem> Subsystems { get; }
 	EngineState State { get; }
 	ILogger Logger { get; }

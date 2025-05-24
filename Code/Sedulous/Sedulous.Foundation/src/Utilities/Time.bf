@@ -1,7 +1,7 @@
 using System;
-namespace Sedulous.Engine.Core;
+namespace Sedulous.Foundation.Utilities;
 
-sealed class EngineTime
+sealed class Time
 {
 	public this()
 	{

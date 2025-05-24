@@ -118,7 +118,7 @@ namespace Sedulous.Platform.SDL3.Input
         }
 
         /// <inheritdoc/>
-        public override void Update(PlatformTime time)
+        public override void Update(Time time)
         {
             lastUpdateTime = time.TotalTime.TotalMilliseconds;
 
@@ -627,7 +627,7 @@ namespace Sedulous.Platform.SDL3.Input
         /// <summary>
         /// Raises repeated <see cref="GamePadDevice.AxisPressed"/> and <see cref="GamePadDevice.ButtonPressed"/> events as necessary.
         /// </summary>
-        private void CheckForRepeatedPresses(PlatformTime time)
+        private void CheckForRepeatedPresses(Time time)
         {
             for (int i = 0; i < repeatingAxis.Count; i++)
             {

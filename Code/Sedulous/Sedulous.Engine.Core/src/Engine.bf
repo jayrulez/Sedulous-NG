@@ -6,6 +6,8 @@ using Sedulous.Foundation.Logging.Debug;
 using Sedulous.Jobs;
 using Sedulous.Engine.Core.Resources;
 using Sedulous.Engine.Core.SceneGraph;
+using Sedulous.Messaging;
+using Sedulous.Foundation.Utilities;
 namespace Sedulous.Engine.Core;
 
 using internal Sedulous.Engine.Core;
@@ -15,6 +17,9 @@ using internal Sedulous.Jobs;
 
 sealed class Engine : IEngine
 {
+    private readonly MessageBus mMessageBus = new .() ~ delete _;
+    
+    public MessageBus Messages => mMessageBus;
 	private List<Subsystem> mSubsystems = new .() ~ delete _;
 
 	public Span<Subsystem> Subsystems => mSubsystems;
@@ -46,10 +51,10 @@ sealed class Engine : IEngine
 
 	// Current tick state.
 	private static readonly TimeSpan MaxElapsedTime = TimeSpan.FromMilliseconds(500);
-	private readonly EngineTimeTracker mPreUpdateTimeTracker = new .() ~ delete _;
-	private readonly EngineTimeTracker mPostUpdateTimeTracker = new .() ~ delete _;
-	private readonly EngineTimeTracker mUpdateTimeTracker = new .() ~ delete _;
-	private readonly EngineTimeTracker mFixedUpdateTimeTracker = new .() ~ delete _;
+	private readonly TimeTracker mPreUpdateTimeTracker = new .() ~ delete _;
+	private readonly TimeTracker mPostUpdateTimeTracker = new .() ~ delete _;
+	private readonly TimeTracker mUpdateTimeTracker = new .() ~ delete _;
+	private readonly TimeTracker mFixedUpdateTimeTracker = new .() ~ delete _;
 	private int64 mAccumulatedElapsedTime = 0;
 	private int32 mLagFrames = 0;
 	private bool mRunningSlowly = false;
@@ -195,6 +200,7 @@ sealed class Engine : IEngine
 		}
 
 		mSubsystems.Clear();
+        mMessageBus.Clear();
 
 		mInitialized = false;
 		mLogger.LogInformation("Engine uninitialized.");
@@ -266,7 +272,8 @@ sealed class Engine : IEngine
 
 
 #endregion
-
+		
+		mMessageBus.ProcessQueuedMessages();
 		mJobSystem.Update(elapsedTicks);
 		mResourceSystem.Update(elapsedTicks);
 

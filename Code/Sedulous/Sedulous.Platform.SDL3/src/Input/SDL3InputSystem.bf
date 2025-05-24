@@ -68,7 +68,7 @@ namespace Sedulous.Platform.SDL3.Input
 		}
 
 		/// <inheritdoc/>
-		public void Update(PlatformTime time)
+		public void Update(Time time)
 		{
 			this.keyboard.Update(time);
 			this.mouse.Update(time);

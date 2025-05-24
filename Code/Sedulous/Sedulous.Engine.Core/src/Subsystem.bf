@@ -1,65 +1,106 @@
 using System;
 using Sedulous.Engine.Core.SceneGraph;
+using System.Collections;
+using Sedulous.Jobs;
 namespace Sedulous.Engine.Core;
 
 abstract class Subsystem
 {
-	private IEngine mEngine = null;
-	private bool mInitialized = false;
+    private IEngine mEngine = null;
+    private bool mInitialized = false;
+    private List<IEngine.RegisteredUpdateFunctionInfo> mUpdateRegistrations = new .() ~ delete _;
 
-	public abstract StringView Name { get; }
+    public abstract StringView Name { get; }
 
-	internal Result<void> Initialize(IEngine engine)
-	{
-		if (mInitialized)
-			return .Ok;
+    internal Result<void> Initialize(IEngine engine)
+    {
+        if (mInitialized)
+            return .Ok;
 
-		mEngine = engine;
-		if (OnInitializing(mEngine) case .Ok)
-		{
-			mInitialized = true;
-			return .Ok;
-		}
+        mEngine = engine;
+        if (OnInitializing(mEngine) case .Ok)
+        {
+            mInitialized = true;
+            return .Ok;
+        }
 
-		return .Err;
-	}
+        return .Err;
+    }
 
-	internal void Initialized(IEngine engine)
-	{
-		OnInitialized(engine);
-	}
+    internal void Initialized(IEngine engine)
+    {
+        OnInitialized(engine);
+    }
 
-	protected virtual Result<void> OnInitializing(IEngine engine)
-	{
-		return .Ok;
-	}
+    protected virtual Result<void> OnInitializing(IEngine engine)
+    {
+        return .Ok;
+    }
 
-	protected virtual void OnInitialized(IEngine engine) { }
+    protected virtual void OnInitialized(IEngine engine) { }
 
-	internal void Uninitialize()
-	{
-		if (!mInitialized)
-			return;
+    internal void Uninitialize()
+    {
+        if (!mInitialized)
+            return;
 
-		OnUnitializing(mEngine);
+        OnUnitializing(mEngine);
 
-		mInitialized = false;
-		mEngine = null;
-	}
+        // Cleanup update registrations
+        mEngine.UnregisterUpdateFunctions(mUpdateRegistrations);
+        for (var registration in mUpdateRegistrations)
+        {
+            delete registration.Function;
+        }
+        mUpdateRegistrations.Clear();
 
-	protected virtual void OnUnitializing(IEngine engine) { }
+        mInitialized = false;
+        mEngine = null;
+    }
 
-	internal void SceneCreated(Scene scene)
-	{
-		OnSceneCreated(scene);
-	}
+    protected virtual void OnUnitializing(IEngine engine) { }
 
-	protected virtual void OnSceneCreated(Scene scene) { }
+    // Enhanced: Automatic scene module creation (multiple modules per subsystem)
+    internal void SceneCreated(Scene scene)
+    {
+        var modules = scope List<SceneModule>();
+        CreateSceneModules(scene, modules);
+        
+        for (var module in modules)
+        {
+            scene.AddModule(module);
+        }
+        
+        OnSceneCreated(scene);
+    }
 
-	internal void SceneDestroyed(Scene scene)
-	{
-		OnSceneDestroyed(scene);
-	}
+    internal void SceneDestroyed(Scene scene)
+    {
+        OnSceneDestroyed(scene);
+    }
 
-	protected virtual void OnSceneDestroyed(Scene scene) { }
+    // Override this to create subsystem-specific scene modules
+    protected virtual void CreateSceneModules(Scene scene, List<SceneModule> modules) { }
+
+    protected virtual void OnSceneCreated(Scene scene) { }
+    protected virtual void OnSceneDestroyed(Scene scene) { }
+
+    // Convenience methods for subsystems
+    protected void RegisterUpdateFunction(IEngine.UpdateFunctionInfo info)
+    {
+        var registration = mEngine.RegisterUpdateFunction(info);
+        mUpdateRegistrations.Add(registration);
+    }
+
+    protected void ScheduleJob(JobBase job)
+    {
+        mEngine.JobSystem.AddJob(job);
+    }
+
+    protected void ScheduleWork(delegate void() work, StringView name = null)
+    {
+        mEngine.JobSystem.AddJob(work, name);
+    }
+
+    protected IEngine Engine => mEngine;
 }

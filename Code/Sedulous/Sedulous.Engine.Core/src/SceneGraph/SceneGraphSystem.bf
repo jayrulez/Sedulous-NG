@@ -48,16 +48,21 @@ class SceneGraphSystem
 		}
 	}
 
-	public Result<void> CreateScene(out Scene scene)
+	public Result<Scene> CreateScene(StringView name = "Scene")
 	{
-		scene = ?;
+        var scene = new Scene();
+        scene.Name.Set(name);
+        scene.SetEngine(mEngine); // Set engine reference for events
+        
+        mScenes.Add(scene);
 
-		for (var subsystem in mEngine.Subsystems)
-		{
-			subsystem.SceneCreated(scene);
-		}
+        // Notify all subsystems that a scene was created
+        for (var subsystem in mEngine.Subsystems)
+        {
+            subsystem.SceneCreated(scene);
+        }
 
-		return .Ok;
+        return .Ok(scene);
 	}
 
 	public void DestroyScene(Scene scene)

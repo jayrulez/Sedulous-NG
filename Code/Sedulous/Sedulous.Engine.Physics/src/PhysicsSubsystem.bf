@@ -1,5 +1,7 @@
 using Sedulous.Engine.Core;
 using System;
+using Sedulous.Engine.Core.SceneGraph;
+using System.Collections;
 namespace Sedulous.Engine.Physics;
 
 class PhysicsSubsystem : Subsystem
@@ -39,6 +41,15 @@ class PhysicsSubsystem : Subsystem
 
 		base.OnUnitializing(engine);
 	}
+
+    protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
+    {
+        // Create multiple physics-related modules
+        modules.Add(new RigidBodyModule(this));        // Rigid body simulation
+        modules.Add(new CollisionModule(this));        // Collision detection
+        //modules.Add(new TriggerModule(this));          // Trigger volumes
+        //modules.Add(new PhysicsDebugModule(this));     // Debug visualization
+    }
 
 	private void OnUpdate(IEngine.UpdateInfo info)
 	{

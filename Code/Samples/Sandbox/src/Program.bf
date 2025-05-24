@@ -11,6 +11,7 @@ using Sedulous.Engine.Physics;
 using Sedulous.Platform.SDL3;
 using Sedulous.Engine.Renderer;
 using Sedulous.Runtime;
+using Sedulous.Engine.Input;
 namespace Sandbox;
 
 class Program
@@ -23,6 +24,7 @@ class Program
 		var app = scope Application(logger, windowSystem);
 
 		var renderer = scope SDLRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow);
+		var inputSubsystem = scope InputSubsystem(windowSystem.InputSystem);
 		var audioSubsystem = scope OpenALAudioSubsystem();
 		var navigationSubsystem = scope NavigationSubsystem();
 		var physicsSubsystem = scope PhysicsSubsystem();
@@ -30,6 +32,7 @@ class Program
 		app.Run(
 			initializingCallback: scope (initializer) =>
 			{
+				initializer.AddSubsystem(inputSubsystem);
 				initializer.AddSubsystem(renderer);
 				initializer.AddSubsystem(audioSubsystem);
 				initializer.AddSubsystem(navigationSubsystem);
@@ -38,13 +41,32 @@ class Program
 			},
 			initializedCallback: scope (engine) =>
 			{
+				// Setup input actions
+				/*var actionManager = inputSubsystem.ActionManager;
+				var keyboard = inputSubsystem.GetKeyboard();
+				var mouse = inputSubsystem.GetMouse();
 
-				// Create and set up the camera
-				var camera = scope:: Camera();
-				camera.Position = Vector3(0, 4, -15);
-				camera.Forward = Vector3(0, 0, 1);
+				actionManager.RegisterAction("MoveForward", new KeyAction(keyboard, .W));
+				actionManager.RegisterAction("MoveBack", new KeyAction(keyboard, .S));
+				actionManager.RegisterAction("MoveLeft", new KeyAction(keyboard, .A));
+				actionManager.RegisterAction("MoveRight", new KeyAction(keyboard, .D));
+				actionManager.RegisterAction("Jump", new KeyAction(keyboard, .Space));
+				actionManager.RegisterAction("Fire", new MouseButtonAction(mouse, .Left));*/
 
-				//renderer.Camera = camera;
+				/*// Create a scene
+				var scene = engine.SceneGraphSystem.CreateScene("Main Scene");
+				engine.SceneGraphSystem.SetActiveScene(scene);
+
+				// Create player entity
+				var player = scene.CreateEntity("Player");
+				player.AddComponent<MeshRenderer>();
+				player.AddComponent<InputComponent>();
+
+				// Setup camera
+				var cameraEntity = scene.CreateEntity("Camera");
+				var camera = cameraEntity.AddComponent<Camera>();
+				camera.FOV = 75.0f;
+				cameraEntity.Transform.Position = Vector3(0, 5, -10);*/
 			},
 			shuttingDownCallback: scope (engine) => { }
 			);

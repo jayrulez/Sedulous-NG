@@ -87,7 +87,7 @@ namespace Sedulous.Platform.SDL3.Input
         /// Updates the state of the attached game pad devices.
         /// </summary>
         /// <param name="time">Time elapsed since the last call to <see cref="Context.Update(Time)"/>.</param>
-        public void Update(PlatformTime time)
+        public void Update(Time time)
         {
             for (var device in devicesByPlayer)
             {

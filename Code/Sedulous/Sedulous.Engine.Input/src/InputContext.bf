@@ -1,0 +1,52 @@
+using System;
+using System.Collections;
+namespace Sedulous.Engine.Input;
+
+class InputContext
+{
+    internal Dictionary<String, InputAction> mActions = new .() ~ delete _;
+    private List<InputBinding> mBindings = new .() ~ delete _;
+
+    public void BindAction(StringView actionName, InputAction action)
+    {
+        String key = new .(actionName);
+        mActions[key] = action;
+    }
+
+    public void AddBinding(StringView actionName, delegate void(float value) callback)
+    {
+        mBindings.Add(InputBinding(actionName, callback, this));
+    }
+
+    public void Update(TimeSpan deltaTime)
+    {
+        for (var action in mActions.Values)
+        {
+            action.Update(deltaTime);
+        }
+
+        // Process bindings
+        for (var binding in ref mBindings)
+        {
+            binding.Update(deltaTime);
+        }
+    }
+
+    public bool IsActionPressed(StringView actionName)
+    {
+        if (mActions.TryGetValue(scope String(actionName), var action))
+        {
+            return action.IsPressed();
+        }
+        return false;
+    }
+
+    public float GetActionValue(StringView actionName)
+    {
+        if (mActions.TryGetValue(scope String(actionName), var action))
+        {
+            return action.GetValue();
+        }
+        return 0.0f;
+    }
+}

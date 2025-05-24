@@ -21,7 +21,6 @@ class InputSubsystem : Subsystem
 
     public ~this()
     {
-        delete mInputSystem;
     }
 
     protected override Result<void> OnInitializing(IEngine engine)

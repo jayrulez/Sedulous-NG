@@ -12,6 +12,7 @@ using Sedulous.Platform.SDL3;
 using Sedulous.Engine.Renderer;
 using Sedulous.Runtime;
 using Sedulous.Engine.Input;
+using Sedulous.Engine.Core.Resources;
 namespace Sandbox;
 
 class Program
@@ -53,20 +54,21 @@ class Program
 				actionManager.RegisterAction("Jump", new KeyAction(keyboard, .Space));
 				actionManager.RegisterAction("Fire", new MouseButtonAction(mouse, .Left));*/
 
-				/*// Create a scene
-				var scene = engine.SceneGraphSystem.CreateScene("Main Scene");
+				// Create a scene
+				var scene = engine.SceneGraphSystem.CreateScene("Main Scene").Value;
 				engine.SceneGraphSystem.SetActiveScene(scene);
 
 				// Create player entity
 				var player = scene.CreateEntity("Player");
-				player.AddComponent<MeshRenderer>();
-				player.AddComponent<InputComponent>();
+				var mesh = player.AddComponent<MeshRenderer>();
+				mesh.Mesh = ResourceHandle<Mesh>(MeshPrimitives.CreateCube());
+				//player.AddComponent<InputComponent>();
 
 				// Setup camera
 				var cameraEntity = scene.CreateEntity("Camera");
 				var camera = cameraEntity.AddComponent<Camera>();
 				camera.FOV = 75.0f;
-				cameraEntity.Transform.Position = Vector3(0, 5, -10);*/
+				cameraEntity.Transform.Position = Vector3(0, 5, -10);
 			},
 			shuttingDownCallback: scope (engine) => { }
 			);

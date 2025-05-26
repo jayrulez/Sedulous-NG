@@ -12,6 +12,8 @@ class SceneGraphSystem
 	private readonly List<Scene> mScenes = new .() ~ delete _;
 	private List<Scene> mActiveScenes = new .() ~ delete _;
 
+	public Span<Scene> ActiveScenes => mActiveScenes;
+
 	private IEngine.RegisteredUpdateFunctionInfo? mUpdateFunctionRegistration;
 
 	public this(IEngine engine)
@@ -46,6 +48,14 @@ class SceneGraphSystem
 			delete mUpdateFunctionRegistration.Value.Function;
 			mUpdateFunctionRegistration = null;
 		}
+
+		// Cleanup all scenes
+		for (var scene in mScenes)
+		{
+		    DestroyScene(scene);
+		}
+		mScenes.Clear();
+		mActiveScenes.Clear();
 	}
 
 	public Result<Scene> CreateScene(StringView name = "Scene")
@@ -67,9 +77,41 @@ class SceneGraphSystem
 
 	public void DestroyScene(Scene scene)
 	{
+		if (!mScenes.Contains(scene))
+			return;
+
+		// Remove from active list
+		mActiveScenes.Remove(scene);
+
 		for (var subsystem in mEngine.Subsystems)
 		{
 			subsystem.SceneDestroyed(scene);
 		}
+
+		// Cleanup
+		mScenes.Remove(scene);
+		delete scene;
+	}
+
+	public void SetActiveScene(Scene scene)
+	{
+	    if (!mScenes.Contains(scene))
+	        return;
+
+	    mActiveScenes.Clear();
+	    mActiveScenes.Add(scene);
+	}
+
+	public void AddActiveScene(Scene scene)
+	{
+	    if (mScenes.Contains(scene) && !mActiveScenes.Contains(scene))
+	    {
+	        mActiveScenes.Add(scene);
+	    }
+	}
+
+	public void RemoveActiveScene(Scene scene)
+	{
+	    mActiveScenes.Remove(scene);
 	}
 }

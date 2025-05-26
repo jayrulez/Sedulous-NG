@@ -21,6 +21,15 @@ class Scene
     {
         mEngine = engine;
     }
+
+	public ~this()
+	{
+
+		for(var entity in mEntities)
+		{
+			DestroyEntity(entity);
+		}
+	}
     
     // Entity management
     public Entity CreateEntity(StringView name = "Entity")

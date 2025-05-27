@@ -10,25 +10,30 @@ using Sedulous.Platform.SDL3;
 using Sedulous.Engine.Core.SceneGraph;
 namespace Sedulous.Engine.Renderer.SDL;
 
+struct Vertex
+{
+    public Vector3 Position;
+    public Vector3 Color;
+}
+
 class SDLRendererSubsystem : Subsystem
 {
     public override StringView Name => "SDLRenderer";
 
     internal SDL_GPUDevice* mDevice;
     private SDL3Window mPrimaryWindow;
-    private Dictionary<String, SDL_GPUGraphicsPipeline*> mPipelineCache = new .() ~ DeleteDictionaryAndKeys!(_);
-    private Dictionary<String, SDL_GPUShader*> mShaderCache = new .() ~ DeleteDictionaryAndKeys!(_);
-
-	private IEngine.RegisteredUpdateFunctionInfo? mUpdateFunctionRegistration;
-	private IEngine.RegisteredUpdateFunctionInfo? mRenderFunctionRegistration;
-
-	private delegate void(uint32 width, uint32 height) mWindowResizeDelegate = null ~ delete _;
-
-    // Uniform buffers
-    internal SDL_GPUBuffer* CameraBuffer;
-    internal SDL_GPUBuffer* MaterialBuffer;
-    internal SDL_GPUBuffer* ObjectBuffer;
-
+    
+    private IEngine.RegisteredUpdateFunctionInfo? mUpdateFunctionRegistration;
+    private IEngine.RegisteredUpdateFunctionInfo? mRenderFunctionRegistration;
+    
+    // Basic pipeline for triangle
+    private SDL_GPUGraphicsPipeline* mTrianglePipeline;
+    private SDL_GPUShader* mVertexShader;
+    private SDL_GPUShader* mFragmentShader;
+    
+    // Vertex buffer for triangle
+    private SDL_GPUBuffer* mTriangleVertexBuffer;
+    
     public uint32 Width => mPrimaryWindow.Width;
     public uint32 Height => mPrimaryWindow.Height;
 
@@ -39,198 +44,221 @@ class SDLRendererSubsystem : Subsystem
 
     protected override Result<void> OnInitializing(IEngine engine)
     {
-		mUpdateFunctionRegistration = engine.RegisterUpdateFunction(.()
-			{
-				Priority = 1,
-				Stage = .VariableUpdate,
-				Function = new => OnUpdate
-			});
+        mUpdateFunctionRegistration = engine.RegisterUpdateFunction(.()
+        {
+            Priority = 1,
+            Stage = .VariableUpdate,
+            Function = new => OnUpdate
+        });
 
-		mRenderFunctionRegistration = engine.RegisterUpdateFunction(.()
-			{
-				Priority = -100,
-				Stage = .PostUpdate,
-				Function = new => OnRender
-			});
+        mRenderFunctionRegistration = engine.RegisterUpdateFunction(.()
+        {
+            Priority = -100,
+            Stage = .PostUpdate,
+            Function = new => OnRender
+        });
 
         // Initialize SDL GPU device
         mDevice = SDL_CreateGPUDevice(
-            .SDL_GPU_SHADERFORMAT_SPIRV | .SDL_GPU_SHADERFORMAT_DXIL| .SDL_GPU_SHADERFORMAT_MSL,
+            .SDL_GPU_SHADERFORMAT_SPIRV | .SDL_GPU_SHADERFORMAT_DXIL | .SDL_GPU_SHADERFORMAT_MSL,
             true, null);
 
         if (!SDL_ClaimWindowForGPUDevice(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL")))
         {
-			SDL_Log("GPUClaimWindow failed");
+            SDL_Log("GPUClaimWindow failed");
             return .Err;
         }
 
-		GetGPUShaderFormat();
+        GetGPUShaderFormat();
 
-        // Create uniform buffers
-        CreateUniformBuffers();
-        
-        // Load default shaders
-        LoadDefaultShaders();
+        // Create basic resources
+        CreateTriangleResources();
+        CreateShaders();
+        CreatePipeline();
 
         return base.OnInitializing(engine);
     }
 
     protected override void OnUnitializing(IEngine engine)
     {
-        // Cleanup pipelines
-        for (var pipeline in mPipelineCache.Values)
-        {
-            SDL_ReleaseGPUGraphicsPipeline(mDevice, pipeline);
-        }
-        
-        // Cleanup shaders
-        for (var shader in mShaderCache.Values)
-        {
-            SDL_ReleaseGPUShader(mDevice, shader);
-        }
-
-        // Cleanup uniform buffers
-        SDL_ReleaseGPUBuffer(mDevice, CameraBuffer);
-        SDL_ReleaseGPUBuffer(mDevice, MaterialBuffer);
-        SDL_ReleaseGPUBuffer(mDevice, ObjectBuffer);
+        // Cleanup
+        SDL_ReleaseGPUGraphicsPipeline(mDevice, mTrianglePipeline);
+        SDL_ReleaseGPUShader(mDevice, mVertexShader);
+        SDL_ReleaseGPUShader(mDevice, mFragmentShader);
+        SDL_ReleaseGPUBuffer(mDevice, mTriangleVertexBuffer);
 
         SDL_ReleaseWindowFromGPUDevice(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
         SDL_DestroyGPUDevice(mDevice);
 
-		if (mUpdateFunctionRegistration.HasValue)
-		{
-			engine.UnregisterUpdateFunction(mUpdateFunctionRegistration.Value);
-			delete mUpdateFunctionRegistration.Value.Function;
-			mUpdateFunctionRegistration = null;
-		}
+        if (mUpdateFunctionRegistration.HasValue)
+        {
+            engine.UnregisterUpdateFunction(mUpdateFunctionRegistration.Value);
+            delete mUpdateFunctionRegistration.Value.Function;
+            mUpdateFunctionRegistration = null;
+        }
 
-		if (mRenderFunctionRegistration.HasValue)
-		{
-			engine.UnregisterUpdateFunction(mRenderFunctionRegistration.Value);
-			delete mRenderFunctionRegistration.Value.Function;
-			mRenderFunctionRegistration = null;
-		}
+        if (mRenderFunctionRegistration.HasValue)
+        {
+            engine.UnregisterUpdateFunction(mRenderFunctionRegistration.Value);
+            delete mRenderFunctionRegistration.Value.Function;
+            mRenderFunctionRegistration = null;
+        }
 
-		base.OnUnitializing(engine);
+        base.OnUnitializing(engine);
     }
 
-	private RenderModule mRenderModule;
-	private CullingModule mCullingModule;
-	private LightingModule mLightingModule;
-	private PostProcessModule mPostProcessModule;
+	private RenderModule mRenderModule = null;
 
     protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
     {
         modules.Add(mRenderModule = new RenderModule(this));
-        modules.Add(mCullingModule = new CullingModule(this));
-        modules.Add(mLightingModule = new LightingModule(this));
-		modules.Add(mPostProcessModule = new PostProcessModule(this));
     }
 
     protected override void DestroySceneModules(Scene scene)
     {
         delete mRenderModule;
-        delete mCullingModule;
-        delete mLightingModule;
-		delete mPostProcessModule;
     }
 
-    private void CreateUniformBuffers()
+    private void CreateTriangleResources()
     {
-        var cameraBufferDesc = SDL_GPUBufferCreateInfo()
-        {
-            usage = .SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-            size = sizeof(CameraData)
-        };
-        CameraBuffer = SDL_CreateGPUBuffer(mDevice, &cameraBufferDesc);
+        // Simple triangle vertices with position and color
+        Vertex[3] triangleData = .(
+            .{ Position = .(-0.5f, -0.5f, 0.0f), Color = .(1.0f, 0.0f, 0.0f) },
+            .{ Position = .(0.5f, -0.5f, 0.0f), Color = .(0.0f, 1.0f, 0.0f) },
+            .{ Position = .(0.0f, 0.5f, 0.0f), Color = .(0.0f, 0.0f, 1.0f) }
+        );
 
-        var materialBufferDesc = SDL_GPUBufferCreateInfo()
+        // Create vertex buffer
+        var vertexBufferDesc = SDL_GPUBufferCreateInfo()
         {
-            usage = .SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-            size = sizeof(Material.MaterialProperties)
+            usage = .SDL_GPU_BUFFERUSAGE_VERTEX,
+            size = sizeof(Vertex) * 3
         };
-        MaterialBuffer = SDL_CreateGPUBuffer(mDevice, &materialBufferDesc);
+        mTriangleVertexBuffer = SDL_CreateGPUBuffer(mDevice, &vertexBufferDesc);
 
-        var objectBufferDesc = SDL_GPUBufferCreateInfo()
+        // Upload triangle data
+        var transferBuffer = SDL_CreateGPUTransferBuffer(mDevice, scope .()
         {
-            usage = .SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-            size = sizeof(Matrix)
-        };
-        ObjectBuffer = SDL_CreateGPUBuffer(mDevice, &objectBufferDesc);
+            size = sizeof(Vertex) * 3,
+            usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD
+        });
+
+        void* mappedData = SDL_MapGPUTransferBuffer(mDevice, transferBuffer, false);
+        Internal.MemCpy(mappedData, &triangleData[0], sizeof(Vertex) * 3);
+        SDL_UnmapGPUTransferBuffer(mDevice, transferBuffer);
+
+        // Upload to GPU
+        var commandBuffer = SDL_AcquireGPUCommandBuffer(mDevice);
+        var copyPass = SDL_BeginGPUCopyPass(commandBuffer);
+        
+        SDL_UploadToGPUBuffer(copyPass, scope .()
+        {
+            transfer_buffer = transferBuffer,
+            offset = 0
+        }, scope .()
+        {
+            buffer = mTriangleVertexBuffer,
+            offset = 0,
+            size = sizeof(Vertex) * 3
+        }, false);
+        
+        SDL_EndGPUCopyPass(copyPass);
+        SDL_SubmitGPUCommandBuffer(commandBuffer);
+        
+        SDL_ReleaseGPUTransferBuffer(mDevice, transferBuffer);
     }
 
-    private void LoadDefaultShaders()
+    private void CreateShaders()
     {
-        // Load basic vertex and fragment shaders
-        LoadShader("DefaultLit_VS", "shaders/DefaultLit_VS.hlsl", .SDL_SHADERCROSS_SHADERSTAGE_VERTEX);
-        LoadShader("DefaultLit_PS", "shaders/DefaultLit_PS.hlsl", .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT);
-        LoadShader("Unlit_VS", "shaders/Unlit_VS.hlsl", .SDL_SHADERCROSS_SHADERSTAGE_VERTEX);
-        LoadShader("Unlit_PS", "shaders/Unlit_PS.hlsl", .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT);
-    }
+        // Simple vertex shader that passes through vertex data
+        String vertexShaderSource = """
+struct VSInput
+{
+    float3 Position : POSITION0;
+    float3 Color : COLOR0;
+};
 
-    private void LoadShader(StringView name, StringView path, SDL_ShaderCross_ShaderStage stage)
-    {
-        var byteCode = scope List<uint8>();
-        CompileShader(scope String(path), stage, "main", byteCode);
+struct VSOutput
+{
+    float4 Position : SV_Position;
+    float3 Color : COLOR0;
+};
 
-        var shaderDesc = SDL_GPUShaderCreateInfo()
+VSOutput main(VSInput input)
+{
+    VSOutput output;
+    output.Position = float4(input.Position, 1.0);
+    output.Color = input.Color;
+    return output;
+}
+""";
+
+        // Simple fragment shader
+        String fragmentShaderSource = """
+struct PSInput
+{
+    float4 Position : SV_Position;
+    float3 Color : COLOR0;
+};
+
+float4 main(PSInput input) : SV_Target
+{
+    return float4(input.Color, 1.0);
+}
+""";
+
+        // Compile shaders
+        var vsCode = scope List<uint8>();
+        var psCode = scope List<uint8>();
+        
+        CompileShaderFromSource(vertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", vsCode);
+        CompileShaderFromSource(fragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", psCode);
+
+        // Create shader objects
+        var vsDesc = SDL_GPUShaderCreateInfo()
         {
-            code = byteCode.Ptr,
-            code_size = (uint32)byteCode.Count,
+            code = vsCode.Ptr,
+            code_size = (uint32)vsCode.Count,
             entrypoint = "main",
             format = ShaderFormat,
-            stage = (SDL_GPUShaderStage)stage
+            stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+            num_samplers = 0,
+            num_uniform_buffers = 0,
+            num_storage_buffers = 0,
+            num_storage_textures = 0
         };
+        mVertexShader = SDL_CreateGPUShader(mDevice, &vsDesc);
 
-        var shader = SDL_CreateGPUShader(mDevice, &shaderDesc);
-        mShaderCache[new String(name)] = shader;
+        var psDesc = SDL_GPUShaderCreateInfo()
+        {
+            code = psCode.Ptr,
+            code_size = (uint32)psCode.Count,
+            entrypoint = "main",
+            format = ShaderFormat,
+            stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
+            num_samplers = 0,
+            num_uniform_buffers = 0,
+            num_storage_buffers = 0,
+            num_storage_textures = 0
+        };
+        mFragmentShader = SDL_CreateGPUShader(mDevice, &psDesc);
     }
 
-    public SDL_GPUGraphicsPipeline* GetMaterialPipeline(Material material, bool enableBlending)
+    private void CreatePipeline()
     {
-        var pipelineKey = scope String();
-        pipelineKey.AppendF("{}_Blend{}", material.ShaderName, enableBlending);
-
-        if (!mPipelineCache.TryGetValue(pipelineKey, var pipeline))
-        {
-            pipeline = CreateMaterialPipeline(material, enableBlending);
-            mPipelineCache[new String(pipelineKey)] = pipeline;
-        }
-
-        return pipeline;
-    }
-
-    private SDL_GPUGraphicsPipeline* CreateMaterialPipeline(Material material, bool enableBlending)
-    {
-        var vertexShaderName = scope String();
-        var fragmentShaderName = scope String();
-        
-        vertexShaderName.AppendF("{}_VS", material.ShaderName);
-        fragmentShaderName.AppendF("{}_PS", material.ShaderName);
-
-        var vertexShader = mShaderCache.GetValueOrDefault(vertexShaderName);
-        var fragmentShader = mShaderCache.GetValueOrDefault(fragmentShaderName);
-
-        if (vertexShader == null || fragmentShader == null)
-        {
-            // Fallback to default shaders
-            vertexShader = mShaderCache["DefaultLit_VS"];
-            fragmentShader = mShaderCache["DefaultLit_PS"];
-        }
+        // Query the swapchain format
+        SDL_GPUTextureFormat swapchainFormat = SDL_GetGPUSwapchainTextureFormat(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
 
         // Define vertex attributes
-        var vertexAttributes = SDL_GPUVertexAttribute[4]
-        (
-            .{ location = 0, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 0 },     // Position
-            .{ location = 1, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 12 },   // Normal  
-            .{ location = 2, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, offset = 24 },   // TexCoord
-            .{ location = 3, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4, offset = 32 }    // Color
+        var vertexAttributes = SDL_GPUVertexAttribute[2](
+            .{ location = 0, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 0 },    // Position
+            .{ location = 1, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 12 }    // Color
         );
 
         var vertexBufferDesc = SDL_GPUVertexBufferDescription()
         {
             slot = 0,
-            pitch = sizeof(Mesh.Vertex),
+            pitch = 24, // sizeof(Vector3) * 2
             input_rate = .SDL_GPU_VERTEXINPUTRATE_VERTEX,
             instance_step_rate = 0
         };
@@ -240,21 +268,22 @@ class SDLRendererSubsystem : Subsystem
             vertex_buffer_descriptions = &vertexBufferDesc,
             num_vertex_buffers = 1,
             vertex_attributes = &vertexAttributes[0],
-            num_vertex_attributes = 4
+            num_vertex_attributes = 2
         };
 
         var colorTargetDesc = SDL_GPUColorTargetDescription()
         {
-            format = .SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+            format = swapchainFormat,
             blend_state = .{
-                src_color_blendfactor = enableBlending ? .SDL_GPU_BLENDFACTOR_SRC_ALPHA : .SDL_GPU_BLENDFACTOR_ONE,
-                dst_color_blendfactor = enableBlending ? .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA : .SDL_GPU_BLENDFACTOR_ZERO,
+                src_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
+                dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ZERO,
                 color_blend_op = .SDL_GPU_BLENDOP_ADD,
                 src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
                 dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ZERO,
                 alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
-                color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G | .SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
-                enable_blend = enableBlending,
+                color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G | 
+                                  .SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
+                enable_blend = false,
                 enable_color_write_mask = false
             }
         };
@@ -263,18 +292,18 @@ class SDLRendererSubsystem : Subsystem
         {
             color_target_descriptions = &colorTargetDesc,
             num_color_targets = 1,
-            depth_stencil_format = .SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-            has_depth_stencil_target = true
+            depth_stencil_format = .SDL_GPU_TEXTUREFORMAT_INVALID,
+            has_depth_stencil_target = false
         };
 
         var pipelineDesc = SDL_GPUGraphicsPipelineCreateInfo()
         {
-            vertex_shader = vertexShader,
-            fragment_shader = fragmentShader,
+            vertex_shader = mVertexShader,
+            fragment_shader = mFragmentShader,
             vertex_input_state = vertexInputState,
             primitive_type = .SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
             rasterizer_state = .{
-                cull_mode = .SDL_GPU_CULLMODE_BACK,
+                cull_mode = .SDL_GPU_CULLMODE_NONE,
                 front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
                 fill_mode = .SDL_GPU_FILLMODE_FILL,
                 enable_depth_bias = false,
@@ -288,25 +317,26 @@ class SDLRendererSubsystem : Subsystem
                 enable_mask = false
             },
             depth_stencil_state = .{
-                compare_op = .SDL_GPU_COMPAREOP_LESS,
+                compare_op = .SDL_GPU_COMPAREOP_ALWAYS,
                 back_stencil_state = .{},
                 front_stencil_state = .{},
                 compare_mask = 0,
                 write_mask = 0,
-                enable_depth_test = true,
-                enable_depth_write = true,
+                enable_depth_test = false,
+                enable_depth_write = false,
                 enable_stencil_test = false
             },
             target_info = targetInfo,
             props = 0
         };
 
-        return SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+        mTrianglePipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
     }
 
-	private void OnUpdate(IEngine.UpdateInfo info)
-	{
-	}
+    private void OnUpdate(IEngine.UpdateInfo info)
+    {
+        // Nothing to update for now
+    }
 
     private void OnRender(IEngine.UpdateInfo info)
     {
@@ -318,48 +348,100 @@ class SDLRendererSubsystem : Subsystem
             (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"), 
             &swapchainTexture, null, null);
 
-        // Render all active scenes
-        for (var scene in info.Engine.SceneGraphSystem.ActiveScenes)
+        if (swapchainTexture != null)
         {
-            var renderModule = scene.GetModule<RenderModule>();
-            if (renderModule != null)
+            // Begin render pass
+            var colorTarget = SDL_GPUColorTargetInfo()
             {
-                renderModule.Render(commandBuffer, swapchainTexture);
-            }
+                texture = swapchainTexture,
+                clear_color = .{ r = 0.2f, g = 0.3f, b = 0.4f, a = 1.0f },
+                load_op = .SDL_GPU_LOADOP_CLEAR,
+                store_op = .SDL_GPU_STOREOP_STORE
+            };
+
+            var renderPass = SDL_BeginGPURenderPass(commandBuffer, &colorTarget, 1, null);
+
+            // Set viewport
+            var viewport = SDL_GPUViewport()
+            {
+                x = 0, y = 0,
+                w = (float)Width,
+                h = (float)Height,
+                min_depth = 0.0f,
+                max_depth = 1.0f
+            };
+            SDL_SetGPUViewport(renderPass, &viewport);
+
+            // Bind pipeline
+            SDL_BindGPUGraphicsPipeline(renderPass, mTrianglePipeline);
+
+            // Bind vertex buffer
+            var vertexBinding = SDL_GPUBufferBinding()
+            {
+                buffer = mTriangleVertexBuffer,
+                offset = 0
+            };
+            SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBinding, 1);
+
+            // Draw triangle
+            SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
+
+            SDL_EndGPURenderPass(renderPass);
         }
 
         SDL_SubmitGPUCommandBuffer(commandBuffer);
     }
 
-    internal void CompileShader(String shaderPath, SDL_ShaderCross_ShaderStage stage, String entrypoint, List<uint8> byteCode)
+    private void CompileShaderFromSource(String source, SDL_ShaderCross_ShaderStage stage, 
+        String entrypoint, List<uint8> byteCode)
     {
-        String error = scope .();
-        String shaderSource = scope .();
-        if (File.ReadAllText(shaderPath, shaderSource) case .Err)
-        {
-            Runtime.FatalError(scope $"Failed to read shader: {shaderPath}.");
-        }
-
         SDL_ShaderCross_HLSL_Info hlslInfo = .()
         {
-            source = shaderSource.CStr(),
+            source = source.CStr(),
             entrypoint = entrypoint.CStr(),
             shader_stage = stage,
-            enable_debug = true
+            enable_debug = false
         };
 
         uint spirvByteCodeSize = 0;
         void* spirvByteCode = SDL_ShaderCross_CompileSPIRVFromHLSL(&hlslInfo, &spirvByteCodeSize);
         if(spirvByteCode == null)
         {
-            error.Set(scope .(SDL_GetError()));
-            Runtime.FatalError(scope $"Shader compilation fail: {shaderPath} - {error}");
+            Runtime.FatalError(scope $"Shader compilation failed: {StringView(SDL_GetError())}");
         }
 
         byteCode.AddRange(Span<uint8>((uint8*)spirvByteCode, (int)spirvByteCodeSize));
     }
 
-    internal SDL_GPUShaderFormat ShaderFormat = .SDL_GPU_SHADERFORMAT_SPIRV; // Set appropriately
+	internal void CompileShader(String shaderPath, SDL_ShaderCross_ShaderStage stage, String entrypoint, List<uint8> byteCode)
+	{
+		String error = scope .();
+		String shaderSource = scope .();
+		if (File.ReadAllText(shaderPath, shaderSource) case .Err)
+		{
+			Runtime.FatalError(scope $"Failed to read shader: {shaderPath}.");
+		}
+
+		SDL_ShaderCross_HLSL_Info hlslInfo = .()
+			{
+				source = shaderSource.CStr(),
+				entrypoint = entrypoint.CStr(),
+				shader_stage = stage,
+				enable_debug = true
+			};
+
+		uint spirvByteCodeSize = 0;
+		void* spirvByteCode = SDL_ShaderCross_CompileSPIRVFromHLSL(&hlslInfo, &spirvByteCodeSize);
+		if (spirvByteCode == null)
+		{
+			error.Set(scope .(SDL_GetError()));
+			Runtime.FatalError(scope $"Shader compilation fail: {shaderPath} - {error}");
+		}
+
+		byteCode.AddRange(Span<uint8>((uint8*)spirvByteCode, (int)spirvByteCodeSize));
+	}
+
+	internal SDL_GPUShaderFormat ShaderFormat = .SDL_GPU_SHADERFORMAT_SPIRV; // Set appropriately
 
 	private void GetGPUShaderFormat()
 	{

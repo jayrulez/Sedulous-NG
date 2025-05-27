@@ -59,10 +59,10 @@ class Program
 				engine.SceneGraphSystem.SetActiveScene(scene);
 
 				// Create player entity
-				var player = scene.CreateEntity("Player");
-				var mesh = player.AddComponent<MeshRenderer>();
-				mesh.Mesh = ResourceHandle<Mesh>(MeshPrimitives.CreateCube());
-				mesh.Material = ResourceHandle<Material>(new Material());
+				//var player = scene.CreateEntity("Player");
+				//var mesh = player.AddComponent<MeshRenderer>();
+				//mesh.Mesh = ResourceHandle<Mesh>(MeshPrimitives.CreateCube());
+				//mesh.Material = ResourceHandle<Material>(new Material());
 				//player.AddComponent<InputComponent>();
 
 				// Setup camera

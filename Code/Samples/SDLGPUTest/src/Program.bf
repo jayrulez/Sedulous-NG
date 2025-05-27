@@ -313,7 +313,7 @@ class Program
 
 		Context context = .();
 
-		if (!SDL_Init(.SDL_INIT_VIDEO))
+		if (!SDL_Init(.SDL_INIT_VIDEO | .SDL_INIT_EVENTS))
 		{
 			Debug.WriteLine("SDL_Init failed: {0}", SDL_GetError());
 			return;
@@ -333,11 +333,34 @@ class Program
 
 		while (true)
 		{
+			context.LeftPressed = false;
+			context.RightPressed = false;
+			context.DownPressed = false;
+			context.UpPressed = false;
+
 			SDL_Event ev = .();
 			while (SDL_PollEvent(&ev))
 			{
 				if (ev.type == (.)SDL_EventType.SDL_EVENT_QUIT)
 					return;
+
+				if(ev.type == (.)SDL_EventType.SDL_EVENT_KEY_DOWN)
+				{
+					switch(ev.key.key)
+					{
+					case SDL_Keycode.SDLK_LEFT:
+						context.LeftPressed = true;
+						break;
+					case SDL_Keycode.SDLK_RIGHT:
+						context.RightPressed = true;
+						break;
+					case SDL_Keycode.SDLK_DOWN:
+						context.DownPressed = true;
+						break;
+
+					default: break;
+					}
+				}
 			}
 			Update(&context);
 			Draw(&context);

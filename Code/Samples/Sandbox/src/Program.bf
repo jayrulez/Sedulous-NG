@@ -66,10 +66,41 @@ class Program
 				//player.AddComponent<InputComponent>();
 
 				// Setup camera
-				var cameraEntity = scene.CreateEntity("Camera");
+				/*var cameraEntity = scene.CreateEntity("Camera");
 				var camera = cameraEntity.AddComponent<Camera>();
-				camera.FOV = 75.0f;
+				camera.FieldOfView = 75.0f;
+				cameraEntity.Transform.Position = Vector3(0, 5, -10);*/
+
+				// Create camera
+				var cameraEntity = scene.CreateEntity("Camera");
 				cameraEntity.Transform.Position = Vector3(0, 5, -10);
+				cameraEntity.Transform.LookAt(Vector3.Zero, Vector3.Up);  // Look at origin
+				var camera = cameraEntity.AddComponent<Camera>();
+				camera.FieldOfView = 75.0f;
+
+				// Create light
+				var lightEntity = scene.CreateEntity("Light");
+				lightEntity.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(0, Math.DegreesToRadians(-45), 0);
+				var light = lightEntity.AddComponent<Light>();
+				light.Type = .Directional;
+				light.Color = Vector3(1, 0.95f, 0.8f);
+				light.Intensity = 1.0f;
+
+				// Create objects
+				for (int i = 0; i < 5; i++)
+				{
+				    var cube = scene.CreateEntity(scope $"Cube{i}");
+				    cube.Transform.Position = Vector3(i * 2 - 4, 0, 0);
+					cube.Transform.Scale = Vector3(1, 1, 1);
+				    var renderer = cube.AddComponent<MeshRenderer>();
+				    renderer.Color = Vector4(
+					    (float)i / 4.0f,  // Red gradient
+					    0.5f,             // Green
+					    1.0f - (float)i / 4.0f,  // Blue gradient
+					    1.0f              // Alpha
+					);
+				    renderer.UseLighting = true;
+				}
 			},
 			shuttingDownCallback: scope (engine) => { }
 			);

@@ -10,6 +10,15 @@ namespace Sedulous.Engine.Renderer.SDL;
 using internal Sedulous.Engine.Renderer.SDL;
 
 // Components
+class SpriteRenderer : Component
+{
+    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<SpriteRenderer>();
+    public override ComponentTypeId TypeId => sTypeId;
+    
+    public ResourceHandle<Texture> Texture { get; set; }
+    public Color Color { get; set; } = .White;
+}
+
 class MeshRenderer : Component
 {
     private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<MeshRenderer>();
@@ -80,6 +89,37 @@ struct RenderCommand
     public Matrix WorldMatrix;
     public MeshRenderer Renderer;
     public float DistanceToCamera;
+}
+
+// Uniform buffer structures must match shader exactly
+[CRepr, Packed]
+struct LitVertexUniforms
+{
+    public Matrix ViewProjection;
+    public Matrix World;
+    public Matrix NormalMatrix;
+}
+
+[CRepr, Packed]
+struct LitFragmentUniforms
+{
+    public Vector4 LightDirAndIntensity;  // xyz = direction, w = intensity
+    public Vector4 LightColorPad;          // xyz = color, w = padding
+    public Vector4 MaterialColor;
+    public Vector4 CameraPosAndPad;        // xyz = position, w = padding
+}
+
+[CRepr, Packed]
+struct UnlitVertexUniforms
+{
+    public Matrix ViewProjection;
+    public Matrix World;
+}
+
+[CRepr, Packed]
+struct UnlitFragmentUniforms
+{
+    public Vector4 MaterialColor;
 }
 
 class RenderModule : SceneModule
@@ -191,10 +231,7 @@ class RenderModule : SceneModule
         // Update matrices if we have a camera
         if (mActiveCamera != null)
         {
-			//mViewMatrix = mActiveCamera.GetViewMatrix(mActiveCameraTransform);
             mViewMatrix = mActiveCamera.ViewMatrix;
-            //float aspectRatio = (float)mRenderer.Width / (float)mRenderer.Height;
-			//mProjectionMatrix = mActiveCamera.GetProjectionMatrix(aspectRatio);
             mProjectionMatrix = mActiveCamera.ProjectionMatrix;
             mViewProjectionMatrix = mViewMatrix * mProjectionMatrix;
         }
@@ -245,6 +282,9 @@ class RenderModule : SceneModule
 
         if (swapchainTexture != null)
         {
+            // Update all uniforms before starting render pass
+            UpdateAllUniforms(commandBuffer);
+
             // Setup render targets
             var colorTarget = SDL_GPUColorTargetInfo()
             {
@@ -281,7 +321,7 @@ class RenderModule : SceneModule
             // Render all commands
             for (var command in mRenderCommands)
             {
-                RenderObject(commandBuffer, renderPass, command);
+                RenderObject(renderPass, command);
             }
 
             SDL_EndGPURenderPass(renderPass);
@@ -290,13 +330,83 @@ class RenderModule : SceneModule
         SDL_SubmitGPUCommandBuffer(commandBuffer);
     }
 
-    private void RenderObject(SDL_GPUCommandBuffer* commandBuffer, SDL_GPURenderPass* renderPass, RenderCommand command)
+    private void UpdateAllUniforms(SDL_GPUCommandBuffer* commandBuffer)
+    {
+        if (mRenderCommands.Count == 0 || mActiveCamera == null)
+            return;
+
+        // For now, just update with the first object's data
+        // In a real system, you'd batch updates or use dynamic offsets
+        var firstCommand = mRenderCommands[0];
+
+        // Get uniform buffers
+        SDL_GPUBuffer* vertexUniformBuffer;
+        SDL_GPUBuffer* fragmentUniformBuffer;
+        mRenderer.GetUniformBuffers(out vertexUniformBuffer, out fragmentUniformBuffer);
+
+        if (firstCommand.Renderer.UseLighting)
+        {
+            // Update vertex uniforms
+            Matrix normalMatrix = firstCommand.WorldMatrix;
+            normalMatrix = Matrix.Invert(normalMatrix);
+            normalMatrix = Matrix.Transpose(normalMatrix);
+
+            var vertexUniforms = LitVertexUniforms()
+            {
+                ViewProjection = mViewProjectionMatrix,
+                World = firstCommand.WorldMatrix,
+                NormalMatrix = normalMatrix
+            };
+
+            // Update fragment uniforms
+            var lightDir = mMainLight != null ? mMainLightTransform.Forward : Vector3(0, -1, 0);
+            var lightColor = mMainLight != null ? mMainLight.Color : Vector3(1, 1, 1);
+            var lightIntensity = mMainLight != null ? mMainLight.Intensity : 1.0f;
+
+            var fragmentUniforms = LitFragmentUniforms()
+            {
+                LightDirAndIntensity = Vector4(lightDir.X, lightDir.Y, lightDir.Z, lightIntensity),
+                LightColorPad = Vector4(lightColor.X, lightColor.Y, lightColor.Z, 0),
+                MaterialColor = firstCommand.Renderer.Color,
+                CameraPosAndPad = Vector4(mActiveCameraTransform.Position.X, mActiveCameraTransform.Position.Y, mActiveCameraTransform.Position.Z, 0)
+            };
+
+            // Upload uniforms
+            UploadUniforms(commandBuffer, vertexUniformBuffer, &vertexUniforms, sizeof(LitVertexUniforms));
+            UploadUniforms(commandBuffer, fragmentUniformBuffer, &fragmentUniforms, sizeof(LitFragmentUniforms));
+        }
+        else
+        {
+            // Unlit rendering
+            var vertexUniforms = UnlitVertexUniforms()
+            {
+                ViewProjection = mViewProjectionMatrix,
+                World = firstCommand.WorldMatrix
+            };
+
+            var fragmentUniforms = UnlitFragmentUniforms()
+            {
+                MaterialColor = firstCommand.Renderer.Color
+            };
+
+            // Upload uniforms
+            UploadUniforms(commandBuffer, vertexUniformBuffer, &vertexUniforms, sizeof(UnlitVertexUniforms));
+            UploadUniforms(commandBuffer, fragmentUniformBuffer, &fragmentUniforms, sizeof(UnlitFragmentUniforms));
+        }
+    }
+
+    private void RenderObject(SDL_GPURenderPass* renderPass, RenderCommand command)
     {
         // Get mesh data (using default cube for now)
         SDL_GPUBuffer* vertexBuffer;
         SDL_GPUBuffer* indexBuffer;
         uint32 indexCount;
         mRenderer.GetDefaultMesh(out vertexBuffer, out indexBuffer, out indexCount);
+
+        // Get uniform buffers
+        SDL_GPUBuffer* vertexUniformBuffer;
+        SDL_GPUBuffer* fragmentUniformBuffer;
+        mRenderer.GetUniformBuffers(out vertexUniformBuffer, out fragmentUniformBuffer);
 
         // Bind pipeline
         var pipeline = mRenderer.GetPipeline(command.Renderer.UseLighting);
@@ -311,7 +421,42 @@ class RenderModule : SceneModule
         SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBinding, 1);
         SDL_BindGPUIndexBuffer(renderPass, scope .() { buffer = indexBuffer, offset = 0 }, .SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
+        // Bind uniform buffers
+        SDL_BindGPUVertexStorageBuffers(renderPass, 0, &vertexUniformBuffer, 1);
+        SDL_BindGPUFragmentStorageBuffers(renderPass, 0, &fragmentUniformBuffer, 1);
+
         // Draw
         SDL_DrawGPUIndexedPrimitives(renderPass, indexCount, 1, 0, 0, 0);
+    }
+
+    private void UploadUniforms(SDL_GPUCommandBuffer* commandBuffer, SDL_GPUBuffer* buffer, void* data, uint32 size)
+    {
+        // Create a transfer buffer
+        var transferBuffer = SDL_CreateGPUTransferBuffer(mRenderer.mDevice, scope .()
+        {
+            size = size,
+            usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD
+        });
+
+        // Map and copy data
+        void* mappedData = SDL_MapGPUTransferBuffer(mRenderer.mDevice, transferBuffer, false);
+        Internal.MemCpy(mappedData, data, size);
+        SDL_UnmapGPUTransferBuffer(mRenderer.mDevice, transferBuffer);
+
+        // Upload to GPU buffer
+        var copyPass = SDL_BeginGPUCopyPass(commandBuffer);
+        SDL_UploadToGPUBuffer(copyPass, scope .()
+        {
+            transfer_buffer = transferBuffer,
+            offset = 0
+        }, scope .()
+        {
+            buffer = buffer,
+            offset = 0,
+            size = size
+        }, false);
+        SDL_EndGPUCopyPass(copyPass);
+
+        SDL_ReleaseGPUTransferBuffer(mRenderer.mDevice, transferBuffer);
     }
 }

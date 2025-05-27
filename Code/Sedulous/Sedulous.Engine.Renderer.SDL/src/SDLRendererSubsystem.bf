@@ -121,6 +121,7 @@ class SDLRendererSubsystem : Subsystem
 
 		// Create basic resources
 		CreateDefaultMeshes();
+		CreateUniformBuffers();
 		CreateShaders();
 		CreatePipelines();
 
@@ -342,23 +343,23 @@ class SDLRendererSubsystem : Subsystem
 		{
 		// Simple directional lighting
 			float3 lightDir = normalize(float3(0.5, -1.0, 0.5));
-
+		
 			float3 normal = normalize(input.Normal);
-
-
-
+		
+		
+		
 			float NdotL = max(dot(normal, -lightDir), 0.0);
-
+		
 			float3 diffuse = NdotL * float3(1, 1, 1);
-
-
-
+		
+		
+		
 			float3 ambient = float3(0.3, 0.3, 0.3);
-
+		
 			float3 finalColor = (ambient + diffuse) * input.Color.rgb;
-
-
-
+		
+		
+		
 			return float4(finalColor, input.Color.a);
 		}
 		""";
@@ -601,8 +602,8 @@ class SDLRendererSubsystem : Subsystem
 
 	public void GetUniformBuffers(out SDL_GPUBuffer* vertexUniformBuffer, out SDL_GPUBuffer* fragmentUniformBuffer)
 	{
-	    vertexUniformBuffer = mVertexUniformBuffer;
-	    fragmentUniformBuffer = mFragmentUniformBuffer;
+		vertexUniformBuffer = mVertexUniformBuffer;
+		fragmentUniformBuffer = mFragmentUniformBuffer;
 	}
 
 	private void CompileShaderFromSource(String source, SDL_ShaderCross_ShaderStage stage,

@@ -1,6 +1,8 @@
 using Sedulous.Foundation.Mathematics;
+using System;
 namespace Sedulous.Engine.Renderer;
 
+[CRepr]
 struct CameraData
 {
     public Matrix ViewMatrix;

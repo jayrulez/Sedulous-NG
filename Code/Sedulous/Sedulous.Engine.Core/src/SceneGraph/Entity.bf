@@ -31,7 +31,7 @@ class Entity
     public this()
     {
         Id = Interlocked.Increment(ref sNextId);
-        Transform = new .();
+        //Transform = new .();
 		Transform.Entity = this; // Set the entity reference
     }
     

@@ -4,8 +4,16 @@ namespace Sedulous.Engine.Input;
 
 class InputContext
 {
-    internal Dictionary<String, InputAction> mActions = new .() ~ delete _;
+    internal Dictionary<String, InputAction> mActions = new .() ~ DeleteDictionaryAndKeysAndValues!(_);
     private List<InputBinding> mBindings = new .() ~ delete _;
+
+	public~this()
+	{
+		for(var binding in mBindings)
+		{
+			binding.Dispose();
+		}
+	}
 
     public void BindAction(StringView actionName, InputAction action)
     {

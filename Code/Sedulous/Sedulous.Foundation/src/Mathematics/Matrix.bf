@@ -6,6 +6,7 @@ namespace Sedulous.Foundation.Mathematics;
 /// <summary>
 /// Represents a 4x4 transformation matrix.
 /// </summary>
+[CRepr]
 struct Matrix : IEquatable<Matrix>, IInterpolatable<Matrix>, IEquatable, IHashable
 {
     /// <summary>

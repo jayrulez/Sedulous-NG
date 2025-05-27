@@ -5,6 +5,7 @@ namespace Sedulous.Foundation.Mathematics;
 /// <summary>
 /// Represents a four-dimensional vector.
 /// </summary>
+[CRepr]
 struct Vector4 : IEquatable<Vector4>, IInterpolatable<Vector4>, IEquatable, IHashable
 {
     /// <summary>

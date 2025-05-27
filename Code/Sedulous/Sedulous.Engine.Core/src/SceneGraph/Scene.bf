@@ -27,7 +27,8 @@ class Scene
 
 		for(var entity in mEntities)
 		{
-			DestroyEntity(entity);
+			//DestroyEntity(entity);
+			delete entity;
 		}
 	}
     
@@ -166,7 +167,7 @@ class Scene
         // Update modules in order
         for (var module in mSceneModules)
         {
-            //module.Update(deltaTime);
+            module.Update(deltaTime);
         }
     }
 }

@@ -23,7 +23,7 @@ class InputModule : SceneModule
         RegisterComponentInterest<InputComponent>();
     }
 
-    protected override void Update(TimeSpan deltaTime)
+    protected override void OnUpdate(TimeSpan deltaTime)
     {
         // Update scene-specific input contexts
         for (var context in mSceneContexts)

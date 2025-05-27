@@ -42,13 +42,21 @@ class PhysicsSubsystem : Subsystem
 		base.OnUnitializing(engine);
 	}
 
+	private RigidBodyModule mRigidBodyModule = null;
+	private CollisionModule mCollisionModule = null;
     protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
     {
         // Create multiple physics-related modules
-        modules.Add(new RigidBodyModule(this));        // Rigid body simulation
-        modules.Add(new CollisionModule(this));        // Collision detection
+        modules.Add(mRigidBodyModule = new RigidBodyModule(this));        // Rigid body simulation
+        modules.Add(mCollisionModule = new CollisionModule(this));        // Collision detection
         //modules.Add(new TriggerModule(this));          // Trigger volumes
         //modules.Add(new PhysicsDebugModule(this));     // Debug visualization
+    }
+
+    protected override void DestroySceneModules(Scene scene)
+    {
+		delete mRigidBodyModule;
+		delete mCollisionModule;
     }
 
 	private void OnUpdate(IEngine.UpdateInfo info)

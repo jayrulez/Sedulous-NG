@@ -77,10 +77,13 @@ abstract class Subsystem
     internal void SceneDestroyed(Scene scene)
     {
         OnSceneDestroyed(scene);
+
+		DestroySceneModules(scene);
     }
 
     // Override this to create subsystem-specific scene modules
-    protected virtual void CreateSceneModules(Scene scene, List<SceneModule> modules) { }
+	protected virtual void CreateSceneModules(Scene scene, List<SceneModule> modules) { }
+    protected virtual void DestroySceneModules(Scene scene) { }
 
     protected virtual void OnSceneCreated(Scene scene) { }
     protected virtual void OnSceneDestroyed(Scene scene) { }

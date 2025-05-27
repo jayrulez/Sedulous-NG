@@ -18,7 +18,7 @@ class CollisionModule : SceneModule
         RegisterComponentInterest<Collider>();
     }
     
-    protected override void Update(TimeSpan deltaTime)
+    protected override void OnUpdate(TimeSpan deltaTime)
     {
         // Perform collision detection
         PerformCollisionDetection();

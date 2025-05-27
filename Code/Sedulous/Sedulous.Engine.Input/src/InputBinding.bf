@@ -1,7 +1,7 @@
 using System;
 namespace Sedulous.Engine.Input;
 
-struct InputBinding
+struct InputBinding : IDisposable
 {
     public String ActionName;
     public delegate void(float value) Callback;
@@ -36,4 +36,13 @@ struct InputBinding
             WasActive = isActive;
         }
     }
+
+	public void Dispose() mut
+	{
+		if(ActionName != null)
+		{
+			delete ActionName;
+			ActionName = null;
+		}
+	}
 }

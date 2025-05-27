@@ -87,6 +87,9 @@ class MessageBus
             }
             baseType = baseType.BaseType;
         }
+
+		var x = (Object)message;
+		delete x;
     }
 
     public void Clear()

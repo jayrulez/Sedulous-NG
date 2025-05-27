@@ -35,9 +35,16 @@ class InputSubsystem : Subsystem
         return .Ok;
     }
 
+	private InputModule mInputModule = null;
+
     protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
     {
-        modules.Add(new InputModule(this));
+        modules.Add(mInputModule = new InputModule(this));
+    }
+
+    protected override void DestroySceneModules(Scene scene)
+    {
+        delete mInputModule;
     }
 
     private void OnUpdate(IEngine.UpdateInfo info)

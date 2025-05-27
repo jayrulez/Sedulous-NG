@@ -18,7 +18,7 @@ class RigidBodyModule : SceneModule
         RegisterComponentInterest<RigidBody>();
     }
     
-    protected override void Update(TimeSpan deltaTime)
+    protected override void OnUpdate(TimeSpan deltaTime)
     {
         // Update rigid body simulation
         for (var entity in TrackedEntities)

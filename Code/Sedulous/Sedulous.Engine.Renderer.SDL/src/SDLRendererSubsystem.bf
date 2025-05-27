@@ -16,8 +16,8 @@ class SDLRendererSubsystem : Subsystem
 
     internal SDL_GPUDevice* mDevice;
     private SDL3Window mPrimaryWindow;
-    private Dictionary<String, SDL_GPUGraphicsPipeline*> mPipelineCache = new .() ~ delete _;
-    private Dictionary<String, SDL_GPUShader*> mShaderCache = new .() ~ delete _;
+    private Dictionary<String, SDL_GPUGraphicsPipeline*> mPipelineCache = new .() ~ DeleteDictionaryAndKeys!(_);
+    private Dictionary<String, SDL_GPUShader*> mShaderCache = new .() ~ DeleteDictionaryAndKeys!(_);
 
 	private IEngine.RegisteredUpdateFunctionInfo? mUpdateFunctionRegistration;
 	private IEngine.RegisteredUpdateFunctionInfo? mRenderFunctionRegistration;
@@ -114,12 +114,25 @@ class SDLRendererSubsystem : Subsystem
 		base.OnUnitializing(engine);
     }
 
+	private RenderModule mRenderModule;
+	private CullingModule mCullingModule;
+	private LightingModule mLightingModule;
+	private PostProcessModule mPostProcessModule;
+
     protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
     {
-        modules.Add(new RenderModule(this));
-        modules.Add(new CullingModule(this));
-        modules.Add(new LightingModule(this));
-		modules.Add(new PostProcessModule(this));
+        modules.Add(mRenderModule = new RenderModule(this));
+        modules.Add(mCullingModule = new CullingModule(this));
+        modules.Add(mLightingModule = new LightingModule(this));
+		modules.Add(mPostProcessModule = new PostProcessModule(this));
+    }
+
+    protected override void DestroySceneModules(Scene scene)
+    {
+        delete mRenderModule;
+        delete mCullingModule;
+        delete mLightingModule;
+		delete mPostProcessModule;
     }
 
     private void CreateUniformBuffers()
@@ -271,8 +284,8 @@ class SDLRendererSubsystem : Subsystem
             },
             multisample_state = .{
                 sample_count = .SDL_GPU_SAMPLECOUNT_1,
-                sample_mask = 0xFFFFFFFF,
-                enable_mask = true
+                sample_mask = 0,
+                enable_mask = false
             },
             depth_stencil_state = .{
                 compare_op = .SDL_GPU_COMPAREOP_LESS,

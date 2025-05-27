@@ -5,6 +5,7 @@ namespace Sedulous.Engine.Renderer;
 
 class Material : Resource
 {
+	[CRepr]
     public struct MaterialProperties
     {
         public Vector4 AlbedoColor;
@@ -22,9 +23,9 @@ class Material : Resource
     private ResourceHandle<Texture> mEmissiveTexture;
     private String mShaderName = new .() ~ delete _;
 
-    public MaterialProperties Properties
+    public ref MaterialProperties Properties
     {
-        get => mProperties;
+        get => ref mProperties;
         set => mProperties = value;
     }
 

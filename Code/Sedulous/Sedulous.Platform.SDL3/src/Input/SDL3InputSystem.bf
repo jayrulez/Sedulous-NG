@@ -257,9 +257,9 @@ namespace Sedulous.Platform.SDL3.Input
 			{
 				var data = File.ReadAll(DatabasePath, .. scope .());
 
-				/*var rw = SDL_RWFromMem(data.Ptr, (.)data.Count);
-				if (SDL_GameControllerAddMappingsFromRW(rw, 0) < 0)
-					Runtime.SDL2Error();*/
+				var rw = SDL_IOFromMem(data.Ptr, (.)data.Count);
+				if (SDL_AddGamepadMappingsFromIO(rw, false) < 0)
+					Runtime.SDL3Error();
 			}
 		}
 

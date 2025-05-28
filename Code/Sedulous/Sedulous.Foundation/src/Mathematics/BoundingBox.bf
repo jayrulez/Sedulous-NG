@@ -603,6 +603,16 @@ struct BoundingBox : IEquatable<BoundingBox>, IEquatable, IHashable
         ray.Intersects(this, out result);
     }
 
+	public void Expand(Vector3 point) mut
+	{
+	    Min.X = Math.Min(Min.X, point.X);
+	    Min.Y = Math.Min(Min.Y, point.Y);
+	    Min.Z = Math.Min(Min.Z, point.Z);
+	    Max.X = Math.Max(Max.X, point.X);
+	    Max.Y = Math.Max(Max.Y, point.Y);
+	    Max.Z = Math.Max(Max.Z, point.Z);
+	}
+
     /// <summary>
     /// The number of corners in a bounding box.
     /// </summary>

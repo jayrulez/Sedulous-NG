@@ -1,6 +1,7 @@
 using System.Collections;
 using Sedulous.Engine.Core;
 using System;
+using Sedulous.Messaging;
 namespace Sedulous.Engine.Core.SceneGraph;
 
 using internal Sedulous.Engine.Core.SceneGraph;
@@ -8,47 +9,34 @@ using internal Sedulous.Engine.Core;
 
 class SceneGraphSystem
 {
-	private readonly IEngine mEngine;
+	private readonly MessageBus mMessageBus;
+	public MessageBus MessageBus => mMessageBus;
+
 	private readonly List<Scene> mScenes = new .() ~ delete _;
 	private List<Scene> mActiveScenes = new .() ~ delete _;
 
 	public Span<Scene> ActiveScenes => mActiveScenes;
 
-	private IEngine.RegisteredUpdateFunctionInfo? mUpdateFunctionRegistration;
-
-	public this(IEngine engine)
+	public this(MessageBus messageBus)
 	{
-		mEngine = engine;
+		mMessageBus = messageBus;
 	}
 
-	private void OnEngineUpdate(IEngine.UpdateInfo info)
+	internal void Update(TimeSpan deltaTime)
 	{
 		for (var scene in mActiveScenes)
 		{
-			scene.Update(info.Time.ElapsedTime);
+			scene.Update(deltaTime);
 		}
 	}
 
 	internal Result<void> Startup()
 	{
-		mUpdateFunctionRegistration = mEngine.RegisterUpdateFunction(.()
-			{
-				Priority = -1,
-				Stage = .VariableUpdate,
-				Function = new => OnEngineUpdate
-			});
 		return .Ok;
 	}
 
 	internal void Shutdown()
 	{
-		if (mUpdateFunctionRegistration.HasValue)
-		{
-			mEngine.UnregisterUpdateFunction(mUpdateFunctionRegistration.Value);
-			delete mUpdateFunctionRegistration.Value.Function;
-			mUpdateFunctionRegistration = null;
-		}
-
 		// Cleanup all scenes
 		for (var scene in mScenes)
 		{
@@ -60,17 +48,13 @@ class SceneGraphSystem
 
 	public Result<Scene> CreateScene(StringView name = "Scene")
 	{
-        var scene = new Scene();
+        var scene = new Scene(this);
         scene.Name.Set(name);
-        scene.SetEngine(mEngine); // Set engine reference for events
         
         mScenes.Add(scene);
 
-        // Notify all subsystems that a scene was created
-        for (var subsystem in mEngine.Subsystems)
-        {
-            subsystem.SceneCreated(scene);
-        }
+        // Notify that a scene was created
+		MessageBus.Publish(new SceneCreatedMessage(scene));
 
         return .Ok(scene);
 	}
@@ -83,10 +67,7 @@ class SceneGraphSystem
 		// Remove from active list
 		mActiveScenes.Remove(scene);
 
-		for (var subsystem in mEngine.Subsystems)
-		{
-			subsystem.SceneDestroyed(scene);
-		}
+		MessageBus.Publish(new SceneDestroyedMessage(scene));
 
 		// Cleanup
 		mScenes.Remove(scene);

@@ -6,6 +6,7 @@ using internal Sedulous.Engine.Core.SceneGraph;
 
 class Scene
 {
+	public SceneGraphSystem SceneGraph {get; private set;}
     private readonly List<SceneModule> mSceneModules = new .() ~ delete _;
     private readonly List<Entity> mEntities = new .() ~ delete _;
     private readonly Dictionary<EntityId, Entity> mEntityLookup = new .() ~ delete _;
@@ -14,13 +15,10 @@ class Scene
     public Span<Entity> Entities => mEntities;
     public Span<SceneModule> Modules => mSceneModules;
 
-    // Engine reference for events
-    internal IEngine mEngine;
-    
-    internal void SetEngine(IEngine engine)
-    {
-        mEngine = engine;
-    }
+	public this(SceneGraphSystem sceneGraph)
+	{
+		SceneGraph = sceneGraph;
+	}
 
 	public ~this()
 	{
@@ -49,10 +47,7 @@ class Scene
         }
 
         // Publish message (may be queued)
-        if (mEngine != null)
-        {
-            mEngine.Messages.Publish(new EntityCreatedMessage(entity, this));
-        }
+        SceneGraph.MessageBus.Publish(new EntityCreatedMessage(entity, this));
         
         return entity;
     }
@@ -75,10 +70,7 @@ class Scene
         mEntityLookup.Remove(entity.Id);
         
         // Publish message before cleanup
-        if (mEngine != null)
-        {
-            mEngine.Messages.Publish(new EntityDestroyedMessage(entityId, this));
-        }
+        SceneGraph.MessageBus.Publish(new EntityDestroyedMessage(entityId, this));
         
         // Cleanup
         entity.Scene = null;

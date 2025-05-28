@@ -93,7 +93,7 @@ sealed class Engine : IEngine
 
 		mResourceSystem = new .(mLogger, mJobSystem);
 
-		mSceneGraphSystem = new .(this);
+		mSceneGraphSystem = new .(mMessageBus);
 	}
 
 	public ~this()
@@ -321,6 +321,7 @@ sealed class Engine : IEngine
 
 		// Variable-Update
 		{
+			mSceneGraphSystem.Update(TimeSpan(elapsedTicks));
 			RunUpdateFunctions(.VariableUpdate, .()
 				{
 					Engine = this,

@@ -84,10 +84,7 @@ class Transform
             mWorldMatrixDirty = true;
             
             // Publish transform change message
-            if (Entity?.Scene?.mEngine != null)
-            {
-                Entity.Scene.mEngine.Messages.Publish(new TransformChangedMessage(Entity, WorldMatrix));
-            }
+            Entity.Scene.SceneGraph.MessageBus.Publish(new TransformChangedMessage(Entity, WorldMatrix));
         }
     }
 }

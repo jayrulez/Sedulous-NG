@@ -12,12 +12,22 @@ abstract class Subsystem
 
     public abstract StringView Name { get; }
 
+	private delegate void SceneCreatedHandler(SceneCreatedMessage message);
+	private delegate void SceneDestroyedHandler(SceneDestroyedMessage message);
+
+	private SceneCreatedHandler mSceneCreatedHandler = (new (message) => { SceneCreated(message.Scene); }) ~ delete _;
+	private SceneDestroyedHandler mSceneDestroyedHandler = (new (message) => { SceneDestroyed(message.Scene); }) ~ delete _;
+
     internal Result<void> Initialize(IEngine engine)
     {
         if (mInitialized)
             return .Ok;
 
         mEngine = engine;
+
+		mEngine.Messages.Subscribe<SceneCreatedMessage>(mSceneCreatedHandler);
+		mEngine.Messages.Subscribe<SceneDestroyedMessage>(mSceneDestroyedHandler);
+
         if (OnInitializing(mEngine) case .Ok)
         {
             mInitialized = true;
@@ -45,6 +55,9 @@ abstract class Subsystem
             return;
 
         OnUnitializing(mEngine);
+
+		mEngine.Messages.Unsubscribe<SceneCreatedMessage>(mSceneCreatedHandler);
+		mEngine.Messages.Unsubscribe<SceneDestroyedMessage>(mSceneDestroyedHandler);
 
         // Cleanup update registrations
         mEngine.UnregisterUpdateFunctions(mUpdateRegistrations);

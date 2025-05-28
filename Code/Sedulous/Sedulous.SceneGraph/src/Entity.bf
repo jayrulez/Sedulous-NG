@@ -85,10 +85,7 @@ class Entity
         Scene?.OnComponentAdded(this, component);
         
         // Publish message
-        if (Scene?.mEngine != null)
-        {
-            Scene.mEngine.Messages.Publish(new ComponentAddedMessage(this, component));
-        }
+        Scene.SceneGraph.MessageBus.Publish(new ComponentAddedMessage(this, component));
         
         return component;
     }
@@ -127,10 +124,7 @@ class Entity
             Scene?.OnComponentRemoved(this, component);
             
             // Publish message before deletion
-            if (Scene?.mEngine != null)
-            {
-                Scene.mEngine.Messages.Publish(new ComponentRemovedMessage(this, typeId));
-            }
+            Scene.SceneGraph.MessageBus.Publish(new ComponentRemovedMessage(this, typeId));
             
             delete component;
         }

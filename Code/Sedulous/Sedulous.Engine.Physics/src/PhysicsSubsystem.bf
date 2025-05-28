@@ -1,6 +1,6 @@
 using Sedulous.Engine.Core;
 using System;
-using Sedulous.Engine.Core.SceneGraph;
+using Sedulous.SceneGraph;
 using System.Collections;
 namespace Sedulous.Engine.Physics;
 

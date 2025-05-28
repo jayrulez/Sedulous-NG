@@ -3,7 +3,7 @@ using Sedulous.Foundation.Logging.Abstractions;
 using System.Collections;
 using Sedulous.Jobs;
 using Sedulous.Resources;
-using Sedulous.Engine.Core.SceneGraph;
+using Sedulous.SceneGraph;
 using Sedulous.Messaging;
 using Sedulous.Foundation.Utilities;
 namespace Sedulous.Engine.Core;

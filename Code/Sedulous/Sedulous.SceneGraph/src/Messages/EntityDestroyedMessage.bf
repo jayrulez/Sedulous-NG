@@ -1,5 +1,5 @@
 using Sedulous.Messaging;
-namespace Sedulous.Engine.Core.SceneGraph;
+namespace Sedulous.SceneGraph;
 
 class EntityDestroyedMessage : Message
 {

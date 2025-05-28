@@ -7,7 +7,7 @@ using SDL3Native;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Platform.Core;
 using Sedulous.Platform.SDL3;
-using Sedulous.Engine.Core.SceneGraph;
+using Sedulous.SceneGraph;
 
 namespace Sedulous.Engine.Renderer.SDL;
 

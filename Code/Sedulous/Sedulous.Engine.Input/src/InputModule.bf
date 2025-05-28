@@ -1,4 +1,4 @@
-using Sedulous.Engine.Core.SceneGraph;
+using Sedulous.SceneGraph;
 using System;
 using System.Collections;
 using Sedulous.Foundation.Mathematics;

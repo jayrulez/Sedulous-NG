@@ -1,5 +1,5 @@
 using System;
-using Sedulous.Engine.Core.SceneGraph;
+using Sedulous.SceneGraph;
 using System.Collections;
 using Sedulous.Jobs;
 namespace Sedulous.Engine.Core;

@@ -1,7 +1,7 @@
 using System.Collections;
 using System;
 using System.Threading;
-namespace Sedulous.Engine.Core.SceneGraph;
+namespace Sedulous.SceneGraph;
 
 static class ComponentRegistry
 {

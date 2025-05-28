@@ -1,6 +1,6 @@
 using System;
 using Sedulous.Models;
-using Sedulous.Engine.Core.SceneGraph;
+using Sedulous.SceneGraph;
 using Sedulous.Foundation.Mathematics;
 using System.Collections;
 namespace Sedulous.Engine.Navigation;

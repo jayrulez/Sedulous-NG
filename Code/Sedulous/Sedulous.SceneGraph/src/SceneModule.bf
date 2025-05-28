@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-namespace Sedulous.Engine.Core.SceneGraph;
+namespace Sedulous.SceneGraph;
 
 abstract class SceneModule
 {

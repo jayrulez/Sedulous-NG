@@ -1,4 +1,4 @@
-namespace Sedulous.Engine.Core.SceneGraph;
+namespace Sedulous.SceneGraph;
 
 abstract class Component : IComponent
 {

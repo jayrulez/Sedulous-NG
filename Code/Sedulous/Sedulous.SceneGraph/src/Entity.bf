@@ -1,9 +1,9 @@
 using System;
 using System.Collections;
 using System.Threading;
-namespace Sedulous.Engine.Core.SceneGraph;
+namespace Sedulous.SceneGraph;
 
-using internal Sedulous.Engine.Core.SceneGraph;
+using internal Sedulous.SceneGraph;
 
 public typealias EntityId = uint64;
 public typealias ComponentTypeId = uint32;

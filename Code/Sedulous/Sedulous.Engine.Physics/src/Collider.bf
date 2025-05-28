@@ -1,4 +1,4 @@
-using Sedulous.Engine.Core.SceneGraph;
+using Sedulous.SceneGraph;
 using Sedulous.Foundation.Mathematics;
 namespace Sedulous.Engine.Physics;
 

@@ -1,6 +1,6 @@
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Messaging;
-namespace Sedulous.Engine.Core.SceneGraph;
+namespace Sedulous.SceneGraph;
 
 class TransformChangedMessage : Message
 {

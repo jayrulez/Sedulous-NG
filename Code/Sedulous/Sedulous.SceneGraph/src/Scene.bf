@@ -1,8 +1,8 @@
 using System.Collections;
 using System;
-namespace Sedulous.Engine.Core.SceneGraph;
+namespace Sedulous.SceneGraph;
 
-using internal Sedulous.Engine.Core.SceneGraph;
+using internal Sedulous.SceneGraph;
 
 class Scene
 {

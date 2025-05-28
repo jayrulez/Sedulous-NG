@@ -7,20 +7,20 @@ abstract class ResourceManager<T> : IResourceManager where T : IResource
 {
 	public Type ResourceType => typeof(T);
 
-	public Result<IResource, ResourceLoadError> Load(StringView path)
+	public Result<ResourceHandle<IResource>, ResourceLoadError> Load(StringView path)
 	{
-		var result = LoadFromFile(path);
-		if (result case .Err(let error))
+		var handle = LoadFromFile(path);
+		if (handle case .Err(let error))
 			return .Err(error);
-		return .Ok(result.Value);
+		return ResourceHandle<IResource>(handle.Value.Resource);
 	}
 
-	public Result<IResource, ResourceLoadError> Load(MemoryStream stream)
+	public Result<ResourceHandle<IResource>, ResourceLoadError> Load(MemoryStream stream)
 	{
-		var result = LoadFromMemory(stream);
-		if (result case .Err(let error))
+		var handle = LoadFromMemory(stream);
+		if (handle case .Err(let error))
 			return .Err(error);
-		return .Ok(result.Value);
+		return ResourceHandle<IResource>(handle.Value.Resource);
 	}
 
 	protected virtual Result<void, FileOpenError> ReadFile(StringView path, List<uint8> buffer)
@@ -42,7 +42,7 @@ abstract class ResourceManager<T> : IResourceManager where T : IResource
 		return .Ok;
 	}
 
-	protected virtual Result<T, ResourceLoadError> LoadFromFile(StringView path)
+	protected virtual Result<ResourceHandle<T>, ResourceLoadError> LoadFromFile(StringView path)
 	{
 		var memory = scope List<uint8>();
 		var readFile = ReadFile(path, memory);
@@ -61,7 +61,7 @@ abstract class ResourceManager<T> : IResourceManager where T : IResource
 		return LoadFromMemory(scope MemoryStream(memory, false));
 	}
 
-	protected abstract Result<T, ResourceLoadError> LoadFromMemory(MemoryStream memory);
+	protected abstract Result<ResourceHandle<T>, ResourceLoadError> LoadFromMemory(MemoryStream memory);
 
-	public abstract void Unload(IResource resource);
+	public abstract void Unload(ResourceHandle<IResource> resource);
 }

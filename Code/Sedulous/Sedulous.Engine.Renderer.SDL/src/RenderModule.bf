@@ -4,6 +4,7 @@ using SDL3Native;
 using System.Collections;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Resources;
+using Sedulous.SceneGraph;
 
 namespace Sedulous.Engine.Renderer.SDL;
 

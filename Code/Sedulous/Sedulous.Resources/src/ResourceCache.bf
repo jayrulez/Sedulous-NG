@@ -7,9 +7,9 @@ using internal Sedulous.Resources;
 internal class ResourceCache
 {
 	private readonly Monitor mResourcesMonitor = new .() ~ delete _;
-	private readonly Dictionary<ResourceCacheKey, IResource> mResources = new .() ~ delete _;
+	private readonly Dictionary<ResourceCacheKey, ResourceHandle<IResource>> mResources = new .() ~ delete _;
 
-	public void Set(ResourceCacheKey key, IResource resource)
+	public void Set(ResourceCacheKey key, ResourceHandle<IResource> resource)
 	{
 		using (mResourcesMonitor.Enter())
 		{
@@ -17,7 +17,7 @@ internal class ResourceCache
 		}
 	}
 
-	public void AddIfNotExist(ResourceCacheKey key, IResource resource)
+	public void AddIfNotExist(ResourceCacheKey key, ResourceHandle<IResource> resource)
 	{
 		using (mResourcesMonitor.Enter())
 		{
@@ -26,14 +26,14 @@ internal class ResourceCache
 		}
 	}
 
-	public IResource Get(ResourceCacheKey key)
+	public ResourceHandle<IResource> Get(ResourceCacheKey key)
 	{
 		using (mResourcesMonitor.Enter())
 		{
 			if (mResources.ContainsKey(key))
 				return mResources[key];
 
-			return null;
+			return .(null);
 		}
 	}
 
@@ -46,7 +46,7 @@ internal class ResourceCache
 		}
 	}
 
-	internal void Remove(IResource resource)
+	internal void Remove(ResourceHandle<IResource> resource)
 	{
 		using (mResourcesMonitor.Enter())
 		{

@@ -2,7 +2,7 @@ using Sedulous.Jobs;
 using System;
 namespace Sedulous.Resources;
 
-internal class LoadResourceJob<T> : Job<Result<T, ResourceLoadError>>
+internal class LoadResourceJob<T> : Job<Result<ResourceHandle<T>, ResourceLoadError>>
 	where T : IResource
 {
 	private readonly ResourceSystem mResourceSystem;
@@ -15,7 +15,7 @@ internal class LoadResourceJob<T> : Job<Result<T, ResourceLoadError>>
 		bool fromCache = true,
 		bool cacheIfLoaded = true,
 		JobFlags flags = .None,
-		delegate void(Result<T, ResourceLoadError> result) onCompleted = null,
+		delegate void(Result<ResourceHandle<T>, ResourceLoadError> result) onCompleted = null,
 		bool ownsOnCompletedDelegate = true)
 		: base(scope $"Load Asset '{path}'", flags, onCompleted, ownsOnCompletedDelegate)
 	{
@@ -25,7 +25,7 @@ internal class LoadResourceJob<T> : Job<Result<T, ResourceLoadError>>
 		mCacheIfLoaded = cacheIfLoaded;
 	}
 
-	protected override Result<T, ResourceLoadError> OnExecute()
+	protected override Result<ResourceHandle<T>, ResourceLoadError> OnExecute()
 	{
 		return mResourceSystem.LoadResource<T>(mPath, mFromCache, mCacheIfLoaded);
 	}

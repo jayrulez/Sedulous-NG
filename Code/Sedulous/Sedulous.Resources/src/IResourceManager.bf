@@ -6,9 +6,9 @@ interface IResourceManager
 {
 	Type ResourceType { get; }
 
-	Result<IResource, ResourceLoadError> Load(StringView path);
+	Result<ResourceHandle<IResource>, ResourceLoadError> Load(StringView path);
 
-	Result<IResource, ResourceLoadError> Load(MemoryStream stream);
+	Result<ResourceHandle<IResource>, ResourceLoadError> Load(MemoryStream stream);
 
-	void Unload(IResource resource);
+	void Unload(ResourceHandle<IResource> resource);
 }

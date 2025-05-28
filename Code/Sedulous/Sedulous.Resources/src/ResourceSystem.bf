@@ -81,16 +81,15 @@ class ResourceSystem
 		}
 	}
 
-	public Result<T, ResourceLoadError> LoadResource<T>(StringView path, bool fromCache = true, bool cacheIfLoaded = true) where T : IResource
+	public Result<ResourceHandle<T>, ResourceLoadError> LoadResource<T>(StringView path, bool fromCache = true, bool cacheIfLoaded = true) where T : IResource
 	{
 		var cacheKey = ResourceCacheKey(path, typeof(T));
 		if (fromCache)
 		{
-			var resource = mCache.Get(cacheKey);
-			if (resource != null)
+			var handle = mCache.Get(cacheKey);
+			if (handle.IsValid)
 			{
-				resource.AddRef();
-				return (T)resource;
+				return ResourceHandle<T>((T)handle.Resource);
 			}
 		}
 
@@ -104,22 +103,20 @@ class ResourceSystem
 			return .Err(error);
 		}
 
-		var resource = (T)loadResult.Value;
+		var handle = loadResult.Value;
 
 		if (cacheIfLoaded)
 		{
-			mCache.Set(cacheKey, resource);
+			mCache.Set(cacheKey, handle);
 		}
 
-		resource.AddRef();
-
-		return .Ok(resource);
+		return ResourceHandle<T>((T)handle.Resource);
 	}
 
-	public Job<Result<T, ResourceLoadError>> LoadResourceAsync<T>(StringView path,
+	public Job<Result<ResourceHandle<T>, ResourceLoadError>> LoadResourceAsync<T>(StringView path,
 		bool fromCache = true,
 		bool cacheIfLoaded = true,
-		delegate void(Result<T, ResourceLoadError> result) onCompleted = null,
+		delegate void(Result<ResourceHandle<T>, ResourceLoadError> result) onCompleted = null,
 		bool ownsOnCompletedDelegate = true)
 		where T : IResource
 	{
@@ -128,15 +125,15 @@ class ResourceSystem
 		return job;
 	}
 
-	public void UnloadResource<T>(T resource) where T : IResource
+	public void UnloadResource<T>(ref ResourceHandle<IResource> resource) where T : IResource
 	{
 		mCache.Remove(resource);
 
-		if (resource.RefCount > 1)
+		if (resource.Resource?.RefCount > 1)
 		{
-			mLogger.LogWarning(scope $"Unloading resource '{resource.Id}' with RefCount {resource.RefCount}. Resource must be manually freed.");
+			mLogger.LogWarning(scope $"Unloading resource '{resource.Resource.Id}' with RefCount {resource.Resource.RefCount}. Resource must be manually freed.");
 		}
-		resource.ReleaseRefNoDelete();
+		resource.Release();
 
 		var resourceManager = GetResourceManagerByResourceType<T>();
 		if (resourceManager == null)

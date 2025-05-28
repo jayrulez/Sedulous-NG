@@ -1,5 +1,5 @@
 using System;
-using Sedulous.Models;
+using Sedulous.Geometry;
 using Sedulous.SceneGraph;
 using Sedulous.Foundation.Mathematics;
 using System.Collections;

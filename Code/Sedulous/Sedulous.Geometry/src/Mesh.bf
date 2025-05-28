@@ -1,7 +1,7 @@
 using Sedulous.Foundation.Mathematics;
 using System.Collections;
 using System;
-namespace Sedulous.Models;
+namespace Sedulous.Geometry;
 
 public class Mesh
 {

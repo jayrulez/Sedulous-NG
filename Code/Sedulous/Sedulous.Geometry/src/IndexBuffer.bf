@@ -1,5 +1,5 @@
 using System;
-namespace Sedulous.Models;
+namespace Sedulous.Geometry;
 
 public class IndexBuffer
 {

@@ -1,4 +1,4 @@
-namespace Sedulous.Models;
+namespace Sedulous.Geometry;
 
 public enum AttributeType
 {

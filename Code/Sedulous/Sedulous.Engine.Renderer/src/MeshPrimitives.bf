@@ -62,68 +62,65 @@ static class MeshPrimitives
         return new Mesh(vertices, indices);
     }
     
-    public static Mesh CreatePlane(float width = 1.0f, float height = 1.0f, uint32 widthSegments = 1, uint32 heightSegments = 1)
-    {
-        var vertices = scope List<Mesh.Vertex>();
-        var indices = scope List<uint32>();
-        
-        var halfWidth = width * 0.5f;
-        var halfHeight = height * 0.5f;
-        
-        // Generate vertices
-        for (uint32 y = 0; y <= heightSegments; y++)
-        {
-            for (uint32 x = 0; x <= widthSegments; x++)
-            {
-                var u = (float)x / widthSegments;
-                var v = (float)y / heightSegments;
-                
-                var vertex = Mesh.Vertex
-                {
-                    Position = Vector3(
-                        (u - 0.5f) * width,
-                        0.0f,
-                        (v - 0.5f) * height
-                    ),
-                    Normal = Vector3.Up,
-                    TexCoord = Vector2(u, v),
-                    Color = Vector4.One
-                };
-                
-                vertices.Add(vertex);
-            }
-        }
-        
-        // Generate indices
-        for (uint32 y = 0; y < heightSegments; y++)
-        {
-            for (uint32 x = 0; x < widthSegments; x++)
-            {
-                var a = (y + 0) * (widthSegments + 1) + (x + 0);
-                var b = (y + 1) * (widthSegments + 1) + (x + 0);
-                var c = (y + 1) * (widthSegments + 1) + (x + 1);
-                var d = (y + 0) * (widthSegments + 1) + (x + 1);
-                
-                // First triangle
-                indices.Add(a);
-                indices.Add(b);
-                indices.Add(d);
-                
-                // Second triangle
-                indices.Add(b);
-                indices.Add(c);
-                indices.Add(d);
-            }
-        }
-        
-        var vertexArray = new Mesh.Vertex[vertices.Count];
-        vertices.CopyTo(vertexArray);
-        
-        var indexArray = new uint32[indices.Count];
-        indices.CopyTo(indexArray);
-        
-        return new Mesh(vertexArray, indexArray);
-    }
+	public static Mesh CreatePlane(float width = 1.0f, float height = 1.0f, uint32 widthSegments = 1, uint32 heightSegments = 1)
+	{
+	    var vertices = scope List<Mesh.Vertex>();
+	    var indices = scope List<uint32>();
+	    
+	    // Generate vertices
+	    for (uint32 y = 0; y <= heightSegments; y++)
+	    {
+	        for (uint32 x = 0; x <= widthSegments; x++)
+	        {
+	            var u = (float)x / widthSegments;
+	            var v = (float)y / heightSegments;
+	            
+	            var vertex = Mesh.Vertex
+	            {
+	                Position = Vector3(
+	                    (u - 0.5f) * width,
+	                    0.0f,
+	                    (v - 0.5f) * height
+	                ),
+	                Normal = Vector3.Up,
+	                TexCoord = Vector2(u, v),
+	                Color = Vector4.One
+	            };
+	            
+	            vertices.Add(vertex);
+	        }
+	    }
+	    
+	    // Generate indices
+	    for (uint32 y = 0; y < heightSegments; y++)
+	    {
+	        for (uint32 x = 0; x < widthSegments; x++)
+	        {
+	            var a = (y + 0) * (widthSegments + 1) + (x + 0);
+	            var b = (y + 1) * (widthSegments + 1) + (x + 0);
+	            var c = (y + 1) * (widthSegments + 1) + (x + 1);
+	            var d = (y + 0) * (widthSegments + 1) + (x + 1);
+	            
+	            // First triangle
+	            indices.Add(a);
+	            indices.Add(b);
+	            indices.Add(d);
+	            
+	            // Second triangle
+	            indices.Add(b);
+	            indices.Add(c);
+	            indices.Add(d);
+	        }
+	    }
+	    
+	    var vertexArray = new Mesh.Vertex[vertices.Count];
+	    vertices.CopyTo(vertexArray);
+	    
+	    var indexArray = new uint32[indices.Count];
+	    indices.CopyTo(indexArray);
+	    
+	    return new Mesh(vertexArray, indexArray);
+	}
     
     public static Mesh CreateSphere(float radius = 1.0f, uint32 rings = 16, uint32 sectors = 32)
     {

@@ -3,9 +3,9 @@ using System.Threading;
 using System.Collections;
 using System;
 using Sedulous.Foundation.Logging.Abstractions;
-namespace Sedulous.Engine.Core.Resources;
+namespace Sedulous.Resources;
 
-using internal Sedulous.Engine.Core.Resources;
+using internal Sedulous.Resources;
 
 class ResourceSystem
 {

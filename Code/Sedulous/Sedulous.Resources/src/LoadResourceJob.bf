@@ -1,6 +1,6 @@
 using Sedulous.Jobs;
 using System;
-namespace Sedulous.Engine.Core.Resources;
+namespace Sedulous.Resources;
 
 internal class LoadResourceJob<T> : Job<Result<T, ResourceLoadError>>
 	where T : IResource

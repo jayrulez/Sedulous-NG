@@ -1,6 +1,6 @@
 using Sedulous.Messaging;
 using System;
-namespace Sedulous.Engine.Core.Resources;
+namespace Sedulous.Resources;
 
 class ResourceLoadedMessage : Message
 {

@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Messaging" = "*", "Sedulous.Jobs" = "*"}
+
+[Project]
+Name = "Sedulous.Resources"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Resources.Program"

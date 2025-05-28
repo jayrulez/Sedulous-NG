@@ -3,7 +3,7 @@ using System;
 using SDL3Native;
 using System.Collections;
 using Sedulous.Foundation.Mathematics;
-using Sedulous.Engine.Core.Resources;
+using Sedulous.Resources;
 
 namespace Sedulous.Engine.Renderer.SDL;
 

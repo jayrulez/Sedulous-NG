@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-namespace Sedulous.Engine.Core.Resources;
+namespace Sedulous.Resources;
 
 interface IResourceManager
 {

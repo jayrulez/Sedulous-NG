@@ -4,7 +4,7 @@ using System.Collections;
 using System.Threading;
 using Sedulous.Foundation.Logging.Debug;
 using Sedulous.Jobs;
-using Sedulous.Engine.Core.Resources;
+using Sedulous.Resources;
 using Sedulous.Engine.Core.SceneGraph;
 using Sedulous.Messaging;
 using Sedulous.Foundation.Utilities;
@@ -12,7 +12,7 @@ namespace Sedulous.Engine.Core;
 
 using internal Sedulous.Engine.Core;
 using internal Sedulous.Engine.Core.SceneGraph;
-using internal Sedulous.Engine.Core.Resources;
+using internal Sedulous.Resources;
 using internal Sedulous.Jobs;
 
 sealed class Engine : IEngine

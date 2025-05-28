@@ -1,5 +1,5 @@
 using System;
-using Sedulous.Engine.Core.Resources;
+using Sedulous.Resources;
 using Sedulous.Foundation.Mathematics;
 namespace Sedulous.Engine.Renderer;
 

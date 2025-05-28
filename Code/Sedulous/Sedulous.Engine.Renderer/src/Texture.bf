@@ -1,5 +1,5 @@
 using System;
-using Sedulous.Engine.Core.Resources;
+using Sedulous.Resources;
 namespace Sedulous.Engine.Renderer;
 
 class Texture : Resource

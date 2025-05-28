@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Diagnostics;
 using System;
-namespace Sedulous.Engine.Core.Resources;
+namespace Sedulous.Resources;
 
 abstract class Resource : IResource
 {

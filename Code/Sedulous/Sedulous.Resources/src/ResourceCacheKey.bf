@@ -1,5 +1,5 @@
 using System;
-namespace Sedulous.Engine.Core.Resources;
+namespace Sedulous.Resources;
 
 internal struct ResourceCacheKey : IHashable
 {

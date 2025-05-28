@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-using Sedulous.Engine.Core.Resources;
+using Sedulous.Resources;
 namespace Sedulous.Engine.Renderer;
 
 class Shader : Resource

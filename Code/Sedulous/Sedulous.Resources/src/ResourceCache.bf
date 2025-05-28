@@ -1,8 +1,8 @@
 using System.Collections;
 using System.Threading;
-namespace Sedulous.Engine.Core.Resources;
+namespace Sedulous.Resources;
 
-using internal Sedulous.Engine.Core.Resources;
+using internal Sedulous.Resources;
 
 internal class ResourceCache
 {

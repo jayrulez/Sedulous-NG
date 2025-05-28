@@ -1,4 +1,4 @@
-namespace Sedulous.Engine.Core.Resources;
+namespace Sedulous.Resources;
 
 enum ResourceLoadError
 {

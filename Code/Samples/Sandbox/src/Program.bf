@@ -12,7 +12,7 @@ using Sedulous.Platform.SDL3;
 using Sedulous.Engine.Renderer;
 using Sedulous.Runtime;
 using Sedulous.Engine.Input;
-using Sedulous.Engine.Core.Resources;
+using Sedulous.Resources;
 namespace Sandbox;
 
 class Program

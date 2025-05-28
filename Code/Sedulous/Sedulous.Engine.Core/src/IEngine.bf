@@ -2,7 +2,7 @@ using System;
 using Sedulous.Foundation.Logging.Abstractions;
 using System.Collections;
 using Sedulous.Jobs;
-using Sedulous.Engine.Core.Resources;
+using Sedulous.Resources;
 using Sedulous.Engine.Core.SceneGraph;
 using Sedulous.Messaging;
 using Sedulous.Foundation.Utilities;

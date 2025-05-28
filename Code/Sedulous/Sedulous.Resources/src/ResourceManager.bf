@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Collections;
-namespace Sedulous.Engine.Core.Resources;
+namespace Sedulous.Resources;
 
 abstract class ResourceManager<T> : IResourceManager where T : IResource
 {

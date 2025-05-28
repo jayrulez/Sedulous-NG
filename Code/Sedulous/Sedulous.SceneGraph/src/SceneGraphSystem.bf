@@ -1,11 +1,9 @@
 using System.Collections;
-using Sedulous.Engine.Core;
 using System;
 using Sedulous.Messaging;
 namespace Sedulous.SceneGraph;
 
 using internal Sedulous.SceneGraph;
-using internal Sedulous.Engine.Core;
 
 class SceneGraphSystem
 {

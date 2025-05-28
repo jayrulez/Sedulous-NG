@@ -9,239 +9,238 @@ using Sedulous.Platform.Core.Input;
 using internal Sedulous.Foundation;
 using internal Sedulous.Platform.SDL3.Input;
 
-namespace Sedulous.Platform.SDL3.Input
+namespace Sedulous.Platform.SDL3.Input;
+
+/// <summary>
+/// Manages the context's connected game pad devices.
+/// </summary>
+internal sealed class GamePadDeviceInfo
 {
-    /// <summary>
-    /// Manages the context's connected game pad devices.
-    /// </summary>
-    internal sealed class GamePadDeviceInfo
-    {
-		private readonly SDL3InputSystem mInputSystem;
+	private readonly SDL3InputSystem mInputSystem;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="GamePadDeviceInfo"/> class.
-        /// </summary>
-        /// <param name="inputSystem">The InputSystem.</param>
-        public this(SDL3InputSystem inputSystem)
-        {
-			mInputSystem = inputSystem;
+	/// <summary>
+	/// Initializes a new instance of the <see cref="GamePadDeviceInfo"/> class.
+	/// </summary>
+	/// <param name="inputSystem">The InputSystem.</param>
+	public this(SDL3InputSystem inputSystem)
+	{
+		mInputSystem = inputSystem;
 
-			int32 joystickCount = 0;
-			SDL_JoystickID* joysticks = SDL_GetJoysticks(&joystickCount);
+		int32 joystickCount = 0;
+		SDL_JoystickID* joysticks = SDL_GetJoysticks(&joystickCount);
 
-            this.devicesByPlayer = new SDL3GamePadDevice[joystickCount];
+		this.devicesByPlayer = new SDL3GamePadDevice[joystickCount];
 
-            for (int32 i = 0; i < this.devicesByPlayer.Count; i++)
-            {
-                if (SDL_IsGamepad(joysticks[i]))
-                {
-                    OnControllerDeviceAdded(joysticks[i]);
-                }
-            }
-        }
+		for (int32 i = 0; i < this.devicesByPlayer.Count; i++)
+		{
+			if (SDL_IsGamepad(joysticks[i]))
+			{
+				OnControllerDeviceAdded(joysticks[i]);
+			}
+		}
+	}
 
-		public ~this()
-        {
-                for (var device in devicesByPlayer)
-                {
-                    if (device != null)
-                    {
-                        delete device;
-                    }
-                }
-			delete devicesByPlayer;
-        }
+	public ~this()
+	{
+		for (var device in devicesByPlayer)
+		{
+			if (device != null)
+			{
+				delete device;
+			}
+		}
+		delete devicesByPlayer;
+	}
 
-        /// <inheritdoc/>
-        internal bool HandleEvent(SDL_Event evt)
-        {
-            switch ((SDL_EventType)evt.type)
-            {
-                case .SDL_EVENT_GAMEPAD_ADDED:
-                    OnControllerDeviceAdded(evt.gdevice.which);
-                    return true;
+	/// <inheritdoc/>
+	internal bool HandleEvent(SDL_Event evt)
+	{
+		switch ((SDL_EventType)evt.type)
+		{
+		case .SDL_EVENT_GAMEPAD_ADDED:
+			OnControllerDeviceAdded(evt.gdevice.which);
+			return true;
 
-                case .SDL_EVENT_GAMEPAD_REMOVED:
-                    OnControllerDeviceRemoved(evt.gdevice.which);
-                    return true;
+		case .SDL_EVENT_GAMEPAD_REMOVED:
+			OnControllerDeviceRemoved(evt.gdevice.which);
+			return true;
 
-			default: return false;
-            }
-        }
+		default: return false;
+		}
+	}
 
-        /// <summary>
-        /// Resets the states of the connected devices in preparation for the next frame.
-        /// </summary>
-        public void ResetDeviceStates()
-        {
-            for (var device in devicesByPlayer)
-            {
-                if (device != null)
-                {
-                    device.ResetDeviceState();
-                }
-            }
-        }
+	/// <summary>
+	/// Resets the states of the connected devices in preparation for the next frame.
+	/// </summary>
+	public void ResetDeviceStates()
+	{
+		for (var device in devicesByPlayer)
+		{
+			if (device != null)
+			{
+				device.ResetDeviceState();
+			}
+		}
+	}
 
-        /// <summary>
-        /// Updates the state of the attached game pad devices.
-        /// </summary>
-        /// <param name="time">Time elapsed since the last call to <see cref="Context.Update(Time)"/>.</param>
-        public void Update(Time time)
-        {
-            for (var device in devicesByPlayer)
-            {
-                if (device != null)
-                {
-                    device.Update(time);
-                }
-            }
-        }
+	/// <summary>
+	/// Updates the state of the attached game pad devices.
+	/// </summary>
+	/// <param name="time">Time elapsed since the last call to <see cref="Context.Update(Time)"/>.</param>
+	public void Update(Time time)
+	{
+		for (var device in devicesByPlayer)
+		{
+			if (device != null)
+			{
+				device.Update(time);
+			}
+		}
+	}
 
-        /// <summary>
-        /// Gets the game pad that belongs to the specified player.
-        /// </summary>
-        /// <param name="playerIndex">The index of the player for which to retrieve a game pad.</param>
-        /// <returns>The game pad that belongs to the specified player, or <see langword="null"/> if no such game pad exists.</returns>
-        public SDL3GamePadDevice GetGamePadForPlayer(int32 playerIndex)
-        {
-            Contract.EnsureRange(playerIndex >= 0, nameof(playerIndex));
+	/// <summary>
+	/// Gets the game pad that belongs to the specified player.
+	/// </summary>
+	/// <param name="playerIndex">The index of the player for which to retrieve a game pad.</param>
+	/// <returns>The game pad that belongs to the specified player, or <see langword="null"/> if no such game pad exists.</returns>
+	public SDL3GamePadDevice GetGamePadForPlayer(int32 playerIndex)
+	{
+		Contract.EnsureRange(playerIndex >= 0, nameof(playerIndex));
 
-            return (playerIndex >= devicesByPlayer.Count) ? null : devicesByPlayer[playerIndex];
-        }
+		return (playerIndex >= devicesByPlayer.Count) ? null : devicesByPlayer[playerIndex];
+	}
 
-        /// <summary>
-        /// Gets the first connected game pad device.
-        /// </summary>
-        /// <returns>The first connected game pad device, or <see langword="null"/> if no game pads are connected.</returns>
-        public SDL3GamePadDevice GetFirstConnectedGamePad()
-        {
-            for (int i = 0; i < devicesByPlayer.Count; i++)
-            {
-                if (devicesByPlayer[i] != null)
-                {
-                    return devicesByPlayer[i];
-                }
-            }
-            return null;
-        }
+	/// <summary>
+	/// Gets the first connected game pad device.
+	/// </summary>
+	/// <returns>The first connected game pad device, or <see langword="null"/> if no game pads are connected.</returns>
+	public SDL3GamePadDevice GetFirstConnectedGamePad()
+	{
+		for (int i = 0; i < devicesByPlayer.Count; i++)
+		{
+			if (devicesByPlayer[i] != null)
+			{
+				return devicesByPlayer[i];
+			}
+		}
+		return null;
+	}
 
-        /// <summary>
-        /// Gets the first registered game pad device.
-        /// </summary>
-        /// <returns>The first registered game pad device, or <see langword="null"/> if no game pads are registered.</returns>
-        public SDL3GamePadDevice GetFirstRegisteredGamePad()
-        {
-            for (int i = 0; i < devicesByPlayer.Count; i++)
-            {
-                if (devicesByPlayer[i]?.IsRegistered ?? false)
-                {
-                    return devicesByPlayer[i];
-                }
-            }
-            return null;
-        }
+	/// <summary>
+	/// Gets the first registered game pad device.
+	/// </summary>
+	/// <returns>The first registered game pad device, or <see langword="null"/> if no game pads are registered.</returns>
+	public SDL3GamePadDevice GetFirstRegisteredGamePad()
+	{
+		for (int i = 0; i < devicesByPlayer.Count; i++)
+		{
+			if (devicesByPlayer[i]?.IsRegistered ?? false)
+			{
+				return devicesByPlayer[i];
+			}
+		}
+		return null;
+	}
 
-        /// <summary>
-        /// Gets the number of attached game pads.
-        /// </summary>
-        public int32 Count => count;
+	/// <summary>
+	/// Gets the number of attached game pads.
+	/// </summary>
+	public int32 Count => count;
 
-        /// <inheritdoc/>
-        public readonly EventAccessor<GamePadConnectionEventHandler> GamePadConnected {get;} = new .() ~ delete _;
+	/// <inheritdoc/>
+	public readonly EventAccessor<GamePadConnectionEventHandler> GamePadConnected { get; } = new .() ~ delete _;
 
-        /// <inheritdoc/>
-        public readonly EventAccessor<GamePadConnectionEventHandler> GamePadDisconnected {get;} = new .() ~ delete _;
+	/// <inheritdoc/>
+	public readonly EventAccessor<GamePadConnectionEventHandler> GamePadDisconnected { get; } = new .() ~ delete _;
 
-        /// <summary>
-        /// Called when a controller device is added.
-        /// </summary>
-        /// <param name="joystickIndex">The index of the device to add.</param>
-        private void OnControllerDeviceAdded(SDL_JoystickID joystickInstanceID)
-        {
-            SDL_Gamepad* gamepad = SDL_OpenGamepad(joystickInstanceID);
-            SDL_Joystick* joystick       = SDL_GetGamepadJoystick(gamepad);
-            SDL_JoystickID joystickID     = SDL_GetJoystickID(joystick);
+	/// <summary>
+	/// Called when a controller device is added.
+	/// </summary>
+	/// <param name="joystickIndex">The index of the device to add.</param>
+	private void OnControllerDeviceAdded(SDL_JoystickID joystickInstanceID)
+	{
+		SDL_Gamepad* gamepad = SDL_OpenGamepad(joystickInstanceID);
+		SDL_Joystick* joystick       = SDL_GetGamepadJoystick(gamepad);
+		SDL_JoystickID joystickID     = SDL_GetJoystickID(joystick);
 
-            for (int i = 0; i < devicesByPlayer.Count; i++)
-            {
-                if (devicesByPlayer[i] != null && devicesByPlayer[i].InstanceID == joystickID)
-                {
-                    return;
-                }
-            }
+		for (int i = 0; i < devicesByPlayer.Count; i++)
+		{
+			if (devicesByPlayer[i] != null && devicesByPlayer[i].InstanceID == joystickID)
+			{
+				return;
+			}
+		}
 
-            var playerIndex = GetFirstAvailablePlayerIndex();
-            var device = new SDL3GamePadDevice(mInputSystem, joystickID, playerIndex);
+		var playerIndex = GetFirstAvailablePlayerIndex();
+		var device = new SDL3GamePadDevice(mInputSystem, joystickID, playerIndex);
 
-            devicesByPlayer[playerIndex] = device;
-            count++;
+		devicesByPlayer[playerIndex] = device;
+		count++;
 
-            OnGamePadConnected(device, playerIndex);
-        }
+		OnGamePadConnected(device, playerIndex);
+	}
 
-        /// <summary>
-        /// Called when a controller device is removed.
-        /// </summary>
-        /// <param name="instanceID">The instance identifier of the device to remove.</param>
-        private void OnControllerDeviceRemoved(uint32 instanceID)
-        {
-            for (int32 i = 0; i < devicesByPlayer.Count; i++)
-            {
-                var device = devicesByPlayer[i];
-                if (device != null && device.InstanceID == instanceID)
-                {
-                    OnGamePadDisconnected(device, i);
+	/// <summary>
+	/// Called when a controller device is removed.
+	/// </summary>
+	/// <param name="instanceID">The instance identifier of the device to remove.</param>
+	private void OnControllerDeviceRemoved(uint32 instanceID)
+	{
+		for (int32 i = 0; i < devicesByPlayer.Count; i++)
+		{
+			var device = devicesByPlayer[i];
+			if (device != null && device.InstanceID == instanceID)
+			{
+				OnGamePadDisconnected(device, i);
 
-                    devicesByPlayer[i] = null;
-                    count--;
+				devicesByPlayer[i] = null;
+				count--;
 
-                    return;
-                }
-            }
-        }
+				return;
+			}
+		}
+	}
 
-        /// <summary>
-        /// Raises the <see cref="GamePadConnected"/> event.
-        /// </summary>
-        /// <param name="device">The device that was connected.</param>
-        /// <param name="playerIndex">The player index associated with the game pad.</param>
-        private void OnGamePadConnected(GamePadDevice device, int32 playerIndex) =>
-            GamePadConnected?.Invoke(device, playerIndex);
+	/// <summary>
+	/// Raises the <see cref="GamePadConnected"/> event.
+	/// </summary>
+	/// <param name="device">The device that was connected.</param>
+	/// <param name="playerIndex">The player index associated with the game pad.</param>
+	private void OnGamePadConnected(GamePadDevice device, int32 playerIndex) =>
+		GamePadConnected?.Invoke(device, playerIndex);
 
-        /// <summary>
-        /// Raises the <see cref="GamePadDisconnected"/> event.
-        /// </summary>
-        /// <param name="device">The device that was disconnected.</param>
-        /// <param name="playerIndex">The player index associated with the game pad.</param>
-        private void OnGamePadDisconnected(GamePadDevice device, int32 playerIndex) =>
-            GamePadDisconnected?.Invoke(device, playerIndex);
+	/// <summary>
+	/// Raises the <see cref="GamePadDisconnected"/> event.
+	/// </summary>
+	/// <param name="device">The device that was disconnected.</param>
+	/// <param name="playerIndex">The player index associated with the game pad.</param>
+	private void OnGamePadDisconnected(GamePadDevice device, int32 playerIndex) =>
+		GamePadDisconnected?.Invoke(device, playerIndex);
 
-        /// <summary>
-        /// Gets the index of the first player which does not have an associated game pad.
-        /// </summary>
-        /// <returns>The index of the first player which does not have an associated game pad.</returns>
-        private int32 GetFirstAvailablePlayerIndex()
-        {
-            for (int32 i = 0; i < devicesByPlayer.Count; i++)
-            {
-                if (devicesByPlayer[i] == null)
-                {
-                    return i;
-                }
-            }
-        
-            var devicesOld = devicesByPlayer;
-            var devicesNew = new SDL3GamePadDevice[devicesOld.Count + 1];
-            Array.Copy(devicesOld, devicesNew, devicesOld.Count);
+	/// <summary>
+	/// Gets the index of the first player which does not have an associated game pad.
+	/// </summary>
+	/// <returns>The index of the first player which does not have an associated game pad.</returns>
+	private int32 GetFirstAvailablePlayerIndex()
+	{
+		for (int32 i = 0; i < devicesByPlayer.Count; i++)
+		{
+			if (devicesByPlayer[i] == null)
+			{
+				return i;
+			}
+		}
 
-            devicesByPlayer = devicesNew;
+		var devicesOld = devicesByPlayer;
+		var devicesNew = new SDL3GamePadDevice[devicesOld.Count + 1];
+		Array.Copy(devicesOld, devicesNew, devicesOld.Count);
 
-            return (int32)(devicesByPlayer.Count - 1);
-        }
+		devicesByPlayer = devicesNew;
 
-        // State values.
-        private SDL3GamePadDevice[] devicesByPlayer;
-        private int32 count;
-    }
+		return (int32)(devicesByPlayer.Count - 1);
+	}
+
+	// State values.
+	private SDL3GamePadDevice[] devicesByPlayer;
+	private int32 count;
 }

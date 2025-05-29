@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.IO" = "*"}
+
+[Project]
+Name = "Sedulous.IO.Tests"
+TargetType = "BeefTest"
+StartupObject = "Sedulous.IO.Tests.Program"

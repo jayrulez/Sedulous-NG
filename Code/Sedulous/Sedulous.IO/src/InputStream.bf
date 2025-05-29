@@ -2,15 +2,12 @@ using System;
 using System.Collections;
 namespace Sedulous.IO;
 
-interface IInputStream
+abstract class InputStream
 {
-	int Size { get; }
+	public abstract int Size { get; }
 
-	bool Read(void* buffer, int size);
-}
+	public abstract bool Read(void* buffer, int size);
 
-extension IInputStream
-{
 	public void Read<T>(ref T value) where T : ValueType
 	{
 		Read(&value, sizeof(T));
@@ -25,7 +22,7 @@ extension IInputStream
 		return value;
 	}
 
-	public void Read<T>(List<T> values) where T : ValueType
+	public void ReadList<T>(List<T> values) where T : ValueType
 	{
 		int count = Read<int>();
 		values.Resize(count);

@@ -1,14 +1,14 @@
 using System;
 namespace Sedulous.IO;
 
-class InputMemoryStream : IInputStream
+class InputMemoryStream : InputStream
 {
 	private bool mHasOverflow = false;
 	private uint8* mData = null;
 	private int mSize = 0;
 	private int mPosition = 0;
 
-	public int Size => mSize;
+	public override int Size => mSize;
 
 	public void* Data => mData;
 
@@ -49,7 +49,7 @@ class InputMemoryStream : IInputStream
 		mHasOverflow = false;
 	}
 
-	public bool Read(void* buffer, int size)
+	public override bool Read(void* buffer, int size)
 	{
 		if(mPosition + size > mSize)
 		{
@@ -85,7 +85,7 @@ class InputMemoryStream : IInputStream
 		mPosition += size;
 		if(mPosition > mSize)
 		{
-			Runtime.Assert(false);
+			//Runtime.Assert(false);
 			mPosition = mSize;
 			mHasOverflow = true;
 		}

@@ -1,11 +1,12 @@
 using System;
 namespace Sedulous.IO;
 
-class OutputMemoryStream : IOutputStream
+class OutputMemoryStream : OutputStream
 {
 	private uint8* mData = null;
 	private int mCapacity = 0;
 	private int mSize = 0;
+	private bool mOwnsData = false;
 
 	public uint8* Data => mData;
 	public int Capacity => mCapacity;
@@ -25,12 +26,13 @@ class OutputMemoryStream : IOutputStream
 
 	public this()
 	{
+		mOwnsData = true;
 	}
 
-	public this(void* data, int size)
+	public this(void* data, int capacity)
 	{
 		mData = (uint8*)data;
-		mCapacity = size;
+		mCapacity = capacity;
 	}
 
 	public this(OutputMemoryStream other)
@@ -41,6 +43,7 @@ class OutputMemoryStream : IOutputStream
 			mData = new uint8[other.mCapacity]*;
 			Internal.MemCpy(mData, other.mData, other.mCapacity);
 			mCapacity = other.mCapacity;
+			mOwnsData = true;
 		} else
 		{
 			mData = null;
@@ -57,6 +60,7 @@ class OutputMemoryStream : IOutputStream
 			mData = new uint8[stream.Size]*;
 			Internal.MemCpy(mData, stream.Data, stream.Size);
 			mCapacity = stream.Size;
+			mOwnsData = true;
 		} else
 		{
 			mData = null;
@@ -66,14 +70,14 @@ class OutputMemoryStream : IOutputStream
 
 	public ~this()
 	{
-		if (mData != null)
+		if (mOwnsData && mData != null)
 		{
 			delete mData;
 			mData = null;
 		}
 	}
 
-	public bool Write(void* buffer, int size)
+	public override bool Write(void* buffer, int size)
 	{
 		if(size == 0)
 			return true;
@@ -102,6 +106,8 @@ class OutputMemoryStream : IOutputStream
 		mSize = size;
 		if(size <= mCapacity) return;
 
+		Runtime.Assert(mOwnsData);
+
 		uint8* temp = new uint8[size]*;
 		Internal.MemCpy(temp, mData, mCapacity);
 		delete mData;
@@ -112,6 +118,8 @@ class OutputMemoryStream : IOutputStream
 	public void Reserve(int size)
 	{
 		if(size <= mCapacity) return;
+
+		Runtime.Assert(mOwnsData);
 
 		uint8* temp = new uint8[size]*;
 		Internal.MemCpy(temp, mData, mCapacity);
@@ -126,13 +134,6 @@ class OutputMemoryStream : IOutputStream
 		Write(str.Ptr, size -1);
 		Write<char8>(0);
 		return true;
-	}
-
-	public bool Write<T>(T value) where T : ValueType
-	{
-		var value;
-
-		return Write((void*)&value, sizeof(T));
 	}
 
 	public void Clear()

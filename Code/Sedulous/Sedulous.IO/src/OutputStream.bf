@@ -2,20 +2,17 @@ using System.Collections;
 using System;
 namespace Sedulous.IO;
 
-interface IOutputStream
+abstract class OutputStream
 {
-	bool Write(void* buffer, int size);
-}
-
-extension IOutputStream
-{
+	public abstract bool Write(void* buffer, int size);
+	
 	public bool Write<T>(T value) where T : ValueType
 	{
 		var value;
 		return Write(&value, sizeof(T));
 	}
 
-	public bool Write<T>(List<T> values) where T : ValueType
+	public bool WriteList<T>(List<T> values) where T : ValueType
 	{
 		if (values == null)
 		{

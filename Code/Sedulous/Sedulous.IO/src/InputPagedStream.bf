@@ -1,12 +1,12 @@
 using System;
 namespace Sedulous.IO;
 
-class InputPagedStream : IInputStream
+class InputPagedStream : InputStream
 {
 	private OutputPagedStream.Page* mPage = null;
 	private int mPagePosition = 0;
 
-	public int Size
+	public override int Size
 	{
 		get
 		{
@@ -31,7 +31,7 @@ class InputPagedStream : IInputStream
 
 	public bool IsEnd => mPage == null || mPage.Next == null && mPagePosition == mPage.Size;
 
-	public bool Read(void* buffer, int size)
+	public override bool Read(void* buffer, int size)
 	{
 		var size;
 		uint8* destination = (uint8*)buffer;
@@ -51,6 +51,7 @@ class InputPagedStream : IInputStream
 			int chunkSize = Math.Min(size, mPage.Size - mPagePosition);
 			Internal.MemCpy(destination, &mPage.Data[0] + mPagePosition, chunkSize);
 			mPagePosition += chunkSize;
+			destination += chunkSize;
 			size -= chunkSize;
 		}
 

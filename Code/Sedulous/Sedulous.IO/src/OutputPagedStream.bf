@@ -1,7 +1,7 @@
 using System;
 namespace Sedulous.IO;
 
-class OutputPagedStream : IOutputStream
+class OutputPagedStream : OutputStream
 {
 	public struct Page
 	{
@@ -29,16 +29,17 @@ class OutputPagedStream : IOutputStream
 		}
 	}
 
-	public bool Write(void* buffer, int size)
+	public override bool Write(void* buffer, int size)
 	{
 		var size;
+		uint8* src = (uint8*)buffer;
 		while (size > 0)
 		{
-			Span<uint8> destination = Reserve(size);
-			Internal.MemCpy(destination.Ptr, buffer, destination.Length);
-			size -= destination.Length;
+		    Span<uint8> destination = Reserve(size);
+		    Internal.MemCpy(destination.Ptr, src, destination.Length);
+		    src += destination.Length;
+		    size -= destination.Length;
 		}
-
 		return true;
 	}
 

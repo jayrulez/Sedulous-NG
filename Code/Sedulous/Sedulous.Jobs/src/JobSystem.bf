@@ -150,84 +150,86 @@ class JobSystem
 			return;
 		}
 
-		// todo: if there are no jobs for x frames then pause workers to save CPU
-
-		using (mJobsToRunMonitor.Enter())
-		{
-			delegate void(JobBase) requeueJob = scope (job) =>
+		delegate void(JobBase) requeueJob = scope (job) =>
+			{
+				using (mJobsToRunMonitor.Enter())
 				{
-					// We need to add a ref to the job to counter the previous release
-					// We need to add the job back to the front of the queue
+						// We need to add a ref to the job to counter the previous release
+						// We need to add the job back to the front of the queue
 					job.AddRef();
 					mJobsToRun.AddFront(job);
-				};
+				}
+			};
 
-			// while there are jobs to run
-			while (mJobsToRun.Count > 0)
+		// todo: if there are no jobs for x frames then pause workers to save CPU
+
+		List<JobBase> jobsToRun = scope .();
+		using (mJobsToRunMonitor.Enter())
+		{
+			jobsToRun.AddRange(mJobsToRun);
+			mJobsToRun.Clear();
+		}
+
+		for (var job in jobsToRun)
+		{
+			defer job.ReleaseRef();
+
+			if (!job.IsReady())
 			{
-				// get the first job
-				JobBase job = mJobsToRun.PopFront();
+				// Requeue job
+				AddJob(job);
+				continue;
+			}
 
-				// move job to the back of the queue if it is not ready
-				if (!job.IsReady())
+			// Queue the job on the main thread worker
+			// if it has the RunOnMainThread flag or no background workers exist
+			if (job.Flags.HasFlag(.RunOnMainThread) || mWorkers?.Count == 0)
+			{
+				if (mMainThreadWorker.QueueJob(job) case .Err)
 				{
-					mJobsToRun.Add(job);
-					continue;
+					Logger?.LogError("Failed to queue job on main thread worker '{}'.", mMainThreadWorker.Name);
+					// Failed to queue the job on the worker
+					// Re-queue the job, the lambda adds a ref to job to counter the previous release
+					requeueJob(job);
 				}
+				continue;
+			}
 
-				// In all cases, we need to release our ref to the job
-				defer job.ReleaseRef();
+			// Try to get a worker to queue the job on
+			if (!GetAvailableWorker(var worker))
+			{
+				// todo: determine if job can be run on main thread,
+				// if yes then do so and continue instead of re-queueing, otherwise break
 
-				// Queue the job on the main thread worker
-				// if it has the RunOnMainThread flag or no background workers exist
-				if (job.Flags.HasFlag(.RunOnMainThread) || mWorkers?.Count == 0)
+				// No available workers
+				// We need to break here if there are no available workers
+				// Requeue the job, the lambda adds a ref to job to counter the previous release
+				requeueJob(job);
+
+				continue;
+			}
+
+			switch (job.State) {
+			case .Canceled:
+				// If the job was canceled by this point
+				OnJobCancelled(job, null);
+				break;
+
+			case .Succeeded:
+				// If the job was completed by this point
+				OnJobCompleted(job, null);
+				break;
+
+			default:
+				// Queue the job to be run on the worker
+				if (worker.QueueJob(job) case .Err)
 				{
-					if (mMainThreadWorker.QueueJob(job) case .Err)
-					{
-						Logger?.LogError("Failed to queue job on main thread worker '{}'.", mMainThreadWorker.Name);
-						// Failed to queue the job on the worker
-						// Re-queue the job, the lambda adds a ref to job to counter the previous release
-						requeueJob(job);
-					}
-					continue;
-				}
-
-				// Try to get a worker to queue the job on
-				if (!GetAvailableWorker(var worker))
-				{
-					// todo: determine if job can be run on main thread,
-					// if yes then do so and continue instead of re-queueing, otherwise break
-
-					// No available workers
-					// We need to break here if there are no available workers
+					Logger?.LogError("Failed to queue job on worker '{}'.", worker.Name);
+					// Failed to queue the job on the worker
 					// Requeue the job, the lambda adds a ref to job to counter the previous release
 					requeueJob(job);
-
-					break;
 				}
-
-				switch (job.State) {
-				case .Canceled:
-					// If the job was canceled by this point
-					OnJobCancelled(job, null);
-					break;
-
-				case .Succeeded:
-					// If the job was completed by this point
-					OnJobCompleted(job, null);
-					break;
-
-				default:
-					// Queue the job to be run on the worker
-					if (worker.QueueJob(job) case .Err)
-					{
-						Logger?.LogError("Failed to queue job on worker '{}'.", worker.Name);
-						// Failed to queue the job on the worker
-						// Requeue the job, the lambda adds a ref to job to counter the previous release
-						requeueJob(job);
-					}
-					break;
-				}
+				break;
 			}
 		}
 

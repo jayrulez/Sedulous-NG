@@ -7,7 +7,7 @@ using internal Sedulous.Resources;
 internal class ResourceCache
 {
 	private readonly Monitor mResourcesMonitor = new .() ~ delete _;
-	private readonly Dictionary<ResourceCacheKey, ResourceHandle<IResource>> mResources = new .() ~ delete _;
+	internal readonly Dictionary<ResourceCacheKey, ResourceHandle<IResource>> mResources = new .() ~ delete _;
 
 	public void Set(ResourceCacheKey key, ResourceHandle<IResource> resource)
 	{

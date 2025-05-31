@@ -66,6 +66,8 @@ class SDLRendererSubsystem : Subsystem
 	private IEngine.RegisteredUpdateFunctionInfo? mUpdateFunctionRegistration;
 	private IEngine.RegisteredUpdateFunctionInfo? mRenderFunctionRegistration;
 
+	private readonly MeshResourceManager mMeshResourceManager = new .() ~ delete _;
+
 	// Pipelines
 	private SDL_GPUGraphicsPipeline* mLitPipeline;
 	private SDL_GPUGraphicsPipeline* mUnlitPipeline;
@@ -108,6 +110,8 @@ class SDLRendererSubsystem : Subsystem
 				Function = new => OnRender
 			});
 
+		engine.ResourceSystem.AddResourceManager(mMeshResourceManager);
+
 		// Initialize SDL GPU device
 		mDevice = SDL_CreateGPUDevice(
 			.SDL_GPU_SHADERFORMAT_SPIRV | .SDL_GPU_SHADERFORMAT_DXIL | .SDL_GPU_SHADERFORMAT_MSL,
@@ -148,6 +152,8 @@ class SDLRendererSubsystem : Subsystem
 		SDL_ReleaseWindowFromGPUDevice(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
 		SDL_DestroyGPUDevice(mDevice);
 
+		engine.ResourceSystem.RemoveResourceManager(mMeshResourceManager);
+
 		if (mUpdateFunctionRegistration.HasValue)
 		{
 			engine.UnregisterUpdateFunction(mUpdateFunctionRegistration.Value);
@@ -161,6 +167,8 @@ class SDLRendererSubsystem : Subsystem
 			delete mRenderFunctionRegistration.Value.Function;
 			mRenderFunctionRegistration = null;
 		}
+
+
 
 		base.OnUnitializing(engine);
 	}

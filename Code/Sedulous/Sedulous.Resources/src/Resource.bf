@@ -1,13 +1,14 @@
 using System.Threading;
 using System.Diagnostics;
 using System;
+using Sedulous.Foundation.Utilities;
 namespace Sedulous.Resources;
 
 abstract class Resource : IResource
 {
 	private int mRefCount = 0;
 
-	public Guid Id { get; protected set; }
+	public GUID Id { get; protected set; }
 
 	public ~this()
 	{

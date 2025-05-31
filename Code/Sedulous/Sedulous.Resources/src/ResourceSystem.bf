@@ -23,7 +23,14 @@ class ResourceSystem
 	}
 
 	internal void Startup() { }
-	internal void Shutdown() { }
+	internal void Shutdown()
+	{
+		for (var resource in mCache.mResources)
+		{
+			var manager = mResourceManagersByResourceTypes[resource.value.Resource.GetType()];
+			manager.Unload(ref resource.value);
+		}
+	}
 
 	internal void Update(int64 elapsedTicks)
 	{
@@ -79,6 +86,24 @@ class ResourceSystem
 				mResourceManagersByResourceTypes.Remove(resourceType);
 			}
 		}
+	}
+
+	public Result<ResourceHandle<T>, ResourceLoadError> AddResource<T>(T resource, bool cache = true) where T : IResource
+	{
+		var resourceManager = GetResourceManagerByResourceType<T>();
+		if (resourceManager == null)
+			return .Err(.ManagerNotFound);
+
+		var handle = ResourceHandle<IResource>(resource);
+
+		if (cache)
+		{
+			String id = scope $"{resource.Id.ToString(.. scope .()):X}";
+			var cacheKey = ResourceCacheKey(id, typeof(T));
+			mCache.Set(cacheKey, handle);
+		}
+
+		return ResourceHandle<T>((T)handle.Resource);
 	}
 
 	public Result<ResourceHandle<T>, ResourceLoadError> LoadResource<T>(StringView path, bool fromCache = true, bool cacheIfLoaded = true) where T : IResource
@@ -141,7 +166,7 @@ class ResourceSystem
 			mLogger.LogWarning(scope $"ResourceManager for resource type '{resource.GetType().GetName(.. scope .())}' not found.");
 		} else
 		{
-			resourceManager.Unload(resource);
+			resourceManager.Unload(ref resource);
 		}
 	}
 }

@@ -25,7 +25,7 @@ class MeshRenderer : Component
     private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<MeshRenderer>();
     public override ComponentTypeId TypeId => sTypeId;
 	
-	//public ResourceHandle<Mesh> Mesh { get; set; }
+	public ResourceHandle<MeshResource> Mesh { get; set; } ~ _.Release();
 	public ResourceHandle<MaterialResource> Material { get; set; }
 
     public bool UseLighting = true;
@@ -150,6 +150,11 @@ class RenderModule : SceneModule
 
     public ~this()
     {
+		for(var entry in mRendererMeshes)
+		{
+			delete entry.value;
+		}
+
         if (mDepthTexture != null)
         {
             SDL_ReleaseGPUTexture(mRenderer.mDevice, mDepthTexture);
@@ -271,9 +276,19 @@ class RenderModule : SceneModule
         mRenderCommands.Sort(scope (lhs, rhs) => lhs.DistanceToCamera.CompareTo(rhs.DistanceToCamera));
     }
 
+	private Dictionary<MeshRenderer, GPUMesh> mRendererMeshes = new .() ~ delete _;
+
     private void RenderFrame()
     {
         var commandBuffer = SDL_AcquireGPUCommandBuffer(mRenderer.mDevice);
+
+		for (var command in mRenderCommands)
+		{
+			if(!mRendererMeshes.ContainsKey(command.Renderer))
+			{
+				mRendererMeshes[command.Renderer] = new GPUMesh(mRenderer.mDevice, command.Renderer.Mesh.Resource.Mesh);
+			}
+		}
         
         // Get swapchain texture
         SDL_GPUTexture* swapchainTexture = null;
@@ -398,11 +413,17 @@ class RenderModule : SceneModule
 
     private void RenderObject(SDL_GPURenderPass* renderPass, RenderCommand command)
     {
+		if(!mRendererMeshes.ContainsKey(command.Renderer))
+			return;
+
+		var mesh = mRendererMeshes[command.Renderer];
+
         // Get mesh data (using default cube for now)
-        SDL_GPUBuffer* vertexBuffer;
-        SDL_GPUBuffer* indexBuffer;
-        uint32 indexCount;
-        mRenderer.GetDefaultMesh(out vertexBuffer, out indexBuffer, out indexCount);
+        SDL_GPUBuffer* vertexBuffer = mesh.VertexBuffer;
+        SDL_GPUBuffer* indexBuffer = mesh.IndexBuffer;
+        uint32 indexCount = mesh.IndexCount;
+
+        //mRenderer.GetDefaultMesh(out vertexBuffer, out indexBuffer, out indexCount);
 
         // Get uniform buffers
         SDL_GPUBuffer* vertexUniformBuffer;

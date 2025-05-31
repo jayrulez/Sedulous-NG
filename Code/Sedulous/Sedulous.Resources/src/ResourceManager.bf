@@ -63,5 +63,10 @@ abstract class ResourceManager<T> : IResourceManager where T : IResource
 
 	protected abstract Result<ResourceHandle<T>, ResourceLoadError> LoadFromMemory(MemoryStream memory);
 
-	public abstract void Unload(ResourceHandle<IResource> resource);
+	public abstract void Unload(T resource);
+
+	public void Unload(ref ResourceHandle<IResource> resource)
+	{
+		Unload((T)resource.Resource);
+	}
 }

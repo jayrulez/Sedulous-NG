@@ -10,5 +10,5 @@ interface IResourceManager
 
 	Result<ResourceHandle<IResource>, ResourceLoadError> Load(MemoryStream stream);
 
-	void Unload(ResourceHandle<IResource> resource);
+	void Unload(ref ResourceHandle<IResource> resource);
 }

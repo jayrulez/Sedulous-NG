@@ -3,12 +3,12 @@ namespace Sedulous.Resources;
 
 internal struct ResourceCacheKey : IHashable
 {
-	public int PathHash = 0;
+	public int IdentifierHash = 0;
 	public Type ResourceType = null;
 
-	public this(StringView path, Type resourceType)
+	public this(StringView identifier, Type resourceType)
 	{
-		PathHash = HashCode.Generate(path);
+		IdentifierHash = identifier.GetHashCode();
 		ResourceType = resourceType;
 	}
 
@@ -16,7 +16,7 @@ internal struct ResourceCacheKey : IHashable
 	{
 		int hashCode = 45;
 
-		hashCode = HashCode.Mix(hashCode, PathHash);
+		hashCode = HashCode.Mix(hashCode, IdentifierHash);
 		hashCode = HashCode.Mix(hashCode, ResourceType.GetTypeId());
 
 		return hashCode;

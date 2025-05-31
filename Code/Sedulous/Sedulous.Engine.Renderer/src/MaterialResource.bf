@@ -1,6 +1,7 @@
 using System;
 using Sedulous.Resources;
 using Sedulous.Foundation.Mathematics;
+using Sedulous.Foundation.Utilities;
 namespace Sedulous.Engine.Renderer;
 
 class MaterialResource : Resource
@@ -57,7 +58,7 @@ class MaterialResource : Resource
 
     public this(StringView shaderName = "DefaultLit")
     {
-        Id = Guid.Create();
+        Id = GUID.Create();
         mShaderName.Set(shaderName);
 
         // Set default material properties

@@ -1,9 +1,10 @@
 using System;
+using Sedulous.Foundation.Utilities;
 namespace Sedulous.Resources;
 
 interface IResource
 {
-	public Guid Id { get; }
+	public GUID Id { get; }
 
 	public int RefCount {get;}
 

@@ -12,14 +12,6 @@ using Sedulous.Geometry;
 
 namespace Sedulous.Engine.Renderer.SDL;
 
-struct Vertex
-{
-	public Vector3 Position;
-	public Vector3 Normal;
-	public Vector2 TexCoord;
-	public Vector4 Color;
-}
-
 struct CameraData
 {
 	public Matrix ViewMatrix;
@@ -76,12 +68,6 @@ class SDLRendererSubsystem : Subsystem
 	private SDL_GPUShader* mUnlitVertexShader;
 	private SDL_GPUShader* mUnlitFragmentShader;
 
-	// Default resources
-	private GPUMesh mGeometry = null;
-	//private SDL_GPUBuffer* mGeometryVertexBuffer;
-	//private SDL_GPUBuffer* mGeometryIndexBuffer;
-	//private uint32 mGeometryIndexCount;
-
 	// Uniform buffers
 	private SDL_GPUBuffer* mVertexUniformBuffer;
 	private SDL_GPUBuffer* mFragmentUniformBuffer;
@@ -126,7 +112,6 @@ class SDLRendererSubsystem : Subsystem
 		GetGPUShaderFormat();
 
 		// Create basic resources
-		CreateDefaultMeshes();
 		CreateUniformBuffers();
 		CreateShaders();
 		CreatePipelines();
@@ -143,9 +128,6 @@ class SDLRendererSubsystem : Subsystem
 		SDL_ReleaseGPUShader(mDevice, mLitFragmentShader);
 		SDL_ReleaseGPUShader(mDevice, mUnlitVertexShader);
 		SDL_ReleaseGPUShader(mDevice, mUnlitFragmentShader);
-		delete mGeometry;
-		//SDL_ReleaseGPUBuffer(mDevice, mGeometryVertexBuffer);
-		//SDL_ReleaseGPUBuffer(mDevice, mGeometryIndexBuffer);
 		SDL_ReleaseGPUBuffer(mDevice, mVertexUniformBuffer);
 		SDL_ReleaseGPUBuffer(mDevice, mFragmentUniformBuffer);
 
@@ -182,18 +164,6 @@ class SDLRendererSubsystem : Subsystem
 	protected override void DestroySceneModules(Scene scene)
 	{
 		delete mRenderModule;
-	}
-
-	private void CreateDefaultMeshes()
-	{
-	    var geometry = Mesh.CreateCylinder();
-	    for(int32 i = 0; i < geometry.Vertices.VertexCount; i++)
-	    {
-	        geometry.SetColor(i, Color.White.PackedValue);
-	    }
-	    defer delete geometry;
-
-		mGeometry = new .(mDevice, geometry);
 	}
 
 	private void CreateUniformBuffers()
@@ -530,13 +500,6 @@ class SDLRendererSubsystem : Subsystem
 	public SDL_GPUGraphicsPipeline* GetPipeline(bool lit)
 	{
 		return lit ? mLitPipeline : mUnlitPipeline;
-	}
-
-	public void GetDefaultMesh(out SDL_GPUBuffer* vertexBuffer, out SDL_GPUBuffer* indexBuffer, out uint32 indexCount)
-	{
-		vertexBuffer = mGeometry.VertexBuffer;
-		indexBuffer = mGeometry.IndexBuffer;
-		indexCount = mGeometry.IndexCount;
 	}
 
 	public void GetUniformBuffers(out SDL_GPUBuffer* vertexUniformBuffer, out SDL_GPUBuffer* fragmentUniformBuffer)

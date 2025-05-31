@@ -11,7 +11,7 @@ class JobSystem
 {
 	private readonly int mMinimumBackgroundWorkers;
 	private readonly List<BackgroundWorker> mWorkers = new .() ~ delete _;
-	private readonly MainThreadWorker mMainThreadWorker = null;
+	private MainThreadWorker mMainThreadWorker = null;
 
 	private readonly Monitor mJobsToRunMonitor = new .() ~ delete _;
 	private readonly Queue<JobBase> mJobsToRun = new .() ~ delete _;
@@ -45,14 +45,7 @@ class JobSystem
 			mMinimumBackgroundWorkers = Math.Min(mMinimumBackgroundWorkers, coreCount - 1);
 		}
 
-		mMainThreadWorker = new .(this, "Main Thread Worker");
-
-		for (int i = 0; i < mMinimumBackgroundWorkers; i++)
-		{
-			BackgroundWorker worker = new .(this, scope $"Worker {i}", .Persistent);
-
-			mWorkers.Add(worker);
-		}
+		//CreateWorkers();
 	}
 
 	public ~this()
@@ -63,6 +56,33 @@ class JobSystem
 		}
 
 		delete mMainThreadWorker;
+	}
+
+	private void CreateWorkers()
+	{
+		mMainThreadWorker = new .(this, "Main Thread Worker");
+
+		for (int i = 0; i < mMinimumBackgroundWorkers; i++)
+		{
+			BackgroundWorker worker = new .(this, scope $"Worker {i}", .Persistent);
+
+			mWorkers.Add(worker);
+		}
+	}
+
+	private void DestroyWorkers()
+	{
+		if(mMainThreadWorker != null)
+		{
+			delete mMainThreadWorker;
+			mMainThreadWorker = null;
+		}
+
+		for(var worker in mWorkers)
+		{
+			delete worker;
+		}
+		mWorkers.Clear();
 	}
 
 	private void OnJobCompleted(JobBase job, Worker worker)
@@ -99,11 +119,14 @@ class JobSystem
 			return;
 		}
 
+		CreateWorkers();
+
 		mMainThreadWorker.Start();
 
 		for (Worker worker in mWorkers)
 		{
-			worker.Start();
+			if (!worker.IsRunning)
+				worker.Start();
 		}
 
 		mIsRunning = true;
@@ -140,6 +163,8 @@ class JobSystem
 		ClearCancelledJobs();
 
 		mIsRunning = false;
+
+		DestroyWorkers();
 	}
 
 	internal void Update(int64 elapsedTicks)

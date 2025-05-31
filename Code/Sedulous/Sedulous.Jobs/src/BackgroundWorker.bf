@@ -36,7 +36,6 @@ internal class BackgroundWorker : Worker
 			mThread.Suspend();
 	}
 
-
 	protected override void OnResuming()
 	{
 		mThread.Resume();

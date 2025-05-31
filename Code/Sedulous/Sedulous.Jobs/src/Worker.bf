@@ -10,6 +10,7 @@ internal abstract class Worker
 	protected readonly JobSystem mJobSystem = null;
 	protected readonly String mName = new .() ~ delete _;
 	protected bool mIsRunning = false;
+	public bool IsRunning => mIsRunning;
 	protected WorkerState mState = .Paused;
 	private readonly WorkerFlags mFlags = .None;
 
@@ -77,6 +78,8 @@ internal abstract class Worker
 				mJobSystem.AddJob(job);
 			}
 		}
+
+		mState = .Dead;
 	}
 
 	public void WaitForIdle()

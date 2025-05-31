@@ -292,7 +292,7 @@ class JobSystemTests
         Test.Assert(resultValue == 42);
     }
 
-    /*[Test]
+    [Test]
     public static void JobSystemStartupShutdown()
     {
         var logger = scope ConsoleLogger(.Trace);
@@ -304,14 +304,13 @@ class JobSystemTests
             jobSystem.Startup();
             Test.Assert(jobSystem.WorkerCount == 2);
             
-            var job = scope TestJob(scope :: $"CycleTest{cycle}");
-			defer job.ReleaseRefNoDelete();
+            var job = scope :: TestJob(scope :: $"CycleTest{cycle}");
+			defer :: job.ReleaseRefNoDelete();
             jobSystem.AddJob(job);
 
 			for(int i = 0; i < 6000; i++)
 			{
 				jobSystem.Update(i);
-
 			}
 
             WaitForJobCompletion(job, 1000);
@@ -320,7 +319,7 @@ class JobSystemTests
             
             jobSystem.Shutdown();
         }
-    }*/
+    }
 
     [Test]
     public static void MultipleWorkers()

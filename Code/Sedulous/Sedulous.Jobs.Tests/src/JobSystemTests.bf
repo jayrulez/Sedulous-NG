@@ -446,13 +446,12 @@ class JobSystemTests
         Test.Assert(job.WasExecuted);
     }
 
-    /*[Test]
+    [Test]
     public static void ConcurrentJobAddition()
     {
         var logger = scope ConsoleLogger(.Trace);
         var jobSystem = scope JobSystem(logger, 2);
         jobSystem.Startup();
-        defer jobSystem.Shutdown();
 
         CounterJob.ResetCounter();
 
@@ -471,13 +470,14 @@ class JobSystemTests
                 }
             });
             threads.Add(thread);
-            thread.Start();
+            thread.Start(false);
         }
 
         // Wait for all threads to finish adding jobs
         for (var thread in threads)
         {
             thread.Join();
+			delete thread;
         }
 
         // Wait for jobs to complete
@@ -489,8 +489,10 @@ class JobSystemTests
                 break;
         }
 
+        jobSystem.Shutdown();
+
         Test.Assert(CounterJob.GetCounter() == 30);
-    }*/
+    }
 
     [Test]
     public static void WorkerRecovery()

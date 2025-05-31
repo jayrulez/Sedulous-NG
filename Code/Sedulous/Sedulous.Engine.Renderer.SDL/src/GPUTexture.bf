@@ -7,7 +7,7 @@ class GPUTexture
     public SDL_GPUTexture* Texture;
     public SDL_GPUSampler* Sampler;
     
-    public this(SDL_GPUDevice* device, Texture texture)
+    public this(SDL_GPUDevice* device, TextureResource texture)
     {
         CreateTexture(device, texture);
         CreateSampler(device, texture);
@@ -18,7 +18,7 @@ class GPUTexture
         // Note: Should be cleaned up by renderer on shutdown
     }
     
-    private void CreateTexture(SDL_GPUDevice* device, Texture texture)
+    private void CreateTexture(SDL_GPUDevice* device, TextureResource texture)
     {
         var textureDesc = SDL_GPUTextureCreateInfo()
         {
@@ -78,7 +78,7 @@ class GPUTexture
         }
     }
     
-    private void CreateSampler(SDL_GPUDevice* device, Texture texture)
+    private void CreateSampler(SDL_GPUDevice* device, TextureResource texture)
     {
         var samplerDesc = SDL_GPUSamplerCreateInfo()
         {
@@ -94,7 +94,7 @@ class GPUTexture
         Sampler = SDL_CreateGPUSampler(device, &samplerDesc);
     }
     
-    private static SDL_GPUTextureFormat ConvertTextureFormat(Texture.TextureFormat format)
+    private static SDL_GPUTextureFormat ConvertTextureFormat(TextureResource.TextureFormat format)
     {
         switch (format)
         {
@@ -112,7 +112,7 @@ class GPUTexture
         }
     }
     
-    private static SDL_GPUFilter ConvertTextureFilter(Texture.TextureFilter filter)
+    private static SDL_GPUFilter ConvertTextureFilter(TextureResource.TextureFilter filter)
     {
         switch (filter)
         {
@@ -122,7 +122,7 @@ class GPUTexture
         }
     }
     
-    private static SDL_GPUSamplerAddressMode ConvertTextureWrap(Texture.TextureWrap wrap)
+    private static SDL_GPUSamplerAddressMode ConvertTextureWrap(TextureResource.TextureWrap wrap)
     {
         switch (wrap)
         {

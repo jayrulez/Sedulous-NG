@@ -16,7 +16,7 @@ class SpriteRenderer : Component
     private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<SpriteRenderer>();
     public override ComponentTypeId TypeId => sTypeId;
     
-    public ResourceHandle<Texture> Texture { get; set; }
+    public ResourceHandle<TextureResource> Texture { get; set; }
     public Color Color { get; set; } = .White;
 }
 
@@ -25,8 +25,8 @@ class MeshRenderer : Component
     private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<MeshRenderer>();
     public override ComponentTypeId TypeId => sTypeId;
 	
-	public ResourceHandle<Mesh> Mesh { get; set; }
-	public ResourceHandle<Material> Material { get; set; }
+	//public ResourceHandle<Mesh> Mesh { get; set; }
+	public ResourceHandle<MaterialResource> Material { get; set; }
 
     public bool UseLighting = true;
     public Vector4 Color = .(1, 1, 1, 1);

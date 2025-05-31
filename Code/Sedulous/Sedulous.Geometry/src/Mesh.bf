@@ -27,7 +27,7 @@ public class Mesh
 	}
 
 	// Initialize with a specific vertex format
-	public void Initialize(int32 vertexSize, IndexBuffer.IndexFormat indexFormat = .UInt16)
+	public void Initialize(int32 vertexSize, IndexBuffer.IndexFormat indexFormat = .UInt32)
 	{
 		delete mVertexBuffer;
 		delete mIndexBuffer;

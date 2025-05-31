@@ -3,7 +3,7 @@ using System.Collections;
 using Sedulous.Resources;
 namespace Sedulous.Engine.Renderer;
 
-class Shader : Resource
+class ShaderResource : Resource
 {
     public enum ShaderStage
     {

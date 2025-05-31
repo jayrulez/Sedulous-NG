@@ -3,7 +3,7 @@ using Sedulous.Resources;
 using Sedulous.Foundation.Mathematics;
 namespace Sedulous.Engine.Renderer;
 
-class Material : Resource
+class MaterialResource : Resource
 {
 	[CRepr]
     public struct MaterialProperties
@@ -17,10 +17,10 @@ class Material : Resource
     }
 
     private MaterialProperties mProperties;
-    private ResourceHandle<Texture> mAlbedoTexture;
-    private ResourceHandle<Texture> mNormalTexture;
-    private ResourceHandle<Texture> mMetallicRoughnessTexture;
-    private ResourceHandle<Texture> mEmissiveTexture;
+    private ResourceHandle<TextureResource> mAlbedoTexture;
+    private ResourceHandle<TextureResource> mNormalTexture;
+    private ResourceHandle<TextureResource> mMetallicRoughnessTexture;
+    private ResourceHandle<TextureResource> mEmissiveTexture;
     private String mShaderName = new .() ~ delete _;
 
     public ref MaterialProperties Properties
@@ -29,25 +29,25 @@ class Material : Resource
         set => mProperties = value;
     }
 
-    public ResourceHandle<Texture> AlbedoTexture
+    public ResourceHandle<TextureResource> AlbedoTexture
     {
         get => mAlbedoTexture;
         set => mAlbedoTexture = value;
     }
 
-    public ResourceHandle<Texture> NormalTexture
+    public ResourceHandle<TextureResource> NormalTexture
     {
         get => mNormalTexture;
         set => mNormalTexture = value;
     }
 
-    public ResourceHandle<Texture> MetallicRoughnessTexture
+    public ResourceHandle<TextureResource> MetallicRoughnessTexture
     {
         get => mMetallicRoughnessTexture;
         set => mMetallicRoughnessTexture = value;
     }
 
-    public ResourceHandle<Texture> EmissiveTexture
+    public ResourceHandle<TextureResource> EmissiveTexture
     {
         get => mEmissiveTexture;
         set => mEmissiveTexture = value;

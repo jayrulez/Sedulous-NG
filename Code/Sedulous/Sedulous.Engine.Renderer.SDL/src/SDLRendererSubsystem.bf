@@ -8,6 +8,7 @@ using Sedulous.Foundation.Mathematics;
 using Sedulous.Platform.Core;
 using Sedulous.Platform.SDL3;
 using Sedulous.SceneGraph;
+using Sedulous.Geometry;
 
 namespace Sedulous.Engine.Renderer.SDL;
 
@@ -175,50 +176,22 @@ class SDLRendererSubsystem : Subsystem
 
 	private void CreateDefaultMeshes()
 	{
-		// Create a cube mesh
-		Vertex[24] cubeVertices = .( // Front face
-			. { Position = .(-0.5f, -0.5f,  0.5f), Normal = .(0, 0, 1), TexCoord = .(0, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(0.5f, -0.5f,  0.5f), Normal = .(0, 0, 1), TexCoord = .(1, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(0.5f,  0.5f,  0.5f), Normal = .(0, 0, 1), TexCoord = .(1, 0), Color = .(1, 1, 1, 1) },
-			. { Position = .(-0.5f,  0.5f,  0.5f), Normal = .(0, 0, 1), TexCoord = .(0, 0), Color = .(1, 1, 1, 1) }, // Back face
-			. { Position = .(0.5f, -0.5f, -0.5f), Normal = .(0, 0, -1), TexCoord = .(0, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(-0.5f, -0.5f, -0.5f), Normal = .(0, 0, -1), TexCoord = .(1, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(-0.5f,  0.5f, -0.5f), Normal = .(0, 0, -1), TexCoord = .(1, 0), Color = .(1, 1, 1, 1) },
-			. { Position = .(0.5f,  0.5f, -0.5f), Normal = .(0, 0, -1), TexCoord = .(0, 0), Color = .(1, 1, 1, 1) }, // Top face
-			. { Position = .(-0.5f,  0.5f,  0.5f), Normal = .(0, 1, 0), TexCoord = .(0, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(0.5f,  0.5f,  0.5f), Normal = .(0, 1, 0), TexCoord = .(1, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(0.5f,  0.5f, -0.5f), Normal = .(0, 1, 0), TexCoord = .(1, 0), Color = .(1, 1, 1, 1) },
-			. { Position = .(-0.5f,  0.5f, -0.5f), Normal = .(0, 1, 0), TexCoord = .(0, 0), Color = .(1, 1, 1, 1) }, // Bottom face
-			. { Position = .(-0.5f, -0.5f, -0.5f), Normal = .(0, -1, 0), TexCoord = .(0, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(0.5f, -0.5f, -0.5f), Normal = .(0, -1, 0), TexCoord = .(1, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(0.5f, -0.5f,  0.5f), Normal = .(0, -1, 0), TexCoord = .(1, 0), Color = .(1, 1, 1, 1) },
-			. { Position = .(-0.5f, -0.5f,  0.5f), Normal = .(0, -1, 0), TexCoord = .(0, 0), Color = .(1, 1, 1, 1) }, // Right face
-			. { Position = .(0.5f, -0.5f,  0.5f), Normal = .(1, 0, 0), TexCoord = .(0, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(0.5f, -0.5f, -0.5f), Normal = .(1, 0, 0), TexCoord = .(1, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(0.5f,  0.5f, -0.5f), Normal = .(1, 0, 0), TexCoord = .(1, 0), Color = .(1, 1, 1, 1) },
-			. { Position = .(0.5f,  0.5f,  0.5f), Normal = .(1, 0, 0), TexCoord = .(0, 0), Color = .(1, 1, 1, 1) }, // Left face
-			. { Position = .(-0.5f, -0.5f, -0.5f), Normal = .(-1, 0, 0), TexCoord = .(0, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(-0.5f, -0.5f,  0.5f), Normal = .(-1, 0, 0), TexCoord = .(1, 1), Color = .(1, 1, 1, 1) },
-			. { Position = .(-0.5f,  0.5f,  0.5f), Normal = .(-1, 0, 0), TexCoord = .(1, 0), Color = .(1, 1, 1, 1) },
-			. { Position = .(-0.5f,  0.5f, -0.5f), Normal = .(-1, 0, 0), TexCoord = .(0, 0), Color = .(1, 1, 1, 1) }
-			);
+		var geometry = Mesh.CreateCylinder();
+		for(int32 i = 0; i < geometry.Vertices.VertexCount; i++)
+		{
+			geometry.SetColor(i, Color.White.PackedValue);
+		}
+		defer delete geometry;
 
-		uint32[36] cubeIndices = .( // Front face
-			0, 1, 2,    2, 3, 0, // Back face
-			4, 5, 6,    6, 7, 4, // Top face
-			8, 9, 10,   10, 11, 8, // Bottom face
-			12, 13, 14, 14, 15, 12, // Right face
-			16, 17, 18, 18, 19, 16, // Left face
-			20, 21, 22, 22, 23, 20
-			);
+		//geometry.Vertices.
 
-		mCubeIndexCount = 36;
+		mCubeIndexCount = (uint32)geometry.Indices.IndexCount;
 
 		// Create vertex buffer
 		var vertexBufferDesc = SDL_GPUBufferCreateInfo()
 			{
 				usage = .SDL_GPU_BUFFERUSAGE_VERTEX,
-				size = sizeof(Vertex) * 24
+				size = uint32(geometry.Vertices.VertexSize * geometry.Vertices.VertexCount)
 			};
 		mCubeVertexBuffer = SDL_CreateGPUBuffer(mDevice, &vertexBufferDesc);
 
@@ -226,20 +199,20 @@ class SDLRendererSubsystem : Subsystem
 		var indexBufferDesc = SDL_GPUBufferCreateInfo()
 			{
 				usage = .SDL_GPU_BUFFERUSAGE_INDEX,
-				size = sizeof(uint32) * 36
+				size = uint32(geometry.Indices.GetIndexSize() * geometry.Indices.IndexCount)
 			};
 		mCubeIndexBuffer = SDL_CreateGPUBuffer(mDevice, &indexBufferDesc);
 
 		// Upload data
 		var transferBuffer = SDL_CreateGPUTransferBuffer(mDevice, scope .()
 			{
-				size = (sizeof(Vertex) * 24) + (sizeof(uint32) * 36),
+				size = uint32(geometry.Vertices.VertexSize * geometry.Vertices.VertexCount) + uint32(geometry.Indices.GetIndexSize() * geometry.Indices.IndexCount),
 				usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD
 			});
 
 		void* mappedData = SDL_MapGPUTransferBuffer(mDevice, transferBuffer, false);
-		Internal.MemCpy(mappedData, &cubeVertices[0], sizeof(Vertex) * 24);
-		Internal.MemCpy((uint8*)mappedData + (sizeof(Vertex) * 24), &cubeIndices[0], sizeof(uint32) * 36);
+		Internal.MemCpy(mappedData, geometry.Vertices.GetRawData(),  geometry.Vertices.VertexSize * geometry.Vertices.VertexCount);
+		Internal.MemCpy((uint8*)mappedData + (geometry.Vertices.VertexSize * geometry.Vertices.VertexCount), geometry.Indices.GetRawData(), geometry.Indices.GetIndexSize() * geometry.Indices.IndexCount);
 		SDL_UnmapGPUTransferBuffer(mDevice, transferBuffer);
 
 		// Upload to GPU
@@ -254,18 +227,18 @@ class SDLRendererSubsystem : Subsystem
 			{
 				buffer = mCubeVertexBuffer,
 				offset = 0,
-				size = sizeof(Vertex) * 24
+				size = uint32(geometry.Vertices.VertexSize * geometry.Vertices.VertexCount)
 			}, false);
 
 		SDL_UploadToGPUBuffer(copyPass, scope .()
 			{
 				transfer_buffer = transferBuffer,
-				offset = sizeof(Vertex) * 24
+				offset = uint32(geometry.Vertices.VertexSize * geometry.Vertices.VertexCount)
 			}, scope .()
 			{
 				buffer = mCubeIndexBuffer,
 				offset = 0,
-				size = sizeof(uint32) * 36
+				size = uint32(geometry.Indices.GetIndexSize() * geometry.Indices.IndexCount)
 			}, false);
 
 		SDL_EndGPUCopyPass(copyPass);
@@ -296,112 +269,129 @@ class SDLRendererSubsystem : Subsystem
 
 	private void CreateShaders()
 	{
-		// Simple lit vertex shader without push constants
+		// Simple lit vertex shader with uint32 color
 		String litVertexShaderSource = """
 		struct VSInput
 		{
-		float3 Position : POSITION0;
-		float3 Normal : NORMAL0;
-		float2 TexCoord : TEXCOORD0;
-		float4 Color : COLOR0;
+		    float3 Position : POSITION0;
+		    float3 Normal : NORMAL0;
+		    float2 TexCoord : TEXCOORD0;
+		    uint Color : COLOR0;
 		};
-		
+
 		struct VSOutput
 		{
-		float4 Position : SV_Position;
-		float3 WorldPos : TEXCOORD0;
-		float3 Normal : NORMAL0;
-		float2 TexCoord : TEXCOORD1;
-		float4 Color : COLOR0;
+		    float4 Position : SV_Position;
+		    float3 WorldPos : TEXCOORD0;
+		    float3 Normal : NORMAL0;
+		    float2 TexCoord : TEXCOORD1;
+		    float4 Color : COLOR0;
 		};
-		
+
+		// Helper function to unpack uint32 color to float4
+		float4 UnpackColor(uint packedColor)
+		{
+		    float4 color;
+		    color.r = float((packedColor >> 0) & 0xFF) / 255.0;
+		    color.g = float((packedColor >> 8) & 0xFF) / 255.0;
+		    color.b = float((packedColor >> 16) & 0xFF) / 255.0;
+		    color.a = float((packedColor >> 24) & 0xFF) / 255.0;
+		    return color;
+		}
+
 		VSOutput main(VSInput input)
 		{
-		VSOutput output;
-					// For now, just pass through with basic projection
-					output.Position = float4(input.Position * 0.5, 1.0);
-					output.WorldPos = input.Position;
-					output.Normal = input.Normal;
-		output.TexCoord = input.TexCoord;
-		output.Color = input.Color;
-		return output;
+		    VSOutput output;
+		    // For now, just pass through with basic projection
+		    output.Position = float4(input.Position * 0.5, 1.0);
+		    output.WorldPos = input.Position;
+		    output.Normal = input.Normal;
+		    output.TexCoord = input.TexCoord;
+		    output.Color = UnpackColor(input.Color);
+		    return output;
 		}
 		""";
 
-		// Lit fragment shader
+		// Lit fragment shader (no changes needed since it receives float4)
 		String litFragmentShaderSource = """
 		struct PSInput
 		{
-		float4 Position : SV_Position;
-		float3 WorldPos : TEXCOORD0;
-		float3 Normal : NORMAL0;
-		float2 TexCoord : TEXCOORD1;
-		float4 Color : COLOR0;
+		    float4 Position : SV_Position;
+		    float3 WorldPos : TEXCOORD0;
+		    float3 Normal : NORMAL0;
+		    float2 TexCoord : TEXCOORD1;
+		    float4 Color : COLOR0;
 		};
-		
+
 		float4 main(PSInput input) : SV_Target
 		{
-		// Simple directional lighting
-			float3 lightDir = normalize(float3(0.5, -1.0, 0.5));
-		
-			float3 normal = normalize(input.Normal);
-		
-		
-		
-			float NdotL = max(dot(normal, -lightDir), 0.0);
-		
-			float3 diffuse = NdotL * float3(1, 1, 1);
-		
-		
-		
-			float3 ambient = float3(0.3, 0.3, 0.3);
-		
-			float3 finalColor = (ambient + diffuse) * input.Color.rgb;
-		
-		
-		
-			return float4(finalColor, input.Color.a);
+		    // Simple directional lighting
+		    float3 lightDir = normalize(float3(0.5, -1.0, 0.5));
+		    
+		    float3 normal = normalize(input.Normal);
+		    
+		    float NdotL = max(dot(normal, -lightDir), 0.0);
+		    
+		    float3 diffuse = NdotL * float3(1, 1, 1);
+		    
+		    float3 ambient = float3(0.3, 0.3, 0.3);
+		    
+		    float3 finalColor = (ambient + diffuse) * input.Color.rgb;
+		    
+		    return float4(finalColor, input.Color.a);
 		}
 		""";
 
-		// Simple unlit shaders
+		// Simple unlit vertex shader with uint32 color
 		String unlitVertexShaderSource = """
 		struct VSInput
 		{
-		float3 Position : POSITION0;
-		float3 Normal : NORMAL0;
-		float2 TexCoord : TEXCOORD0;
-		float4 Color : COLOR0;
+		    float3 Position : POSITION0;
+		    float3 Normal : NORMAL0;
+		    float2 TexCoord : TEXCOORD0;
+		    uint Color : COLOR0;
 		};
-		
+
 		struct VSOutput
 		{
-		float4 Position : SV_Position;
-		float2 TexCoord : TEXCOORD0;
-		float4 Color : COLOR0;
+		    float4 Position : SV_Position;
+		    float2 TexCoord : TEXCOORD0;
+		    float4 Color : COLOR0;
 		};
-		
+
+		// Helper function to unpack uint32 color to float4
+		float4 UnpackColor(uint packedColor)
+		{
+		    float4 color;
+		    color.r = float((packedColor >> 0) & 0xFF) / 255.0;
+		    color.g = float((packedColor >> 8) & 0xFF) / 255.0;
+		    color.b = float((packedColor >> 16) & 0xFF) / 255.0;
+		    color.a = float((packedColor >> 24) & 0xFF) / 255.0;
+		    return color;
+		}
+
 		VSOutput main(VSInput input)
 		{
-		VSOutput output;
-		output.Position = float4(input.Position * 0.5, 1.0);
-		output.TexCoord = input.TexCoord;
-		output.Color = input.Color;
-		return output;
+		    VSOutput output;
+		    output.Position = float4(input.Position * 0.5, 1.0);
+		    output.TexCoord = input.TexCoord;
+		    output.Color = UnpackColor(input.Color);
+		    return output;
 		}
 		""";
 
+		// Unlit fragment shader (no changes needed since it receives float4)
 		String unlitFragmentShaderSource = """
 		struct PSInput
 		{
-		float4 Position : SV_Position;
-		float2 TexCoord : TEXCOORD0;
-		float4 Color : COLOR0;
+		    float4 Position : SV_Position;
+		    float2 TexCoord : TEXCOORD0;
+		    float4 Color : COLOR0;
 		};
-		
+
 		float4 main(PSInput input) : SV_Target
 		{
-		return input.Color;
+		    return input.Color;
 		}
 		""";
 
@@ -484,13 +474,13 @@ class SDLRendererSubsystem : Subsystem
 			. { location = 0, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 0 }, // Position
 			. { location = 1, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 12 }, // Normal
 			. { location = 2, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, offset = 24 }, // TexCoord
-			. { location = 3, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4, offset = 32 } // Color
+			. { location = 3, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_UINT, offset = 32 } // Color
 			);
 
 		var vertexBufferDesc = SDL_GPUVertexBufferDescription()
 			{
 				slot = 0,
-				pitch = sizeof(Vertex),
+				pitch = sizeof(Vector3) + sizeof(Vector3) + sizeof(Vector2) + sizeof(uint32),
 				input_rate = .SDL_GPU_VERTEXINPUTRATE_VERTEX,
 				instance_step_rate = 0
 			};

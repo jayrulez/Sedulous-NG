@@ -2,7 +2,7 @@ using System;
 using Sedulous.Resources;
 namespace Sedulous.Engine.Renderer;
 
-class Texture : Resource
+class TextureResource : Resource
 {
     public enum TextureFormat
     {

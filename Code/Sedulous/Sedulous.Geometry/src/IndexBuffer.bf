@@ -44,7 +44,7 @@ public class IndexBuffer
         Reserve(count);
     }
     
-    private int32 GetIndexSize()
+    public int32 GetIndexSize()
     {
         switch (mFormat)
         {

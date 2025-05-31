@@ -304,17 +304,18 @@ class JobSystem
 		}
 	}
 
-	public void AddJob(delegate void() jobDelegate, StringView? jobName = null, JobFlags flags = .None)
+	public void AddJob(delegate void() jobDelegate, bool ownsJobDelegate, StringView? jobName = null, JobFlags flags = .None)
 	{
 		if (!mIsRunning)
 		{
 			Runtime.FatalError("JobSystem is not running.");
 		}
-		DelegateJob job = new DelegateJob(jobDelegate, jobName, flags | .AutoRelease);
+		DelegateJob job = new DelegateJob(jobDelegate, ownsJobDelegate, jobName, flags | .AutoRelease);
 		AddJob(job);
 	}
 
 	public void AddJob<T>(delegate T() jobDelegate,
+		bool ownsJobDelegate,
 		StringView? jobName = null,
 		JobFlags flags = .None,
 		delegate void(T result) onCompleted = null,
@@ -324,7 +325,7 @@ class JobSystem
 		{
 			Runtime.FatalError("JobSystem is not running.");
 		}
-		DelegateJob<T> job = new DelegateJob<T>(jobDelegate, jobName, flags | .AutoRelease, onCompleted, ownsOnCompletedDelegate);
+		DelegateJob<T> job = new DelegateJob<T>(jobDelegate, ownsJobDelegate, jobName, flags | .AutoRelease, onCompleted, ownsOnCompletedDelegate);
 		AddJob(job);
 	}
 

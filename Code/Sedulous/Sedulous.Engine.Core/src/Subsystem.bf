@@ -113,9 +113,9 @@ abstract class Subsystem
         mEngine.JobSystem.AddJob(job);
     }
 
-    protected void ScheduleWork(delegate void() work, StringView name = null)
+    protected void ScheduleWork(delegate void() work, bool ownsJobDelegate, StringView name = null)
     {
-        mEngine.JobSystem.AddJob(work, name);
+        mEngine.JobSystem.AddJob(work, ownsJobDelegate, name);
     }
 
     protected IEngine Engine => mEngine;

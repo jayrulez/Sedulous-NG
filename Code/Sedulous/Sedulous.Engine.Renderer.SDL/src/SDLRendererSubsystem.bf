@@ -77,7 +77,7 @@ class SDLRendererSubsystem : Subsystem
 	// Default resources
 	private SDL_GPUBuffer* mCubeVertexBuffer;
 	private SDL_GPUBuffer* mCubeIndexBuffer;
-	private uint32 mCubeIndexCount;
+	private uint32 mGeometryIndexCount;
 
 	// Uniform buffers
 	private SDL_GPUBuffer* mVertexUniformBuffer;
@@ -176,75 +176,77 @@ class SDLRendererSubsystem : Subsystem
 
 	private void CreateDefaultMeshes()
 	{
-		var geometry = Mesh.CreateCylinder();
-		for(int32 i = 0; i < geometry.Vertices.VertexCount; i++)
-		{
-			geometry.SetColor(i, Color.White.PackedValue);
-		}
-		defer delete geometry;
+	    var geometry = Mesh.CreateCylinder();
+	    for(int32 i = 0; i < geometry.Vertices.VertexCount; i++)
+	    {
+	        geometry.SetColor(i, Color.White.PackedValue);
+	    }
+	    defer delete geometry;
 
-		//geometry.Vertices.
+	    mGeometryIndexCount = (uint32)geometry.Indices.IndexCount;
 
-		mCubeIndexCount = (uint32)geometry.Indices.IndexCount;
+	    // Calculate buffer sizes once
+	    uint32 vertexDataSize = uint32(geometry.Vertices.VertexSize * geometry.Vertices.VertexCount);
+	    uint32 indexDataSize = uint32(geometry.Indices.GetIndexSize() * geometry.Indices.IndexCount);
+	    uint32 totalDataSize = vertexDataSize + indexDataSize;
 
-		// Create vertex buffer
-		var vertexBufferDesc = SDL_GPUBufferCreateInfo()
-			{
-				usage = .SDL_GPU_BUFFERUSAGE_VERTEX,
-				size = uint32(geometry.Vertices.VertexSize * geometry.Vertices.VertexCount)
-			};
-		mCubeVertexBuffer = SDL_CreateGPUBuffer(mDevice, &vertexBufferDesc);
+	    // Create vertex buffer
+	    var vertexBufferDesc = SDL_GPUBufferCreateInfo()
+	        {
+	            usage = .SDL_GPU_BUFFERUSAGE_VERTEX,
+	            size = vertexDataSize
+	        };
+	    mCubeVertexBuffer = SDL_CreateGPUBuffer(mDevice, &vertexBufferDesc);
 
-		// Create index buffer
-		var indexBufferDesc = SDL_GPUBufferCreateInfo()
-			{
-				usage = .SDL_GPU_BUFFERUSAGE_INDEX,
-				size = uint32(geometry.Indices.GetIndexSize() * geometry.Indices.IndexCount)
-			};
-		mCubeIndexBuffer = SDL_CreateGPUBuffer(mDevice, &indexBufferDesc);
+	    // Create index buffer
+	    var indexBufferDesc = SDL_GPUBufferCreateInfo()
+	        {
+	            usage = .SDL_GPU_BUFFERUSAGE_INDEX,
+	            size = indexDataSize
+	        };
+	    mCubeIndexBuffer = SDL_CreateGPUBuffer(mDevice, &indexBufferDesc);
 
-		// Upload data
-		var transferBuffer = SDL_CreateGPUTransferBuffer(mDevice, scope .()
-			{
-				size = uint32(geometry.Vertices.VertexSize * geometry.Vertices.VertexCount) + uint32(geometry.Indices.GetIndexSize() * geometry.Indices.IndexCount),
-				usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD
-			});
+	    // Upload data
+	    var transferBuffer = SDL_CreateGPUTransferBuffer(mDevice, scope .()
+	        {
+	            size = totalDataSize,
+	            usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD
+	        });
 
-		void* mappedData = SDL_MapGPUTransferBuffer(mDevice, transferBuffer, false);
-		Internal.MemCpy(mappedData, geometry.Vertices.GetRawData(),  geometry.Vertices.VertexSize * geometry.Vertices.VertexCount);
-		Internal.MemCpy((uint8*)mappedData + (geometry.Vertices.VertexSize * geometry.Vertices.VertexCount), geometry.Indices.GetRawData(), geometry.Indices.GetIndexSize() * geometry.Indices.IndexCount);
-		SDL_UnmapGPUTransferBuffer(mDevice, transferBuffer);
+	    void* mappedData = SDL_MapGPUTransferBuffer(mDevice, transferBuffer, false);
+	    Internal.MemCpy(mappedData, geometry.Vertices.GetRawData(), vertexDataSize);
+	    Internal.MemCpy((uint8*)mappedData + vertexDataSize, geometry.Indices.GetRawData(), indexDataSize);
+	    SDL_UnmapGPUTransferBuffer(mDevice, transferBuffer);
 
-		// Upload to GPU
-		var commandBuffer = SDL_AcquireGPUCommandBuffer(mDevice);
-		var copyPass = SDL_BeginGPUCopyPass(commandBuffer);
+	    // Upload to GPU
+	    var commandBuffer = SDL_AcquireGPUCommandBuffer(mDevice);
+	    var copyPass = SDL_BeginGPUCopyPass(commandBuffer);
 
-		SDL_UploadToGPUBuffer(copyPass, scope .()
-			{
-				transfer_buffer = transferBuffer,
-				offset = 0
-			}, scope .()
-			{
-				buffer = mCubeVertexBuffer,
-				offset = 0,
-				size = uint32(geometry.Vertices.VertexSize * geometry.Vertices.VertexCount)
-			}, false);
+	    SDL_UploadToGPUBuffer(copyPass, scope .()
+	        {
+	            transfer_buffer = transferBuffer,
+	            offset = 0
+	        }, scope .()
+	        {
+	            buffer = mCubeVertexBuffer,
+	            offset = 0,
+	            size = vertexDataSize
+	        }, false);
 
-		SDL_UploadToGPUBuffer(copyPass, scope .()
-			{
-				transfer_buffer = transferBuffer,
-				offset = uint32(geometry.Vertices.VertexSize * geometry.Vertices.VertexCount)
-			}, scope .()
-			{
-				buffer = mCubeIndexBuffer,
-				offset = 0,
-				size = uint32(geometry.Indices.GetIndexSize() * geometry.Indices.IndexCount)
-			}, false);
+	    SDL_UploadToGPUBuffer(copyPass, scope .()
+	        {
+	            transfer_buffer = transferBuffer,
+	            offset = vertexDataSize
+	        }, scope .()
+	        {
+	            buffer = mCubeIndexBuffer,
+	            offset = 0,
+	            size = indexDataSize
+	        }, false);
 
-		SDL_EndGPUCopyPass(copyPass);
-		SDL_SubmitGPUCommandBuffer(commandBuffer);
-
-		SDL_ReleaseGPUTransferBuffer(mDevice, transferBuffer);
+	    SDL_EndGPUCopyPass(copyPass);
+	    SDL_SubmitGPUCommandBuffer(commandBuffer);
+	    SDL_ReleaseGPUTransferBuffer(mDevice, transferBuffer);
 	}
 
 	private void CreateUniformBuffers()
@@ -587,7 +589,7 @@ class SDLRendererSubsystem : Subsystem
 	{
 		vertexBuffer = mCubeVertexBuffer;
 		indexBuffer = mCubeIndexBuffer;
-		indexCount = mCubeIndexCount;
+		indexCount = mGeometryIndexCount;
 	}
 
 	public void GetUniformBuffers(out SDL_GPUBuffer* vertexUniformBuffer, out SDL_GPUBuffer* fragmentUniformBuffer)

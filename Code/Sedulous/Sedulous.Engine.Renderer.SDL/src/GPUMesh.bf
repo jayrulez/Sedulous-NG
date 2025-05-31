@@ -1,5 +1,6 @@
 using SDL3Native;
 using System;
+using Sedulous.Geometry;
 namespace Sedulous.Engine.Renderer.SDL;
 
 class GPUMesh
@@ -9,7 +10,7 @@ class GPUMesh
 	public uint32 IndexCount;
 	public uint32 VertexCount;
 
-	public this(SDL_GPUDevice* device, MeshResource mesh)
+	public this(SDL_GPUDevice* device, Mesh mesh)
 	{
 		CreateBuffers(device, mesh);
 	}
@@ -19,24 +20,24 @@ class GPUMesh
 		// Note: Should be cleaned up by renderer on shutdown
 	}
 
-	private void CreateBuffers(SDL_GPUDevice* device, MeshResource mesh)
+	private void CreateBuffers(SDL_GPUDevice* device, Mesh mesh)
 	{
 		// Create vertex buffer
 		var vertexBufferDesc = SDL_GPUBufferCreateInfo()
 			{
 				usage = .SDL_GPU_BUFFERUSAGE_VERTEX,
-				size = (uint32)(mesh.Mesh.Vertices.VertexCount * mesh.Mesh.Vertices.VertexSize)
+				size = (uint32)(mesh.Vertices.VertexCount * mesh.Vertices.VertexSize)
 			};
 
 		VertexBuffer = SDL_CreateGPUBuffer(device, &vertexBufferDesc);
-		VertexCount = (uint32)mesh.Mesh.Vertices.VertexCount;
+		VertexCount = (uint32)mesh.Vertices.VertexCount;
 
 		// Create transfer buffer for vertex data
 		var vertexTransferBuffer = SDL_CreateGPUTransferBuffer(device, scope .() { usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, size = vertexBufferDesc.size });
 		var vertexTransfer = SDL_MapGPUTransferBuffer(device, vertexTransferBuffer, false);
 		if (vertexTransfer != null)
 		{
-			Internal.MemCpy(vertexTransfer, mesh.Mesh.Vertices.GetRawData(), vertexBufferDesc.size);
+			Internal.MemCpy(vertexTransfer, mesh.Vertices.GetRawData(), vertexBufferDesc.size);
 			SDL_UnmapGPUTransferBuffer(device, vertexTransferBuffer);
 		}
 
@@ -44,18 +45,18 @@ class GPUMesh
 		var indexBufferDesc = SDL_GPUBufferCreateInfo()
 			{
 				usage = .SDL_GPU_BUFFERUSAGE_INDEX,
-				size = (uint32)(mesh.Mesh.Indices.IndexCount * mesh.Mesh.Indices.GetIndexSize())
+				size = (uint32)(mesh.Indices.IndexCount * mesh.Indices.GetIndexSize())
 			};
 
 		IndexBuffer = SDL_CreateGPUBuffer(device, &indexBufferDesc);
-		IndexCount = (uint32)mesh.Mesh.Indices.IndexCount;
+		IndexCount = (uint32)mesh.Indices.IndexCount;
 
 		// Create transfer buffer for index data
 		var indexTransferBuffer = SDL_CreateGPUTransferBuffer(device, scope .() { usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, size = indexBufferDesc.size });
 		var indexTransfer = SDL_MapGPUTransferBuffer(device, indexTransferBuffer, false);
 		if (indexTransfer != null)
 		{
-			Internal.MemCpy(indexTransfer, mesh.Mesh.Indices.GetRawData(), indexBufferDesc.size);
+			Internal.MemCpy(indexTransfer, mesh.Indices.GetRawData(), indexBufferDesc.size);
 			SDL_UnmapGPUTransferBuffer(device, indexTransferBuffer);
 		}
 

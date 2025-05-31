@@ -10,14 +10,18 @@ class GPUMesh
 	public uint32 IndexCount;
 	public uint32 VertexCount;
 
+	private SDL_GPUDevice* mDevice;
+
 	public this(SDL_GPUDevice* device, Mesh mesh)
 	{
-		CreateBuffers(device, mesh);
+		mDevice = device;
+		CreateBuffers(mDevice, mesh);
 	}
 
 	public ~this()
 	{
-		// Note: Should be cleaned up by renderer on shutdown
+		SDL_ReleaseGPUBuffer(mDevice, IndexBuffer);
+		SDL_ReleaseGPUBuffer(mDevice, VertexBuffer);
 	}
 
 	private void CreateBuffers(SDL_GPUDevice* device, Mesh mesh)

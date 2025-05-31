@@ -75,9 +75,10 @@ class SDLRendererSubsystem : Subsystem
 	private SDL_GPUShader* mUnlitFragmentShader;
 
 	// Default resources
-	private SDL_GPUBuffer* mCubeVertexBuffer;
-	private SDL_GPUBuffer* mCubeIndexBuffer;
-	private uint32 mGeometryIndexCount;
+	private GPUMesh mGeometry = null;
+	//private SDL_GPUBuffer* mGeometryVertexBuffer;
+	//private SDL_GPUBuffer* mGeometryIndexBuffer;
+	//private uint32 mGeometryIndexCount;
 
 	// Uniform buffers
 	private SDL_GPUBuffer* mVertexUniformBuffer;
@@ -138,8 +139,9 @@ class SDLRendererSubsystem : Subsystem
 		SDL_ReleaseGPUShader(mDevice, mLitFragmentShader);
 		SDL_ReleaseGPUShader(mDevice, mUnlitVertexShader);
 		SDL_ReleaseGPUShader(mDevice, mUnlitFragmentShader);
-		SDL_ReleaseGPUBuffer(mDevice, mCubeVertexBuffer);
-		SDL_ReleaseGPUBuffer(mDevice, mCubeIndexBuffer);
+		delete mGeometry;
+		//SDL_ReleaseGPUBuffer(mDevice, mGeometryVertexBuffer);
+		//SDL_ReleaseGPUBuffer(mDevice, mGeometryIndexBuffer);
 		SDL_ReleaseGPUBuffer(mDevice, mVertexUniformBuffer);
 		SDL_ReleaseGPUBuffer(mDevice, mFragmentUniformBuffer);
 
@@ -183,70 +185,7 @@ class SDLRendererSubsystem : Subsystem
 	    }
 	    defer delete geometry;
 
-	    mGeometryIndexCount = (uint32)geometry.Indices.IndexCount;
-
-	    // Calculate buffer sizes once
-	    uint32 vertexDataSize = uint32(geometry.Vertices.VertexSize * geometry.Vertices.VertexCount);
-	    uint32 indexDataSize = uint32(geometry.Indices.GetIndexSize() * geometry.Indices.IndexCount);
-	    uint32 totalDataSize = vertexDataSize + indexDataSize;
-
-	    // Create vertex buffer
-	    var vertexBufferDesc = SDL_GPUBufferCreateInfo()
-	        {
-	            usage = .SDL_GPU_BUFFERUSAGE_VERTEX,
-	            size = vertexDataSize
-	        };
-	    mCubeVertexBuffer = SDL_CreateGPUBuffer(mDevice, &vertexBufferDesc);
-
-	    // Create index buffer
-	    var indexBufferDesc = SDL_GPUBufferCreateInfo()
-	        {
-	            usage = .SDL_GPU_BUFFERUSAGE_INDEX,
-	            size = indexDataSize
-	        };
-	    mCubeIndexBuffer = SDL_CreateGPUBuffer(mDevice, &indexBufferDesc);
-
-	    // Upload data
-	    var transferBuffer = SDL_CreateGPUTransferBuffer(mDevice, scope .()
-	        {
-	            size = totalDataSize,
-	            usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD
-	        });
-
-	    void* mappedData = SDL_MapGPUTransferBuffer(mDevice, transferBuffer, false);
-	    Internal.MemCpy(mappedData, geometry.Vertices.GetRawData(), vertexDataSize);
-	    Internal.MemCpy((uint8*)mappedData + vertexDataSize, geometry.Indices.GetRawData(), indexDataSize);
-	    SDL_UnmapGPUTransferBuffer(mDevice, transferBuffer);
-
-	    // Upload to GPU
-	    var commandBuffer = SDL_AcquireGPUCommandBuffer(mDevice);
-	    var copyPass = SDL_BeginGPUCopyPass(commandBuffer);
-
-	    SDL_UploadToGPUBuffer(copyPass, scope .()
-	        {
-	            transfer_buffer = transferBuffer,
-	            offset = 0
-	        }, scope .()
-	        {
-	            buffer = mCubeVertexBuffer,
-	            offset = 0,
-	            size = vertexDataSize
-	        }, false);
-
-	    SDL_UploadToGPUBuffer(copyPass, scope .()
-	        {
-	            transfer_buffer = transferBuffer,
-	            offset = vertexDataSize
-	        }, scope .()
-	        {
-	            buffer = mCubeIndexBuffer,
-	            offset = 0,
-	            size = indexDataSize
-	        }, false);
-
-	    SDL_EndGPUCopyPass(copyPass);
-	    SDL_SubmitGPUCommandBuffer(commandBuffer);
-	    SDL_ReleaseGPUTransferBuffer(mDevice, transferBuffer);
+		mGeometry = new .(mDevice, geometry);
 	}
 
 	private void CreateUniformBuffers()
@@ -587,9 +526,9 @@ class SDLRendererSubsystem : Subsystem
 
 	public void GetDefaultMesh(out SDL_GPUBuffer* vertexBuffer, out SDL_GPUBuffer* indexBuffer, out uint32 indexCount)
 	{
-		vertexBuffer = mCubeVertexBuffer;
-		indexBuffer = mCubeIndexBuffer;
-		indexCount = mGeometryIndexCount;
+		vertexBuffer = mGeometry.VertexBuffer;
+		indexBuffer = mGeometry.IndexBuffer;
+		indexCount = mGeometry.IndexCount;
 	}
 
 	public void GetUniformBuffers(out SDL_GPUBuffer* vertexUniformBuffer, out SDL_GPUBuffer* fragmentUniformBuffer)

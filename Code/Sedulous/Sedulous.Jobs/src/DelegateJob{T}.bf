@@ -19,6 +19,10 @@ class DelegateJob<T> : Job<T>
 
 	protected override T OnExecute()
 	{
-		return mJob?.Invoke();
+		if(mJob != null)
+		{
+			return mJob.Invoke();
+		}
+		return default;
 	}
 }

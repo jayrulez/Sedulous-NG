@@ -334,7 +334,7 @@ class SDLRendererSubsystem : Subsystem
 				format = ShaderFormat,
 				stage = .SDL_GPU_SHADERSTAGE_VERTEX,
 				num_samplers = 0,
-				num_uniform_buffers = 0,
+				num_uniform_buffers = 1,
 				num_storage_buffers = 0,
 				num_storage_textures = 0
 			};
@@ -348,7 +348,7 @@ class SDLRendererSubsystem : Subsystem
 				format = ShaderFormat,
 				stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
 				num_samplers = 0,
-				num_uniform_buffers = 0,
+				num_uniform_buffers = 1,
 				num_storage_buffers = 0,
 				num_storage_textures = 0
 			};
@@ -362,7 +362,7 @@ class SDLRendererSubsystem : Subsystem
 				format = ShaderFormat,
 				stage = .SDL_GPU_SHADERSTAGE_VERTEX,
 				num_samplers = 0,
-				num_uniform_buffers = 0,
+				num_uniform_buffers = 1,
 				num_storage_buffers = 0,
 				num_storage_textures = 0
 			};
@@ -376,7 +376,7 @@ class SDLRendererSubsystem : Subsystem
 				format = ShaderFormat,
 				stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
 				num_samplers = 0,
-				num_uniform_buffers = 0,
+				num_uniform_buffers = 1,
 				num_storage_buffers = 0,
 				num_storage_textures = 0
 			};

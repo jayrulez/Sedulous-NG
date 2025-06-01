@@ -74,7 +74,7 @@ class Program
 
 				// Create camera
 				var cameraEntity = scene.CreateEntity("Camera");
-				cameraEntity.Transform.Position = Vector3(0, 5, -10);
+				cameraEntity.Transform.Position = Vector3(0, 0, -5);
 				cameraEntity.Transform.LookAt(Vector3.Zero, Vector3.Up); // Look at origin
 				var camera = cameraEntity.AddComponent<Camera>();
 				camera.FieldOfView = 75.0f;
@@ -88,7 +88,7 @@ class Program
 				light.Intensity = 1.0f;
 
 				// Create objects
-				for (int i = 0; i < 5; i++)
+				for (int i = 0; i < 1; i++)
 				{
 					var cube = scene.CreateEntity(scope $"Cube{i}");
 					cube.Transform.Position = Vector3(i * 2 - 4, i, 0);

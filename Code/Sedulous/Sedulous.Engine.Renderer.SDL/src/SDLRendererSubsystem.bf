@@ -68,10 +68,6 @@ class SDLRendererSubsystem : Subsystem
 	private SDL_GPUShader* mUnlitVertexShader;
 	private SDL_GPUShader* mUnlitFragmentShader;
 
-	// Uniform buffers
-	private SDL_GPUBuffer* mVertexUniformBuffer;
-	private SDL_GPUBuffer* mFragmentUniformBuffer;
-
 	public uint32 Width => mPrimaryWindow.Width;
 	public uint32 Height => mPrimaryWindow.Height;
 
@@ -112,7 +108,6 @@ class SDLRendererSubsystem : Subsystem
 		GetGPUShaderFormat();
 
 		// Create basic resources
-		CreateUniformBuffers();
 		CreateShaders();
 		CreatePipelines();
 
@@ -128,8 +123,6 @@ class SDLRendererSubsystem : Subsystem
 		SDL_ReleaseGPUShader(mDevice, mLitFragmentShader);
 		SDL_ReleaseGPUShader(mDevice, mUnlitVertexShader);
 		SDL_ReleaseGPUShader(mDevice, mUnlitFragmentShader);
-		SDL_ReleaseGPUBuffer(mDevice, mVertexUniformBuffer);
-		SDL_ReleaseGPUBuffer(mDevice, mFragmentUniformBuffer);
 
 		SDL_ReleaseWindowFromGPUDevice(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
 		SDL_DestroyGPUDevice(mDevice);
@@ -166,221 +159,258 @@ class SDLRendererSubsystem : Subsystem
 		delete mRenderModule;
 	}
 
-	private void CreateUniformBuffers()
-	{
-		// Create vertex uniform buffer (large enough for lit shader uniforms)
-		var vertexUniformDesc = SDL_GPUBufferCreateInfo()
-			{
-				usage = .SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-				size = sizeof(Matrix) * 3 // ViewProjection, World, NormalMatrix
-			};
-
-		mVertexUniformBuffer = SDL_CreateGPUBuffer(mDevice, &vertexUniformDesc);
-
-		// Create fragment uniform buffer
-		var fragmentUniformDesc = SDL_GPUBufferCreateInfo()
-			{
-				usage = .SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-				size = sizeof(Vector4) * 4 // LightDir+Intensity, LightColor+pad, MaterialColor, CameraPos+pad
-			};
-		mFragmentUniformBuffer = SDL_CreateGPUBuffer(mDevice, &fragmentUniformDesc);
-	}
-
 	private void CreateShaders()
 	{
-		// Simple lit vertex shader with uint32 color
-		String litVertexShaderSource = """
-		struct VSInput
-		{
-		    float3 Position : POSITION0;
-		    float3 Normal : NORMAL0;
-		    float2 TexCoord : TEXCOORD0;
-		    uint Color : COLOR0;
-		};
+	    // SDL GPU binding model for DXIL/DXBC:
+	    // Vertex shaders: uniforms in space1
+	    // Fragment shaders: uniforms in space3
+	    
+	    // Lit vertex shader - uniforms in space1
+	    String litVertexShaderSource = """
+	    cbuffer UniformBlock : register(b0, space1)
+	    {
+	        float4x4 ViewProjection : packoffset(c0);
+	        float4x4 World : packoffset(c4);
+	        float4x4 NormalMatrix : packoffset(c8);
+	    };
 
-		struct VSOutput
-		{
-		    float4 Position : SV_Position;
-		    float3 WorldPos : TEXCOORD0;
-		    float3 Normal : NORMAL0;
-		    float2 TexCoord : TEXCOORD1;
-		    float4 Color : COLOR0;
-		};
+	    struct VSInput
+	    {
+	        float3 Position : POSITION0;
+	        float3 Normal : NORMAL0;
+	        float2 TexCoord : TEXCOORD0;
+	        uint Color : COLOR0;
+	    };
 
-		// Helper function to unpack uint32 color to float4
-		float4 UnpackColor(uint packedColor)
-		{
-		    float4 color;
-		    color.r = float((packedColor >> 0) & 0xFF) / 255.0;
-		    color.g = float((packedColor >> 8) & 0xFF) / 255.0;
-		    color.b = float((packedColor >> 16) & 0xFF) / 255.0;
-		    color.a = float((packedColor >> 24) & 0xFF) / 255.0;
-		    return color;
-		}
+	    struct VSOutput
+	    {
+	        float3 WorldPos : TEXCOORD0;
+	        float3 Normal : TEXCOORD1;
+	        float2 TexCoord : TEXCOORD2;
+	        float4 Color : TEXCOORD3;
+	        float4 Position : SV_Position;
+	    };
 
-		VSOutput main(VSInput input)
-		{
-		    VSOutput output;
-		    // For now, just pass through with basic projection
-		    output.Position = float4(input.Position * 0.5, 1.0);
-		    output.WorldPos = input.Position;
-		    output.Normal = input.Normal;
-		    output.TexCoord = input.TexCoord;
-		    output.Color = UnpackColor(input.Color);
-		    return output;
-		}
-		""";
+	    float4 UnpackColor(uint packedColor)
+	    {
+	        float4 color;
+	        color.r = float((packedColor >> 0) & 0xFF) / 255.0;
+	        color.g = float((packedColor >> 8) & 0xFF) / 255.0;
+	        color.b = float((packedColor >> 16) & 0xFF) / 255.0;
+	        color.a = float((packedColor >> 24) & 0xFF) / 255.0;
+	        return color;
+	    }
 
-		// Lit fragment shader (no changes needed since it receives float4)
-		String litFragmentShaderSource = """
-		struct PSInput
-		{
-		    float4 Position : SV_Position;
-		    float3 WorldPos : TEXCOORD0;
-		    float3 Normal : NORMAL0;
-		    float2 TexCoord : TEXCOORD1;
-		    float4 Color : COLOR0;
-		};
+	    VSOutput main(VSInput input)
+	    {
+	        VSOutput output;
+	        
+	        // Transform position to world space
+	        float4 worldPos = mul(World, float4(input.Position, 1.0));
+	        output.WorldPos = worldPos.xyz;
+	        
+	        // Transform to clip space
+	        output.Position = mul(ViewProjection, worldPos);
+	        
+	        // Transform normal to world space
+	        output.Normal = normalize(mul((float3x3)NormalMatrix, input.Normal));
+	        
+	        output.TexCoord = input.TexCoord;
+	        output.Color = UnpackColor(input.Color);
+	        
+	        return output;
+	    }
+	    """;
 
-		float4 main(PSInput input) : SV_Target
-		{
-		    // Simple directional lighting
-		    float3 lightDir = normalize(float3(0.5, -1.0, 0.5));
-		    
-		    float3 normal = normalize(input.Normal);
-		    
-		    float NdotL = max(dot(normal, -lightDir), 0.0);
-		    
-		    float3 diffuse = NdotL * float3(1, 1, 1);
-		    
-		    float3 ambient = float3(0.3, 0.3, 0.3);
-		    
-		    float3 finalColor = (ambient + diffuse) * input.Color.rgb;
-		    
-		    return float4(finalColor, input.Color.a);
-		}
-		""";
+	    // Lit fragment shader - uniforms in space3
+	    String litFragmentShaderSource = """
+	    cbuffer UniformBlock : register(b0, space3)
+	    {
+	        float4 LightDirAndIntensity : packoffset(c0);  // xyz = direction, w = intensity
+	        float4 LightColorPad : packoffset(c1);         // xyz = color, w = padding
+	        float4 MaterialColor : packoffset(c2);
+	        float4 CameraPosAndPad : packoffset(c3);       // xyz = position, w = padding
+	    };
 
-		// Simple unlit vertex shader with uint32 color
-		String unlitVertexShaderSource = """
-		struct VSInput
-		{
-		    float3 Position : POSITION0;
-		    float3 Normal : NORMAL0;
-		    float2 TexCoord : TEXCOORD0;
-		    uint Color : COLOR0;
-		};
+	    struct PSInput
+	    {
+	        float3 WorldPos : TEXCOORD0;
+	        float3 Normal : TEXCOORD1;
+	        float2 TexCoord : TEXCOORD2;
+	        float4 Color : TEXCOORD3;
+	        float4 Position : SV_Position;
+	    };
 
-		struct VSOutput
-		{
-		    float4 Position : SV_Position;
-		    float2 TexCoord : TEXCOORD0;
-		    float4 Color : COLOR0;
-		};
+	    float4 main(PSInput input) : SV_Target
+	    {
+	        // Extract light parameters
+	        float3 lightDir = normalize(LightDirAndIntensity.xyz);
+	        float lightIntensity = LightDirAndIntensity.w;
+	        float3 lightColor = LightColorPad.xyz;
+	        
+	        // Extract camera position
+	        float3 cameraPos = CameraPosAndPad.xyz;
+	        
+	        // Normalize the normal
+	        float3 normal = normalize(input.Normal);
+	        
+	        // Calculate diffuse lighting
+	        float NdotL = max(dot(normal, -lightDir), 0.0);
+	        float3 diffuse = NdotL * lightColor * lightIntensity;
+	        
+	        // Calculate view direction and specular
+	        float3 viewDir = normalize(cameraPos - input.WorldPos);
+	        float3 halfVector = normalize(viewDir - lightDir);
+	        float NdotH = max(dot(normal, halfVector), 0.0);
+	        float specular = pow(NdotH, 32.0) * lightIntensity;
+	        
+	        // Ambient lighting
+	        float3 ambient = float3(0.2, 0.2, 0.2);
+	        
+	        // Combine lighting with material color
+	        float3 materialColor = MaterialColor.rgb * input.Color.rgb;
+	        float3 finalColor = (ambient + diffuse) * materialColor + specular * lightColor;
+	        
+	        return float4(finalColor, MaterialColor.a * input.Color.a);
+	    }
+	    """;
 
-		// Helper function to unpack uint32 color to float4
-		float4 UnpackColor(uint packedColor)
-		{
-		    float4 color;
-		    color.r = float((packedColor >> 0) & 0xFF) / 255.0;
-		    color.g = float((packedColor >> 8) & 0xFF) / 255.0;
-		    color.b = float((packedColor >> 16) & 0xFF) / 255.0;
-		    color.a = float((packedColor >> 24) & 0xFF) / 255.0;
-		    return color;
-		}
+	    // Unlit vertex shader - uniforms in space1
+	    String unlitVertexShaderSource = """
+	    cbuffer UniformBlock : register(b0, space1)
+	    {
+	        float4x4 ViewProjection : packoffset(c0);
+	        float4x4 World : packoffset(c4);
+	    };
 
-		VSOutput main(VSInput input)
-		{
-		    VSOutput output;
-		    output.Position = float4(input.Position * 0.5, 1.0);
-		    output.TexCoord = input.TexCoord;
-		    output.Color = UnpackColor(input.Color);
-		    return output;
-		}
-		""";
+	    struct VSInput
+	    {
+	        float3 Position : POSITION0;
+	        float3 Normal : NORMAL0;
+	        float2 TexCoord : TEXCOORD0;
+	        uint Color : COLOR0;
+	    };
 
-		// Unlit fragment shader (no changes needed since it receives float4)
-		String unlitFragmentShaderSource = """
-		struct PSInput
-		{
-		    float4 Position : SV_Position;
-		    float2 TexCoord : TEXCOORD0;
-		    float4 Color : COLOR0;
-		};
+	    struct VSOutput
+	    {
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : TEXCOORD1;
+	        float4 Position : SV_Position;
+	    };
 
-		float4 main(PSInput input) : SV_Target
-		{
-		    return input.Color;
-		}
-		""";
+	    float4 UnpackColor(uint packedColor)
+	    {
+	        float4 color;
+	        color.r = float((packedColor >> 0) & 0xFF) / 255.0;
+	        color.g = float((packedColor >> 8) & 0xFF) / 255.0;
+	        color.b = float((packedColor >> 16) & 0xFF) / 255.0;
+	        color.a = float((packedColor >> 24) & 0xFF) / 255.0;
+	        return color;
+	    }
 
-		// Compile all shaders
-		var litVsCode = scope List<uint8>();
-		var litPsCode = scope List<uint8>();
-		var unlitVsCode = scope List<uint8>();
-		var unlitPsCode = scope List<uint8>();
+	    VSOutput main(VSInput input)
+	    {
+	        VSOutput output;
+	        
+	        // Transform position
+	        float4 worldPos = mul(World, float4(input.Position, 1.0));
+	        output.Position = mul(ViewProjection, worldPos);
+	        
+	        output.TexCoord = input.TexCoord;
+	        output.Color = UnpackColor(input.Color);
+	        
+	        return output;
+	    }
+	    """;
 
-		CompileShaderFromSource(litVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", litVsCode);
-		CompileShaderFromSource(litFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", litPsCode);
-		CompileShaderFromSource(unlitVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", unlitVsCode);
-		CompileShaderFromSource(unlitFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", unlitPsCode);
+	    // Unlit fragment shader - uniforms in space3
+	    String unlitFragmentShaderSource = """
+	    cbuffer UniformBlock : register(b0, space3)
+	    {
+	        float4 MaterialColor : packoffset(c0);
+	    };
 
-		// Create shader objects
-		var litVsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = litVsCode.Ptr,
-				code_size = (uint32)litVsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_VERTEX,
-				num_samplers = 0,
-				num_uniform_buffers = 1,
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mLitVertexShader = SDL_CreateGPUShader(mDevice, &litVsDesc);
+	    struct PSInput
+	    {
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : TEXCOORD1;
+	        float4 Position : SV_Position;
+	    };
 
-		var litPsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = litPsCode.Ptr,
-				code_size = (uint32)litPsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
-				num_samplers = 0,
-				num_uniform_buffers = 1,
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mLitFragmentShader = SDL_CreateGPUShader(mDevice, &litPsDesc);
+	    float4 main(PSInput input) : SV_Target
+	    {
+	        // Combine material color with vertex color
+	        return MaterialColor * input.Color;
+	    }
+	    """;
 
-		var unlitVsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = unlitVsCode.Ptr,
-				code_size = (uint32)unlitVsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_VERTEX,
-				num_samplers = 0,
-				num_uniform_buffers = 1,
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mUnlitVertexShader = SDL_CreateGPUShader(mDevice, &unlitVsDesc);
+	    // Compile all shaders
+	    var litVsCode = scope List<uint8>();
+	    var litPsCode = scope List<uint8>();
+	    var unlitVsCode = scope List<uint8>();
+	    var unlitPsCode = scope List<uint8>();
 
-		var unlitPsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = unlitPsCode.Ptr,
-				code_size = (uint32)unlitPsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
-				num_samplers = 0,
-				num_uniform_buffers = 1,
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mUnlitFragmentShader = SDL_CreateGPUShader(mDevice, &unlitPsDesc);
+	    CompileShaderFromSource(litVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", litVsCode);
+	    CompileShaderFromSource(litFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", litPsCode);
+	    CompileShaderFromSource(unlitVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", unlitVsCode);
+	    CompileShaderFromSource(unlitFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", unlitPsCode);
+
+	    // Create shader objects
+	    var litVsDesc = SDL_GPUShaderCreateInfo()
+	    {
+	        code = litVsCode.Ptr,
+	        code_size = (uint32)litVsCode.Count,
+	        entrypoint = "main",
+	        format = ShaderFormat,
+	        stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+	        num_samplers = 0,
+	        num_uniform_buffers = 1,  // We have 1 uniform buffer
+	        num_storage_buffers = 0,
+	        num_storage_textures = 0
+	    };
+	    mLitVertexShader = SDL_CreateGPUShader(mDevice, &litVsDesc);
+
+	    var litPsDesc = SDL_GPUShaderCreateInfo()
+	    {
+	        code = litPsCode.Ptr,
+	        code_size = (uint32)litPsCode.Count,
+	        entrypoint = "main",
+	        format = ShaderFormat,
+	        stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
+	        num_samplers = 0,
+	        num_uniform_buffers = 1,  // We have 1 uniform buffer
+	        num_storage_buffers = 0,
+	        num_storage_textures = 0
+	    };
+	    mLitFragmentShader = SDL_CreateGPUShader(mDevice, &litPsDesc);
+
+	    var unlitVsDesc = SDL_GPUShaderCreateInfo()
+	    {
+	        code = unlitVsCode.Ptr,
+	        code_size = (uint32)unlitVsCode.Count,
+	        entrypoint = "main",
+	        format = ShaderFormat,
+	        stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+	        num_samplers = 0,
+	        num_uniform_buffers = 1,  // We have 1 uniform buffer
+	        num_storage_buffers = 0,
+	        num_storage_textures = 0
+	    };
+	    mUnlitVertexShader = SDL_CreateGPUShader(mDevice, &unlitVsDesc);
+
+	    var unlitPsDesc = SDL_GPUShaderCreateInfo()
+	    {
+	        code = unlitPsCode.Ptr,
+	        code_size = (uint32)unlitPsCode.Count,
+	        entrypoint = "main",
+	        format = ShaderFormat,
+	        stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
+	        num_samplers = 0,
+	        num_uniform_buffers = 1,  // We have 1 uniform buffer
+	        num_storage_buffers = 0,
+	        num_storage_textures = 0
+	    };
+	    mUnlitFragmentShader = SDL_CreateGPUShader(mDevice, &unlitPsDesc);
 	}
 
 	private void CreatePipelines()
@@ -500,12 +530,6 @@ class SDLRendererSubsystem : Subsystem
 	public SDL_GPUGraphicsPipeline* GetPipeline(bool lit)
 	{
 		return lit ? mLitPipeline : mUnlitPipeline;
-	}
-
-	public void GetUniformBuffers(out SDL_GPUBuffer* vertexUniformBuffer, out SDL_GPUBuffer* fragmentUniformBuffer)
-	{
-		vertexUniformBuffer = mVertexUniformBuffer;
-		fragmentUniformBuffer = mFragmentUniformBuffer;
 	}
 
 	private void CompileShaderFromSource(String source, SDL_ShaderCross_ShaderStage stage,

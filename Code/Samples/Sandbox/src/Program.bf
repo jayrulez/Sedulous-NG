@@ -91,7 +91,7 @@ class Program
 				for (int i = 0; i < 5; i++)
 				{
 					var cube = scene.CreateEntity(scope $"Cube{i}");
-					cube.Transform.Position = Vector3(i * 2 - 4, 0, 0);
+					cube.Transform.Position = Vector3(i * 2 - 4, i, 0);
 					cube.Transform.Scale = Vector3(1, 1, 1);
 					var renderer = cube.AddComponent<MeshRenderer>();
 					renderer.Color = Vector4(

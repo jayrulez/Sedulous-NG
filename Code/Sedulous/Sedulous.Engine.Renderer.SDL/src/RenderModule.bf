@@ -90,6 +90,7 @@ struct RenderCommand
     public Matrix WorldMatrix;
     public MeshRenderer Renderer;
     public float DistanceToCamera;
+	public uint32 UniformOffset; // Offset into the uniform buffer for this object
 }
 
 // Uniform buffer structures must match shader exactly
@@ -142,10 +143,21 @@ class RenderModule : SceneModule
     // Depth buffer
     private SDL_GPUTexture* mDepthTexture;
 
+	// Dynamic uniform buffer management
+	private const uint32 UNIFORM_ALIGNMENT = 256; // Typical alignment requirement
+	private SDL_GPUBuffer* mDynamicVertexUniformBuffer;
+	private SDL_GPUBuffer* mDynamicFragmentUniformBuffer;
+	private uint32 mMaxObjectCount = 1000; // Maximum objects we can render
+
+	// Staging data for uniform updates
+	private uint8* mVertexUniformStagingData ~ delete _;
+	private uint8* mFragmentUniformStagingData ~ delete _;
+
     public this(SDLRendererSubsystem renderer)
     {
         mRenderer = renderer;
         CreateDepthBuffer();
+		CreateDynamicUniformBuffers();
     }
 
     public ~this()
@@ -159,6 +171,16 @@ class RenderModule : SceneModule
         {
             SDL_ReleaseGPUTexture(mRenderer.mDevice, mDepthTexture);
         }
+
+		if (mDynamicVertexUniformBuffer != null)
+		{
+		    SDL_ReleaseGPUBuffer(mRenderer.mDevice, mDynamicVertexUniformBuffer);
+		}
+
+		if (mDynamicFragmentUniformBuffer != null)
+		{
+		    SDL_ReleaseGPUBuffer(mRenderer.mDevice, mDynamicFragmentUniformBuffer);
+		}
     }
 
     private void CreateDepthBuffer()
@@ -177,6 +199,39 @@ class RenderModule : SceneModule
         };
         mDepthTexture = SDL_CreateGPUTexture(mRenderer.mDevice, &depthTextureDesc);
     }
+
+	private void CreateDynamicUniformBuffers()
+	{
+	    // Calculate sizes with alignment
+	    uint32 vertexUniformSize = (uint32)Math.Max(sizeof(LitVertexUniforms), sizeof(UnlitVertexUniforms));
+	    uint32 fragmentUniformSize = (uint32)Math.Max(sizeof(LitFragmentUniforms), sizeof(UnlitFragmentUniforms));
+	    
+	    // Align to UNIFORM_ALIGNMENT
+	    vertexUniformSize = (vertexUniformSize + UNIFORM_ALIGNMENT - 1) & ~(UNIFORM_ALIGNMENT - 1);
+	    fragmentUniformSize = (fragmentUniformSize + UNIFORM_ALIGNMENT - 1) & ~(UNIFORM_ALIGNMENT - 1);
+	    
+	    // Create buffers large enough for all objects
+	    var vertexBufferSize = vertexUniformSize * mMaxObjectCount;
+	    var fragmentBufferSize = fragmentUniformSize * mMaxObjectCount;
+	    
+	    var vertexUniformDesc = SDL_GPUBufferCreateInfo()
+	    {
+	        usage = .SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
+	        size = vertexBufferSize
+	    };
+	    mDynamicVertexUniformBuffer = SDL_CreateGPUBuffer(mRenderer.mDevice, &vertexUniformDesc);
+	    
+	    var fragmentUniformDesc = SDL_GPUBufferCreateInfo()
+	    {
+	        usage = .SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
+	        size = fragmentBufferSize
+	    };
+	    mDynamicFragmentUniformBuffer = SDL_CreateGPUBuffer(mRenderer.mDevice, &fragmentUniformDesc);
+	    
+	    // Allocate staging memory
+	    mVertexUniformStagingData = new uint8[vertexBufferSize]*;
+	    mFragmentUniformStagingData = new uint8[fragmentBufferSize]*;
+	}
 
     protected override void RegisterComponentInterests()
     {
@@ -245,6 +300,8 @@ class RenderModule : SceneModule
 
     private void CollectRenderCommands()
     {
+		uint32 uniformOffset = 0;
+
         for (var entity in TrackedEntities)
         {
             if (entity.HasComponent<MeshRenderer>())
@@ -257,7 +314,8 @@ class RenderModule : SceneModule
                     Entity = entity,
                     WorldMatrix = transform.WorldMatrix,
                     Renderer = renderer,
-                    DistanceToCamera = 0
+                    DistanceToCamera = 0,
+					UniformOffset = uniformOffset
                 };
                 
                 if (mActiveCamera != null)
@@ -266,6 +324,7 @@ class RenderModule : SceneModule
                 }
                 
                 mRenderCommands.Add(command);
+				uniformOffset++;
             }
         }
     }
@@ -349,66 +408,82 @@ class RenderModule : SceneModule
     private void UpdateAllUniforms(SDL_GPUCommandBuffer* commandBuffer)
     {
         if (mRenderCommands.Count == 0 || mActiveCamera == null)
-            return;
+		    return;
 
-        // For now, just update with the first object's data
-        // In a real system, you'd batch updates or use dynamic offsets
-        var firstCommand = mRenderCommands[0];
+		// Calculate aligned sizes
+		uint32 vertexUniformSize = (uint32)Math.Max(sizeof(LitVertexUniforms), sizeof(UnlitVertexUniforms));
+		uint32 fragmentUniformSize = (uint32)Math.Max(sizeof(LitFragmentUniforms), sizeof(UnlitFragmentUniforms));
 
-        // Get uniform buffers
-        SDL_GPUBuffer* vertexUniformBuffer;
-        SDL_GPUBuffer* fragmentUniformBuffer;
-        mRenderer.GetUniformBuffers(out vertexUniformBuffer, out fragmentUniformBuffer);
+		vertexUniformSize = (vertexUniformSize + UNIFORM_ALIGNMENT - 1) & ~(UNIFORM_ALIGNMENT - 1);
+		fragmentUniformSize = (fragmentUniformSize + UNIFORM_ALIGNMENT - 1) & ~(UNIFORM_ALIGNMENT - 1);
 
-        if (firstCommand.Renderer.UseLighting)
-        {
-            // Update vertex uniforms
-            Matrix normalMatrix = firstCommand.WorldMatrix;
-            normalMatrix = Matrix.Invert(normalMatrix);
-            normalMatrix = Matrix.Transpose(normalMatrix);
+		// Update uniforms for each object
+		for (int i = 0; i < mRenderCommands.Count; i++)
+		{
+		    var command = mRenderCommands[i];
+		    uint32 vertexOffset = (uint32)i * vertexUniformSize;
+		    uint32 fragmentOffset = (uint32)i * fragmentUniformSize;
 
-            var vertexUniforms = LitVertexUniforms()
-            {
-                ViewProjection = mViewProjectionMatrix,
-                World = firstCommand.WorldMatrix,
-                NormalMatrix = normalMatrix
-            };
+		    if (command.Renderer.UseLighting)
+		    {
+		        // Update vertex uniforms
+		        Matrix normalMatrix = command.WorldMatrix;
+		        normalMatrix = Matrix.Invert(normalMatrix);
+		        normalMatrix = Matrix.Transpose(normalMatrix);
 
-            // Update fragment uniforms
-            var lightDir = mMainLight != null ? mMainLightTransform.Forward : Vector3(0, -1, 0);
-            var lightColor = mMainLight != null ? mMainLight.Color : Vector3(1, 1, 1);
-            var lightIntensity = mMainLight != null ? mMainLight.Intensity : 1.0f;
+		        var vertexUniforms = LitVertexUniforms()
+		        {
+		            ViewProjection = mViewProjectionMatrix,
+		            World = command.WorldMatrix,
+		            NormalMatrix = normalMatrix
+		        };
 
-            var fragmentUniforms = LitFragmentUniforms()
-            {
-                LightDirAndIntensity = Vector4(lightDir.X, lightDir.Y, lightDir.Z, lightIntensity),
-                LightColorPad = Vector4(lightColor.X, lightColor.Y, lightColor.Z, 0),
-                MaterialColor = firstCommand.Renderer.Color,
-                CameraPosAndPad = Vector4(mActiveCameraTransform.Position.X, mActiveCameraTransform.Position.Y, mActiveCameraTransform.Position.Z, 0)
-            };
+		        // Copy to staging buffer
+		        Internal.MemCpy(mVertexUniformStagingData + vertexOffset, &vertexUniforms, sizeof(LitVertexUniforms));
 
-            // Upload uniforms
-            UploadUniforms(commandBuffer, vertexUniformBuffer, &vertexUniforms, sizeof(LitVertexUniforms));
-            UploadUniforms(commandBuffer, fragmentUniformBuffer, &fragmentUniforms, sizeof(LitFragmentUniforms));
-        }
-        else
-        {
-            // Unlit rendering
-            var vertexUniforms = UnlitVertexUniforms()
-            {
-                ViewProjection = mViewProjectionMatrix,
-                World = firstCommand.WorldMatrix
-            };
+		        // Update fragment uniforms
+		        var lightDir = mMainLight != null ? mMainLightTransform.Forward : Vector3(0, -1, 0);
+		        var lightColor = mMainLight != null ? mMainLight.Color : Vector3(1, 1, 1);
+		        var lightIntensity = mMainLight != null ? mMainLight.Intensity : 1.0f;
 
-            var fragmentUniforms = UnlitFragmentUniforms()
-            {
-                MaterialColor = firstCommand.Renderer.Color
-            };
+		        var fragmentUniforms = LitFragmentUniforms()
+		        {
+		            LightDirAndIntensity = Vector4(lightDir.X, lightDir.Y, lightDir.Z, lightIntensity),
+		            LightColorPad = Vector4(lightColor.X, lightColor.Y, lightColor.Z, 0),
+		            MaterialColor = command.Renderer.Color,
+		            CameraPosAndPad = Vector4(mActiveCameraTransform.Position.X, 
+		                mActiveCameraTransform.Position.Y, mActiveCameraTransform.Position.Z, 0)
+		        };
 
-            // Upload uniforms
-            UploadUniforms(commandBuffer, vertexUniformBuffer, &vertexUniforms, sizeof(UnlitVertexUniforms));
-            UploadUniforms(commandBuffer, fragmentUniformBuffer, &fragmentUniforms, sizeof(UnlitFragmentUniforms));
-        }
+		        // Copy to staging buffer
+		        Internal.MemCpy(mFragmentUniformStagingData + fragmentOffset, &fragmentUniforms, sizeof(LitFragmentUniforms));
+		    }
+		    else
+		    {
+		        // Unlit rendering
+		        var vertexUniforms = UnlitVertexUniforms()
+		        {
+		            ViewProjection = mViewProjectionMatrix,
+		            World = command.WorldMatrix
+		        };
+
+		        var fragmentUniforms = UnlitFragmentUniforms()
+		        {
+		            MaterialColor = command.Renderer.Color
+		        };
+
+		        // Copy to staging buffers
+		        Internal.MemCpy(mVertexUniformStagingData + vertexOffset, &vertexUniforms, sizeof(UnlitVertexUniforms));
+		        Internal.MemCpy(mFragmentUniformStagingData + fragmentOffset, &fragmentUniforms, sizeof(UnlitFragmentUniforms));
+		    }
+		}
+
+		// Upload all uniform data at once
+		uint32 totalVertexSize = (uint32)mRenderCommands.Count * vertexUniformSize;
+		uint32 totalFragmentSize = (uint32)mRenderCommands.Count * fragmentUniformSize;
+
+		UploadUniforms(commandBuffer, mDynamicVertexUniformBuffer, mVertexUniformStagingData, totalVertexSize);
+		UploadUniforms(commandBuffer, mDynamicFragmentUniformBuffer, mFragmentUniformStagingData, totalFragmentSize);
     }
 
     private void RenderObject(SDL_GPURenderPass* renderPass, RenderCommand command)
@@ -425,10 +500,15 @@ class RenderModule : SceneModule
 
         //mRenderer.GetDefaultMesh(out vertexBuffer, out indexBuffer, out indexCount);
 
-        // Get uniform buffers
-        SDL_GPUBuffer* vertexUniformBuffer;
-        SDL_GPUBuffer* fragmentUniformBuffer;
-        mRenderer.GetUniformBuffers(out vertexUniformBuffer, out fragmentUniformBuffer);
+        // Calculate uniform offsets
+		uint32 vertexUniformSize = (uint32)Math.Max(sizeof(LitVertexUniforms), sizeof(UnlitVertexUniforms));
+		uint32 fragmentUniformSize = (uint32)Math.Max(sizeof(LitFragmentUniforms), sizeof(UnlitFragmentUniforms));
+
+		vertexUniformSize = (vertexUniformSize + UNIFORM_ALIGNMENT - 1) & ~(UNIFORM_ALIGNMENT - 1);
+		fragmentUniformSize = (fragmentUniformSize + UNIFORM_ALIGNMENT - 1) & ~(UNIFORM_ALIGNMENT - 1);
+
+		uint32 vertexOffset = command.UniformOffset * vertexUniformSize;
+		uint32 fragmentOffset = command.UniformOffset * fragmentUniformSize;
 
         // Bind pipeline
         var pipeline = mRenderer.GetPipeline(command.Renderer.UseLighting);
@@ -443,9 +523,20 @@ class RenderModule : SceneModule
         SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBinding, 1);
         SDL_BindGPUIndexBuffer(renderPass, scope .() { buffer = indexBuffer, offset = 0 }, .SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
-        // Bind uniform buffers
-        SDL_BindGPUVertexStorageBuffers(renderPass, 0, &vertexUniformBuffer, 1);
-        SDL_BindGPUFragmentStorageBuffers(renderPass, 0, &fragmentUniformBuffer, 1);
+        // Bind uniform buffers with dynamic offsets
+		var vertexUniformBinding = SDL_GPUBufferBinding()
+		{
+		    buffer = mDynamicVertexUniformBuffer,
+		    offset = vertexOffset
+		};
+		var fragmentUniformBinding = SDL_GPUBufferBinding()
+		{
+		    buffer = mDynamicFragmentUniformBuffer,
+		    offset = fragmentOffset
+		};
+
+		SDL_BindGPUVertexStorageBuffers(renderPass, 0, &vertexUniformBinding.buffer, 1);
+		SDL_BindGPUFragmentStorageBuffers(renderPass, 0, &fragmentUniformBinding.buffer, 1);
 
         // Draw
         SDL_DrawGPUIndexedPrimitives(renderPass, indexCount, 1, 0, 0, 0);

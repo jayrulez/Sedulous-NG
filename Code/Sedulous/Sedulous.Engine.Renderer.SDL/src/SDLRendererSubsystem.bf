@@ -205,12 +205,12 @@ class SDLRendererSubsystem : Subsystem
 	    {
 	        VSOutput output;
 	        
-	        // Transform position to world space
+	        // Use MVP matrix directly (ViewProjection contains the full MVP)
+	        output.Position = mul(ViewProjection, float4(input.Position, 1.0));
+	        
+	        // Transform position to world space for lighting
 	        float4 worldPos = mul(World, float4(input.Position, 1.0));
 	        output.WorldPos = worldPos.xyz;
-	        
-	        // Transform to clip space
-	        output.Position = mul(ViewProjection, worldPos);
 	        
 	        // Transform normal to world space
 	        output.Normal = normalize(mul((float3x3)NormalMatrix, input.Normal));
@@ -312,9 +312,8 @@ class SDLRendererSubsystem : Subsystem
 	    {
 	        VSOutput output;
 	        
-	        // Transform position
-	        float4 worldPos = mul(World, float4(input.Position, 1.0));
-	        output.Position = mul(ViewProjection, worldPos);
+	        // Use MVP matrix directly (ViewProjection contains the full MVP)
+	        output.Position = mul(ViewProjection, float4(input.Position, 1.0));
 	        
 	        output.TexCoord = input.TexCoord;
 	        output.Color = UnpackColor(input.Color);

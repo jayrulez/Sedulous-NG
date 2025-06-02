@@ -27,7 +27,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a four dimensional mathematical vector with half-precision floats.
 /// </summary>
-public struct Half4 : IEquatable<Half4>
+[CRepr]public struct Half4 : IEquatable<Half4>
 {
     /// <summary>
     /// The size of the <see cref="Half4"/> type, in bytes.

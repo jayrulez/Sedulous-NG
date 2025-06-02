@@ -27,7 +27,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Structure providing Width, Height and Depth.
 /// </summary>
-public struct Size3 : IEquatable<Size3>
+[CRepr]public struct Size3 : IEquatable<Size3>
 {
     /// <summary>
     /// A zero size with (width, height, depth) = (0,0,0)

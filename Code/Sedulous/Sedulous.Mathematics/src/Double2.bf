@@ -7,7 +7,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a two dimensional mathematical vector with double-precision floats.
 /// </summary>
-public struct Double2 : IEquatable<Double2>
+[CRepr]public struct Double2 : IEquatable<Double2>
 {
     /// <summary>
     /// The size of the <see cref="Double2"/> type, in bytes.

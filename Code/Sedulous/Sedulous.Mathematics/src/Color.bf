@@ -8,7 +8,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a 32-bit color (4 bytes) in the form of RGBA (in uint8 order: R, G, B, A).
 /// </summary>
-public struct Color : IEquatable<Color>
+[CRepr]public struct Color : IEquatable<Color>
 {
     /// <summary>
     /// The red component of the color.

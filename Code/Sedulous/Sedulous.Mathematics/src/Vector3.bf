@@ -33,7 +33,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a three dimensional mathematical vector.
 /// </summary>
-public struct Vector3 : IEquatable<Vector3>
+[CRepr]public struct Vector3 : IEquatable<Vector3>
 {
     /// <summary>
     /// The size of the <see cref="Sedulous.Mathematics.Vector3"/> type, in bytes.

@@ -27,7 +27,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Define a RectangleF.
 /// </summary>
-public struct RectangleF : IEquatable<RectangleF>
+[CRepr]public struct RectangleF : IEquatable<RectangleF>
 {
     /// <summary>
     /// An empty rectangle

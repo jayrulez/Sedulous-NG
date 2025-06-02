@@ -33,7 +33,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a three dimensional line based on a point in space and a direction.
 /// </summary>
-public struct Ray : IEquatable<Ray>
+[CRepr]public struct Ray : IEquatable<Ray>
 {
     /// <summary>
     /// The position in three dimensional space where the ray starts.

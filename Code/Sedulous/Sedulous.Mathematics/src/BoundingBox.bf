@@ -33,7 +33,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents an axis-aligned bounding box in three dimensional space.
 /// </summary>
-public struct BoundingBox : IEquatable<BoundingBox>, IIntersectableWithRay, IIntersectableWithPlane
+[CRepr]public struct BoundingBox : IEquatable<BoundingBox>, IIntersectableWithRay, IIntersectableWithPlane
 {
     /// <summary>
     /// A <see cref="BoundingBox"/> which represents an empty space.

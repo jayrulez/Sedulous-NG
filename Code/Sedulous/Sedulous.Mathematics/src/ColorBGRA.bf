@@ -7,7 +7,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a 32-bit color (4 bytes) in the form of BGRA (in uint8 order: B, G, R, A).
 /// </summary>
-public struct ColorBGRA : IEquatable<ColorBGRA>
+[CRepr]public struct ColorBGRA : IEquatable<ColorBGRA>
 {
     /// <summary>
     /// The blue component of the color.

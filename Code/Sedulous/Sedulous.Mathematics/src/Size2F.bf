@@ -27,7 +27,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Defines a 2D rectangular size (width,height).
 /// </summary>
-public struct Size2F : IEquatable<Size2F>
+[CRepr]public struct Size2F : IEquatable<Size2F>
 {
     /// <summary>
     /// A zero size with (width, height) = (0,0)

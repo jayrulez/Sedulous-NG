@@ -64,11 +64,11 @@ internal static class HalfUtils
         return (uint16)(FloatToHalfBaseTable[(conv.UIntValue >> 23) & 0x1ff] + ((conv.UIntValue & 0x007fffff) >> FloatToHalfShiftTable[(conv.UIntValue >> 23) & 0x1ff]));
     }
 
-    private static readonly uint32[] HalfToFloatMantissaTable = new uint32[2048];
-    private static readonly uint32[] HalfToFloatExponentTable = new uint32[64];
-    private static readonly uint32[] HalfToFloatOffsetTable = new uint32[64];
-    private static readonly uint16[] FloatToHalfBaseTable = new uint16[512];
-    private static readonly uint8[] FloatToHalfShiftTable = new uint8[512];
+    private static readonly uint32[] HalfToFloatMantissaTable = new uint32[2048] ~ delete _;
+    private static readonly uint32[] HalfToFloatExponentTable = new uint32[64] ~ delete _;
+    private static readonly uint32[] HalfToFloatOffsetTable = new uint32[64] ~ delete _;
+    private static readonly uint16[] FloatToHalfBaseTable = new uint16[512] ~ delete _;
+    private static readonly uint8[] FloatToHalfShiftTable = new uint8[512] ~ delete _;
 
     static this()
     {

@@ -27,7 +27,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// A 2D point.
 /// </summary>
-public struct Point : IEquatable<Point>
+[CRepr]public struct Point : IEquatable<Point>
 {
     /// <summary>
     /// A point with (0,0) coordinates.

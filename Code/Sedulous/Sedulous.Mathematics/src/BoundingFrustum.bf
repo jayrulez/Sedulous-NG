@@ -8,7 +8,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// A bounding frustum.
 /// </summary>
-public struct BoundingFrustum
+[CRepr]public struct BoundingFrustum
 {
     /// <summary>
     /// The left plane of this frustum.

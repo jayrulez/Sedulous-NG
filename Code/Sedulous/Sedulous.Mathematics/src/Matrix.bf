@@ -33,7 +33,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a 4x4 mathematical matrix.
 /// </summary>
-public struct Matrix : IEquatable<Matrix>
+[CRepr]public struct Matrix : IEquatable<Matrix>
 {
     /// <summary> Are matrix row or column major </summary>
     /// <remarks>

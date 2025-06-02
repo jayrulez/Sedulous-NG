@@ -33,7 +33,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a plane in three dimensional space.
 /// </summary>
-public struct Plane : IEquatable<Plane>, IIntersectableWithRay
+[CRepr]public struct Plane : IEquatable<Plane>, IIntersectableWithRay
 {
     /// <summary>
     /// The normal vector of the plane.

@@ -33,7 +33,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a four dimensional mathematical quaternion.
 /// </summary>
-public struct Quaternion : IEquatable<Quaternion>
+[CRepr]public struct Quaternion : IEquatable<Quaternion>
 {
     /// <summary>
     /// The size of the <see cref="Sedulous.Mathematics.Quaternion"/> type, in bytes.

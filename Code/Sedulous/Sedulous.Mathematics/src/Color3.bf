@@ -33,7 +33,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a color in the form of rgb.
 /// </summary>
-public struct Color3 : IEquatable<Color3>
+[CRepr]public struct Color3 : IEquatable<Color3>
 {
     /// <summary>
     /// The red component of the color.

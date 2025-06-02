@@ -28,7 +28,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 ///   A half precision (16 bit) floating point value.
 /// </summary>
-public struct Half
+[CRepr]public struct Half
 {
     /// <summary>
     ///   Number of decimal digits of precision.

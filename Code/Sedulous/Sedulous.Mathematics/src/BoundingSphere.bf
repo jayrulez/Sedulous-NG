@@ -33,7 +33,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a bounding sphere in three dimensional space.
 /// </summary>
-public struct BoundingSphere : IEquatable<BoundingSphere>, IIntersectableWithRay, IIntersectableWithPlane
+[CRepr]public struct BoundingSphere : IEquatable<BoundingSphere>, IIntersectableWithRay, IIntersectableWithPlane
 {
     /// <summary>
     /// An empty bounding sphere (Center = 0 and Radius = 0).

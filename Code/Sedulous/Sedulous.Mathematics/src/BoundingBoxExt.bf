@@ -7,7 +7,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents an axis-aligned bounding box in three dimensional space that store only the Center and Extent.
 /// </summary>
-public struct BoundingBoxExt : IEquatable<BoundingBoxExt>
+[CRepr]public struct BoundingBoxExt : IEquatable<BoundingBoxExt>
 {
     /// <summary>
     /// A <see cref="BoundingBoxExt"/> which represents an empty space.

@@ -34,7 +34,7 @@ namespace Sedulous.Mathematics;
 /// Represents a unit independant angle using a single-precision floating-point
 /// internal representation.
 /// </summary>
-public struct AngleSingle : IEquatable<AngleSingle>
+[CRepr]public struct AngleSingle : IEquatable<AngleSingle>
 {
     /// <summary>
     /// A value that specifies the size of a single degree.

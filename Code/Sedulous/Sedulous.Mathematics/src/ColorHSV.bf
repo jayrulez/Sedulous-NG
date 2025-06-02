@@ -7,7 +7,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a color in the form of Hue, Saturation, Value, Alpha.
 /// </summary>
-public struct ColorHSV : IEquatable<ColorHSV>
+[CRepr]public struct ColorHSV : IEquatable<ColorHSV>
 {
     /// <summary>
     /// The Hue of the color.

@@ -15,7 +15,7 @@ namespace Sedulous.Mathematics;
 /// provide enough random distribution for different offsets or different random seeds
 /// Although other methods exist, the current implementation can easily be replicated in the shaders if required
 /// </summary>
-public struct RandomSeed
+[CRepr]public struct RandomSeed
 {
     private const double GelfondConst = 23.1406926327792690;            // e to the power of Pi = (-1) to the power of -i
     private const double GelfondSchneiderConst = 2.6651441426902251;    // 2 to the power of sqrt(2)

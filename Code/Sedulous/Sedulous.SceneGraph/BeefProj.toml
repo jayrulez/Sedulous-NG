@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Messaging" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Messaging" = "*", "Sedulous.Mathematics" = "*"}
 
 [Project]
 Name = "Sedulous.SceneGraph"

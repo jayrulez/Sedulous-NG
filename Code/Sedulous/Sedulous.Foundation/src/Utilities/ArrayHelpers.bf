@@ -1,5 +1,5 @@
 using System;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 
 namespace Sedulous.Foundation.Utilities;
 
@@ -43,7 +43,7 @@ public static class ArrayHelpers
 		}
 		else if (array.Count < capacity)
 		{
-			capacity = MathUtil.FindNextPowerOfTwo(capacity);
+			capacity = MathUtil.NextPowerOfTwo(capacity);
 			Array.Resize(ref array, capacity);
 		}
 	}

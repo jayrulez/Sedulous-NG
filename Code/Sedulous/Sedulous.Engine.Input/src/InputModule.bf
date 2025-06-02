@@ -1,7 +1,7 @@
 using Sedulous.SceneGraph;
 using System;
 using System.Collections;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 namespace Sedulous.Engine.Input;
 
 using internal Sedulous.Engine.Input;

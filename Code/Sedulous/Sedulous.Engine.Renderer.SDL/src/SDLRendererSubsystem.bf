@@ -4,7 +4,7 @@ using System.Collections;
 using System;
 using System.IO;
 using SDL3Native;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 using Sedulous.Platform.Core;
 using Sedulous.Platform.SDL3;
 using Sedulous.SceneGraph;

@@ -66,6 +66,54 @@ namespace Sedulous.Mathematics;
     public static readonly Vector3 One = .(1.0f, 1.0f, 1.0f);
 
     /// <summary>
+    /// Returns a unit vector representing right in a right-handed coordinate system.
+    /// </summary>
+    public static Vector3 Right
+    {
+        get { return Vector3(1, 0, 0); }
+    }
+
+    /// <summary>
+    /// Returns a unit vector representing left in a right-handed coordinate system.
+    /// </summary>
+    public static Vector3 Left
+    {
+        get { return Vector3(-1, 0, 0); }
+    }
+
+    /// <summary>
+    /// Returns a unit vector representing up in a right-handed coordinate system.
+    /// </summary>
+    public static Vector3 Up
+    {
+        get { return Vector3(0, 1, 0); }
+    }
+
+    /// <summary>
+    /// Returns a unit vector representing down in a right-handed coordinate system.
+    /// </summary>
+    public static Vector3 Down
+    {
+        get { return Vector3(0, -1, 0); }
+    }
+
+    /// <summary>
+    /// Returns a unit vector representing backward in a right-handed coordinate system.
+    /// </summary>
+    public static Vector3 Backward
+    {
+        get { return Vector3(0, 0, 1); }
+    }
+
+    /// <summary>
+    /// Returns a unit vector representing forward in a right-handed coordinate system.
+    /// </summary>
+    public static Vector3 Forward
+    {
+        get { return Vector3(0, 0, -1); }
+    }
+
+    /// <summary>
     /// The X component of the vector.
     /// </summary>
     public float X;

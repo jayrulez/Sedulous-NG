@@ -338,6 +338,16 @@ namespace Sedulous.Mathematics;
         return @box;
     }
 
+	public void Expand(Vector3 point) mut
+	{
+	    Minimum.X = Math.Min(Minimum.X, point.X);
+	    Minimum.Y = Math.Min(Minimum.Y, point.Y);
+	    Minimum.Z = Math.Min(Minimum.Z, point.Z);
+	    Maximum.X = Math.Max(Maximum.X, point.X);
+	    Maximum.Y = Math.Max(Maximum.Y, point.Y);
+	    Maximum.Z = Math.Max(Maximum.Z, point.Z);
+	}
+
     /// <summary>
     /// Tests for equality between two objects.
     /// </summary>
@@ -366,7 +376,7 @@ namespace Sedulous.Mathematics;
     /// <returns>
     /// A <see cref="string"/> that represents this instance.
     /// </returns>
-    public override void ToString(String strBuffer) => strBuffer.Append("TODO");
+    public override void ToString(String str) => str.Append( scope $"{{Min:{Minimum} Max:{Maximum}}}");
 
     /// <summary>
     /// Returns a hash code for this instance.

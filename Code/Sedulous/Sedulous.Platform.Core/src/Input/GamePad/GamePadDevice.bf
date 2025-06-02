@@ -1,5 +1,5 @@
 using System;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 using Sedulous.Foundation;
 using Sedulous.Foundation.Core;
 

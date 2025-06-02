@@ -1,6 +1,6 @@
 using Sedulous.SceneGraph;
 using Sedulous.Resources;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 namespace Sedulous.Engine.Renderer;
 
 class SpriteRenderer : Component

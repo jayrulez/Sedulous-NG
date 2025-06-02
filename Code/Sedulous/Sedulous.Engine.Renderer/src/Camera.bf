@@ -1,4 +1,4 @@
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 using Sedulous.SceneGraph;
 namespace Sedulous.Engine.Renderer;
 
@@ -18,7 +18,7 @@ class Camera : Component
 
 	private Matrix CalculateViewMatrix()
 	{
-	    return Matrix.CreateLookAt(
+	    return Matrix.LookAtRH(
 	        Entity.Transform.Position,
 	        Entity.Transform.Position + Entity.Transform.Forward,
 	        Entity.Transform.Up
@@ -27,8 +27,8 @@ class Camera : Component
 
 	private Matrix CalculateProjectionMatrix()
 	{
-	    return Matrix.CreatePerspectiveFieldOfView(
-	        Radians.FromDegrees(FieldOfView),
+	    return Matrix.PerspectiveFovRH(
+	        AngleSingle(FieldOfView, .Degree).Radians,
 	        AspectRatio,
 	        NearPlane,
 	        FarPlane

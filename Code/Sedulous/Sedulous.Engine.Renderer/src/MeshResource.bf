@@ -1,5 +1,4 @@
 using Sedulous.Resources;
-using Sedulous.Foundation.Mathematics;
 using System;
 using Sedulous.Geometry;
 using Sedulous.Foundation.Utilities;

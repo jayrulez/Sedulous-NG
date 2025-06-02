@@ -1,6 +1,6 @@
 using System;
 using Sedulous.Resources;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 using Sedulous.Foundation.Utilities;
 namespace Sedulous.Engine.Renderer;
 

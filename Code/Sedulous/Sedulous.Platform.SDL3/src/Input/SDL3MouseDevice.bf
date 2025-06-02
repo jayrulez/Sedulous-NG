@@ -2,7 +2,7 @@ using System;
 using Sedulous.Foundation.Utilities;
 using Sedulous.Platform;
 using Sedulous.Foundation;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 using Sedulous.Platform.Core.Input;
 using SDL3Native;
 using Sedulous.Platform.Core;
@@ -148,14 +148,14 @@ public sealed class SDL3MouseDevice : MouseDevice
 	}
 
 	/// <inheritdoc/>
-	public override Point2? GetPositionInWindow(Window window)
+	public override Point? GetPositionInWindow(Window window)
 	{
 		Contract.Require(window, nameof(window));
 
 		if (Window != window)
 			return null;
 
-		var spos = (Point2)Position;
+		var spos = (Point)Position;
 		/*var cpos = Window.Compositor.WindowToPoint(spos);
 
 		return cpos;*/

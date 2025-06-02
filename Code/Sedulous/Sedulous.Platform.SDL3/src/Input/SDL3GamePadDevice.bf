@@ -1,6 +1,6 @@
 using System;
 using Sedulous.Foundation.Utilities;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 using Sedulous.Platform.Core;
 using Sedulous.Platform.Core.Input;
 using SDL3Native;

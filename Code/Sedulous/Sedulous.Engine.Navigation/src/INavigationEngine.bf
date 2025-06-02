@@ -1,7 +1,7 @@
 using System;
 using Sedulous.Geometry;
 using Sedulous.SceneGraph;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 using System.Collections;
 namespace Sedulous.Engine.Navigation;
 

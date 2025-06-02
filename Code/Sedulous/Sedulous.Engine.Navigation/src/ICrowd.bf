@@ -1,5 +1,5 @@
 using System.Collections;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 using Sedulous.SceneGraph;
 namespace Sedulous.Engine.Navigation;
 

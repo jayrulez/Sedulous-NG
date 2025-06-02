@@ -2,7 +2,7 @@ using Sedulous.SceneGraph;
 using System;
 using SDL3Native;
 using System.Collections;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 using Sedulous.Resources;
 using Sedulous.SceneGraph;
 

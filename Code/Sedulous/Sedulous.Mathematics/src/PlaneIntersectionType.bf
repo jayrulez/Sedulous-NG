@@ -37,7 +37,7 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Describes the result of an intersection with a plane in three dimensions.
 /// </summary>
-[CRepr]public enum PlaneIntersectionType
+public enum PlaneIntersectionType
 {
     /// <summary>
     /// The object is behind the plane.

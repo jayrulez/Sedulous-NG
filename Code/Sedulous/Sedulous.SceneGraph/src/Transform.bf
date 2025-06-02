@@ -1,4 +1,4 @@
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 namespace Sedulous.SceneGraph;
 
 using internal Sedulous.SceneGraph;
@@ -20,6 +20,7 @@ class Transform
     {
         get
         {
+			
             return Vector3.Transform(Vector3.Forward, Rotation);
         }
     }
@@ -60,7 +61,7 @@ class Transform
 	    );
 	    
 	    // Convert to quaternion
-	    Rotation = Quaternion.CreateFromRotationMatrix(rotMatrix);
+	    Rotation = Quaternion.RotationMatrix(rotMatrix);
 	    MarkDirty();
 	}
 
@@ -72,9 +73,9 @@ class Transform
     
     private void UpdateWorldMatrix()
     {
-        mWorldMatrix = Matrix.CreateScale(Scale) * 
-                      Matrix.CreateFromQuaternion(Rotation) * 
-                      Matrix.CreateTranslation(Position);
+        mWorldMatrix = Matrix.Scaling(Scale) * 
+                      Matrix.RotationQuaternion(Rotation) * 
+                      Matrix.Translation(Position);
     }
     
     public void MarkDirty()

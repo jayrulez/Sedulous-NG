@@ -1,4 +1,4 @@
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 using Sedulous.SceneGraph;
 using Sedulous.Resources;
 namespace Sedulous.Engine.Renderer;

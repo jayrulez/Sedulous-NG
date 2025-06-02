@@ -1,5 +1,5 @@
 using Sedulous.SceneGraph;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Mathematics;
 namespace Sedulous.Engine.Physics;
 
 class RigidBody : Component

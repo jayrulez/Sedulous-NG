@@ -20,16 +20,16 @@ struct RenderCommand
 }
 
 // Uniform buffer structures must match shader exactly and follow HLSL alignment rules
-[CRepr, Packed, Align(16)]
+[CRepr, Packed]
 struct LitVertexUniforms
 {
-    public Matrix ViewProjection;    // 64 bytes (4x float4)
-    public Matrix World;             // 64 bytes (4x float4)
+    public Matrix MVPMatrix;    // 64 bytes (4x float4)
+    public Matrix ModelMatrix;             // 64 bytes (4x float4)
     public Matrix NormalMatrix;      // 64 bytes (4x float4)
     // Total: 192 bytes (multiple of 16)
 }
 
-[CRepr, Packed, Align(16)]
+[CRepr, Packed]
 struct LitFragmentUniforms
 {
     public Vector4 LightDirAndIntensity;  // 16 bytes - xyz = direction, w = intensity
@@ -39,15 +39,15 @@ struct LitFragmentUniforms
     // Total: 64 bytes (multiple of 16)
 }
 
-[CRepr, Packed, Align(16)]
+[CRepr, Packed]
 struct UnlitVertexUniforms
 {
-    public Matrix ViewProjection;    // 64 bytes (4x float4)
-    public Matrix World;             // 64 bytes (4x float4)
+    public Matrix MVPMatrix;    // 64 bytes (4x float4)
+    public Matrix ModelMatrix;             // 64 bytes (4x float4)
     // Total: 128 bytes (multiple of 16)
 }
 
-[CRepr, Packed, Align(16)]
+[CRepr, Packed]
 struct UnlitFragmentUniforms
 {
     public Vector4 MaterialColor;    // 16 bytes
@@ -68,7 +68,6 @@ class RenderModule : SceneModule
     private Transform mMainLightTransform;
     private Matrix mViewMatrix;
     private Matrix mProjectionMatrix;
-    private Matrix mViewProjectionMatrix;
     
     // Depth buffer
     private SDL_GPUTexture* mDepthTexture;
@@ -180,7 +179,6 @@ class RenderModule : SceneModule
             
             mViewMatrix = mActiveCamera.ViewMatrix;
             mProjectionMatrix = mActiveCamera.ProjectionMatrix;
-            mViewProjectionMatrix = mViewMatrix * mProjectionMatrix;
             
             // Debug output
             static bool logged = false;
@@ -352,15 +350,14 @@ class RenderModule : SceneModule
             if (command.Renderer.UseLighting)
             {
                 // Prepare vertex uniforms
-                // For HLSL row-major storage, we transpose all matrices
                 Matrix normalMatrix = command.WorldMatrix;
                 normalMatrix = Matrix.Invert(normalMatrix);
                 normalMatrix = Matrix.Transpose(normalMatrix);
 
                 var vertexUniforms = LitVertexUniforms()
                 {
-                    ViewProjection = Matrix.Transpose(mViewProjectionMatrix),  // Try without transpose first
-                    World = Matrix.Transpose(command.WorldMatrix),              // Try without transpose first
+                    MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+                    ModelMatrix = command.WorldMatrix, 
                     NormalMatrix = normalMatrix               // Already transposed once
                 };
 
@@ -389,8 +386,8 @@ class RenderModule : SceneModule
                 // Unlit rendering
                 var vertexUniforms = UnlitVertexUniforms()
                 {
-                    ViewProjection = mViewProjectionMatrix,  // Try without transpose first
-                    World = command.WorldMatrix              // Try without transpose first
+                    MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix, 
+                    ModelMatrix = command.WorldMatrix 
                 };
 
                 var fragmentUniforms = UnlitFragmentUniforms()

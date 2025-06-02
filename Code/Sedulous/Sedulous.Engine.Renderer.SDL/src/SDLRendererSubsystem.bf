@@ -12,40 +12,6 @@ using Sedulous.Geometry;
 
 namespace Sedulous.Engine.Renderer.SDL;
 
-struct CameraData
-{
-	public Matrix ViewMatrix;
-	public Matrix ProjectionMatrix;
-	public Matrix ViewProjectionMatrix;
-	public Vector3 Position;
-	public float _padding0;
-	public Vector3 Forward;
-	public float _padding1;
-}
-
-struct ObjectData
-{
-	public Matrix WorldMatrix;
-	public Matrix NormalMatrix;
-}
-
-struct LightData
-{
-	public Vector3 Direction;
-	public float Intensity;
-	public Vector3 Color;
-	public float _padding;
-}
-
-struct MaterialData
-{
-	public Vector4 AlbedoColor;
-	public float Metallic;
-	public float Roughness;
-	public float AmbientOcclusion;
-	public float _padding;
-}
-
 class SDLRendererSubsystem : Subsystem
 {
 	public override StringView Name => "SDLRenderer";
@@ -169,9 +135,9 @@ class SDLRendererSubsystem : Subsystem
 	    String litVertexShaderSource = """
 	    cbuffer UniformBlock : register(b0, space1)
 	    {
-	        float4x4 ViewProjection : packoffset(c0);
-	        float4x4 World : packoffset(c4);
-	        float4x4 NormalMatrix : packoffset(c8);
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
+	        float4x4 NormalMatrix;
 	    };
 
 	    struct VSInput
@@ -205,18 +171,12 @@ class SDLRendererSubsystem : Subsystem
 	    {
 	        VSOutput output;
 	        
-	        // Use MVP matrix directly (ViewProjection contains the full MVP)
-	        output.Position = mul(ViewProjection, float4(input.Position, 1.0));
-	        
-	        // Transform position to world space for lighting
-	        float4 worldPos = mul(World, float4(input.Position, 1.0));
-	        output.WorldPos = worldPos.xyz;
-	        
-	        // Transform normal to world space
-	        output.Normal = normalize(mul((float3x3)NormalMatrix, input.Normal));
-	        
+	        output.Position = mul(MVPMatrix, float4(input.Position, 1.0));
 	        output.TexCoord = input.TexCoord;
 	        output.Color = UnpackColor(input.Color);
+	        output.Normal = normalize(mul((float3x3)NormalMatrix, input.Normal));
+	        output.WorldPos = mul(ModelMatrix, float4(input.Position, 1.0)).xyz;
+	        
 	        
 	        return output;
 	    }
@@ -279,8 +239,8 @@ class SDLRendererSubsystem : Subsystem
 	    String unlitVertexShaderSource = """
 	    cbuffer UniformBlock : register(b0, space1)
 	    {
-	        float4x4 ViewProjection : packoffset(c0);
-	        float4x4 World : packoffset(c4);
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
 	    };
 
 	    struct VSInput
@@ -312,8 +272,8 @@ class SDLRendererSubsystem : Subsystem
 	    {
 	        VSOutput output;
 	        
-	        // Use MVP matrix directly (ViewProjection contains the full MVP)
-	        output.Position = mul(ViewProjection, float4(input.Position, 1.0));
+	        // Use MVP matrix directly (MVPMatrix contains the full MVP)
+	        output.Position = mul(MVPMatrix, float4(input.Position, 1.0));
 	        
 	        output.TexCoord = input.TexCoord;
 	        output.Color = UnpackColor(input.Color);

@@ -55,6 +55,15 @@ class Program
 				actionManager.RegisterAction("Jump", new KeyAction(keyboard, .Space));
 				actionManager.RegisterAction("Fire", new MouseButtonAction(mouse, .Left));*/
 
+				var kb = inputSubsystem.GetKeyboard();
+				kb.KeyPressed.Subscribe(new (window, device, key, ctrl, alt, shift, @repeat) =>
+					{
+						if(key == .F2)
+						{
+
+						}
+					});
+
 				// Create a scene
 				var scene = engine.SceneGraphSystem.CreateScene("Main Scene").Value;
 				engine.SceneGraphSystem.SetActiveScene(scene);
@@ -94,13 +103,13 @@ class Program
 					cube.Transform.Position = Vector3(i * 2 - 4, i, 0);
 					cube.Transform.Scale = Vector3(1, 1, 1);
 					var renderer = cube.AddComponent<MeshRenderer>();
-					renderer.Color = Vector4(
+					renderer.Color = .(
 						(float)i / 4.0f, // Red gradient
 						0.5f, // Green
 						1.0f - (float)i / 4.0f, // Blue gradient
 						1.0f // Alpha
 						);
-					renderer.UseLighting = true;
+					//renderer.UseLighting = true;
 					Mesh mesh = null;
 
 					if (i == 0)
@@ -115,7 +124,6 @@ class Program
 						mesh = Mesh.CreateTorus();
 					else
 						mesh = Mesh.CreatePlane();
-
 
 					for (int32 v = 0; v < mesh.Vertices.VertexCount; v++)
 					{

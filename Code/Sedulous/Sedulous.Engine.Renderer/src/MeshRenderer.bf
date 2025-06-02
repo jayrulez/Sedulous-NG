@@ -11,6 +11,6 @@ class MeshRenderer : Component
 	public ResourceHandle<MeshResource> Mesh { get; set; } ~ _.Release();
 	public ResourceHandle<MaterialResource> Material { get; set; }
 
-    public bool UseLighting = true;
-    public Vector4 Color = .(1, 1, 1, 1);
+    //public bool UseLighting = true;
+    public Color4 Color = .(1, 1, 1, 1);
 }

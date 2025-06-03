@@ -23,6 +23,8 @@ class Application : IEngineHost
 
 	private readonly ILogger mLogger;
 
+	public ILogger Logger => mLogger;
+
 	public this(ILogger logger, WindowSystem windowSystem)
 	{
 		mLogger = logger;

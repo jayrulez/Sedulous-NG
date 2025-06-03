@@ -12,6 +12,50 @@ using Sedulous.Geometry;
 
 namespace Sedulous.Engine.Renderer.SDL;
 
+// Render data structures
+struct RenderCommand
+{
+	public Entity Entity;
+	public Matrix WorldMatrix;
+	public MeshRenderer Renderer;
+	public float DistanceToCamera;
+}
+
+// Uniform buffer structures must match shader exactly and follow HLSL alignment rules
+[CRepr, Packed]
+struct LitVertexUniforms
+{
+	public Matrix MVPMatrix; // 64 bytes (4x float4)
+	public Matrix ModelMatrix; // 64 bytes (4x float4)
+	public Matrix NormalMatrix; // 64 bytes (4x float4)
+	// Total: 192 bytes (multiple of 16)
+}
+
+[CRepr, Packed]
+struct LitFragmentUniforms
+{
+	public Vector4 LightDirAndIntensity; // 16 bytes - xyz = direction, w = intensity
+	public Vector4 LightColorPad; // 16 bytes - xyz = color, w = padding
+	public Vector4 MaterialColor; // 16 bytes
+	public Vector4 CameraPosAndPad; // 16 bytes - xyz = position, w = padding
+	// Total: 64 bytes (multiple of 16)
+}
+
+/*[CRepr, Packed]
+struct UnlitVertexUniforms
+{
+	public Matrix MVPMatrix; // 64 bytes (4x float4)
+	public Matrix ModelMatrix; // 64 bytes (4x float4)
+	// Total: 128 bytes (multiple of 16)
+}
+
+[CRepr, Packed]
+struct UnlitFragmentUniforms
+{
+	public Vector4 MaterialColor; // 16 bytes
+	// Total: 16 bytes (multiple of 16)
+}*/
+
 class SDLRendererSubsystem : Subsystem
 {
 	public override StringView Name => "SDLRenderer";
@@ -133,46 +177,47 @@ class SDLRendererSubsystem : Subsystem
 		
 		// Lit vertex shader - uniforms in space1
 		String litVertexShaderSource = """
-				cbuffer UBO : register(b0, space1)
-				{
-				    float4x4 MVPMatrix;
-				    float4x4 ModelMatrix;
-				    float4x4 NormalMatrix;
-				};
-		
-				struct VSInput
-				{
-				    float3 Position : TEXCOORD0;
-				    float2 TexCoord : TEXCOORD1;
-				    float4 Color : TEXCOORD2;
-				    float3 Normal : TEXCOORD3;
-				};
-		
-				struct VSOutput
-				{
-				    float4 Position : SV_POSITION;
-				    float2 TexCoord : TEXCOORD0;
-				    float4 Color : TEXCOORD1;
-				    float3 Normal : TEXCOORD2;
-				    float3 WorldPos : TEXCOORD3;
-				};
-		
+			cbuffer UBO : register(b0, space1)
+			{
+			    float4x4 MVPMatrix;
+			    float4x4 ModelMatrix;
+			    float4x4 NormalMatrix;
+			};
+
+			struct VSInput
+			{
+			    float3 Position : TEXCOORD0;
+			    float3 Normal : TEXCOORD1;
+			    float2 TexCoord : TEXCOORD2;
+			    uint Color : TEXCOORD3;
+			};
+
+			struct VSOutput
+			{
+			    float4 Position : SV_POSITION;
+			    float2 TexCoord : TEXCOORD0;
+			    float4 Color : TEXCOORD1;
+			    float3 Normal : TEXCOORD2;
+			    float3 WorldPos : TEXCOORD3;
+			};
+
 			float4 UnpackColor(uint packedColor)
 			{
-			    float4 color;
-			    color.r = float((packedColor >> 0) & 0xFF) / 255.0;
-			    color.g = float((packedColor >> 8) & 0xFF) / 255.0;
-			    color.b = float((packedColor >> 16) & 0xFF) / 255.0;
-			    color.a = float((packedColor >> 24) & 0xFF) / 255.0;
-			    return color;
+			   float4 color;
+			   color.r = float((packedColor >> 0) & 0xFF) / 255.0;
+			   color.g = float((packedColor >> 8) & 0xFF) / 255.0;
+			   color.b = float((packedColor >> 16) & 0xFF) / 255.0;
+			   color.a = float((packedColor >> 24) & 0xFF) / 255.0;
+			   return color;
 			}
-		
+
+
 			VSOutput main(VSInput input)
 			{
 			    VSOutput output;
 			    output.Position = mul(MVPMatrix, float4(input.Position, 1.0));
 			    output.TexCoord = input.TexCoord;
-			    output.Color = input.Color;
+			    output.Color = UnpackColor(input.Color);
 			    output.Normal = normalize(mul((float3x3)NormalMatrix, input.Normal));
 			    output.WorldPos = mul(ModelMatrix, float4(input.Position, 1.0)).xyz;
 			    return output;
@@ -183,19 +228,19 @@ class SDLRendererSubsystem : Subsystem
 		String litFragmentShaderSource = """
 		cbuffer UniformBlock : register(b0, space3)
 		{
-		    float4 LightDirAndIntensity : packoffset(c0);  // xyz = direction, w = intensity
-		    float4 LightColorPad : packoffset(c1);         // xyz = color, w = padding
-		    float4 MaterialColor : packoffset(c2);
-		    float4 CameraPosAndPad : packoffset(c3);       // xyz = position, w = padding
+		    float4 LightDirAndIntensity;  // xyz = direction, w = intensity
+		    float4 LightColorPad;         // xyz = color, w = padding
+		    float4 MaterialColor;
+		    float4 CameraPosAndPad;       // xyz = position, w = padding
 		};
 		
 		struct PSInput
 		{
-		    float3 WorldPos : TEXCOORD0;
-		    float3 Normal : TEXCOORD1;
-		    float2 TexCoord : TEXCOORD2;
-		    float4 Color : TEXCOORD3;
 		    float4 Position : SV_Position;
+		    float2 TexCoord : TEXCOORD0;
+		    float4 Color : TEXCOORD1;
+		    float3 Normal : TEXCOORD2;
+		    float3 WorldPos : TEXCOORD3;
 		};
 		
 		float4 main(PSInput input) : SV_Target
@@ -398,11 +443,25 @@ class SDLRendererSubsystem : Subsystem
 				num_vertex_attributes = 4
 			};
 
+		SDL_GPUColorTargetBlendState blendState = .()
+		{
+			src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+			dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+			color_blend_op = .SDL_GPU_BLENDOP_ADD,
+			src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
+			dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+			alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
+			color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
+				.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
+			enable_blend = true,
+			enable_color_write_mask = false
+		};
+
 		var colorTargetDesc = SDL_GPUColorTargetDescription()
 			{
 				format = swapchainFormat,
-				blend_state = .
-					{
+				blend_state = blendState
+					/*.{
 						src_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
 						dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ZERO,
 						color_blend_op = .SDL_GPU_BLENDOP_ADD,
@@ -413,7 +472,7 @@ class SDLRendererSubsystem : Subsystem
 							.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
 						enable_blend = false,
 						enable_color_write_mask = false
-					}
+					}*/
 			};
 
 		var targetInfo = SDL_GPUGraphicsPipelineTargetInfo()
@@ -424,14 +483,38 @@ class SDLRendererSubsystem : Subsystem
 				has_depth_stencil_target = true
 			};
 
+		SDL_GPURasterizerState rasterState = .()
+		{
+			fill_mode = .SDL_GPU_FILLMODE_FILL,
+			cull_mode = .SDL_GPU_CULLMODE_BACK,
+			front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+			depth_bias_constant_factor = 0,
+			depth_bias_clamp = 0,
+			depth_bias_slope_factor = 0,
+			enable_depth_bias = false,
+			enable_depth_clip = true
+		};
+
+		SDL_GPUDepthStencilState depthStencilState = .()
+		{
+			compare_op = .SDL_GPU_COMPAREOP_LESS,
+			back_stencil_state = .(),
+			front_stencil_state = .(),
+			compare_mask = 0,
+			write_mask = 0,
+			enable_depth_test = true,
+			enable_depth_write = true,
+			enable_stencil_test = false
+		};
+
 		var pipelineDesc = SDL_GPUGraphicsPipelineCreateInfo()
 			{
 				vertex_shader = mLitVertexShader,
 				fragment_shader = mLitFragmentShader,
 				vertex_input_state = vertexInputState,
 				primitive_type = .SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-				rasterizer_state = .
-					{
+				rasterizer_state = rasterState,
+					/*.{
 						cull_mode = .SDL_GPU_CULLMODE_BACK,
 						front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
 						fill_mode = .SDL_GPU_FILLMODE_FILL,
@@ -439,15 +522,15 @@ class SDLRendererSubsystem : Subsystem
 						depth_bias_constant_factor = 0.0f,
 						depth_bias_clamp = 0.0f,
 						depth_bias_slope_factor = 0.0f
-					},
+					},*/
 				multisample_state = .
 					{
 						sample_count = .SDL_GPU_SAMPLECOUNT_1,
 						sample_mask = 0,
 						enable_mask = false
 					},
-				depth_stencil_state = .
-					{
+				depth_stencil_state = depthStencilState,
+					/*.{
 						compare_op = .SDL_GPU_COMPAREOP_LESS,
 						back_stencil_state = . { },
 						front_stencil_state = . { },
@@ -456,7 +539,7 @@ class SDLRendererSubsystem : Subsystem
 						enable_depth_test = true,
 						enable_depth_write = true,
 						enable_stencil_test = false
-					},
+					},*/
 				target_info = targetInfo,
 				props = 0
 			};

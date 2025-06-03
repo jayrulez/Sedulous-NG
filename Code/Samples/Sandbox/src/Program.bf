@@ -18,12 +18,43 @@ namespace Sandbox;
 
 class SandboxApplication : Application
 {
+	private IEngine.RegisteredUpdateFunctionInfo? mUpdateFunctionRegistration;
+
 	public this(ILogger logger, WindowSystem windowSystem) : base(logger, windowSystem)
 	{
 	}
 
+	private void OnUpdate(IEngine.UpdateInfo info)
+	{
+		var scene = info.Engine.SceneGraphSystem.ActiveScenes[0];
+
+		for(var entity in scene.Entities)
+		{
+			if(entity.HasComponent<MeshRenderer>())
+			{
+				//entity.Transform.Rotation = Quaternion.CreateFromRotationMatrix(Matrix.CreateRotationY((float)info.Time.TotalTime.TotalMilliseconds * 0.001f));
+				//entity.Transform.MarkDirty();
+			}
+		}
+	}
+
+	protected override void OnEngineShuttingDown(Engine engine)
+	{
+		if (mUpdateFunctionRegistration != null)
+		{
+			delete mUpdateFunctionRegistration.Value.Function;
+		}
+	}
+
 	protected override void OnEngineInitialized(Engine engine)
 	{
+		mUpdateFunctionRegistration = engine.RegisterUpdateFunction(.()
+			{
+				Priority = 0,
+				Stage = .VariableUpdate,
+				Function = new => OnUpdate
+			});
+
 		// Setup input actions
 		if (engine.GetSubsystem<InputSubsystem>() case .Ok(var inputSubsystem))
 		{
@@ -48,8 +79,9 @@ class SandboxApplication : Application
 
 		// Create camera
 		var cameraEntity = scene.CreateEntity("Camera");
-		cameraEntity.Transform.Position = Vector3(0, 0, -5);
-		cameraEntity.Transform.LookAt(Vector3.Zero, Vector3.Up); // Look at origin
+		cameraEntity.Transform.Position = Vector3(0, 1, -5);
+		cameraEntity.Transform.LookAt(Vector3.Zero); // Look at origin
+		cameraEntity.Transform.MarkDirty();
 		var camera = cameraEntity.AddComponent<Camera>();
 		camera.FieldOfView = 75.0f;
 
@@ -62,12 +94,13 @@ class SandboxApplication : Application
 		light.Intensity = 1.0f;
 
 		// Create objects
-		for (int i = 0; i < 1; i++)
+		for (int i = 0; i < 5; i++)
 		{
-			var cube = scene.CreateEntity(scope $"Cube{i}");
-			cube.Transform.Position = Vector3(i * 2 - 4, i, 0);
-			cube.Transform.Scale = Vector3(1, 1, 1);
-			var renderer = cube.AddComponent<MeshRenderer>();
+			var geometry = scene.CreateEntity(scope $"Geometry{i}");
+			geometry.Transform.Position = Vector3(i * 2 - 4, 0, 0);
+			geometry.Transform.Scale = Vector3(1, 1, 1);
+			geometry.Transform.MarkDirty();
+			var renderer = geometry.AddComponent<MeshRenderer>();
 			renderer.Color = .(
 				(float)i / 4.0f, // Red gradient
 				0.5f, // Green
@@ -108,7 +141,7 @@ class Program
 		ILogger logger = scope DebugLogger(.Trace);
 
 		var windowSystem = scope SDL3WindowSystem("Sandbox", 1280, 720);
-		var app = scope Application(logger, windowSystem);
+		var app = scope SandboxApplication(logger, windowSystem);
 
 		var renderer = scope SDLRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow);
 		var inputSubsystem = scope InputSubsystem(windowSystem.InputSystem);

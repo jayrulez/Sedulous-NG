@@ -48,7 +48,10 @@ class Transform
 
 	public void LookAt(Vector3 target, Vector3 up)
 	{
-	    Vector3 forward = Vector3.Normalize(target - Position);
+	    // Calculate direction from position to target
+	    Vector3 direction = Vector3.Normalize(target - Position);
+	    // In a right-handed coordinate system with -Z forward, we negate
+	    Vector3 forward = -direction;  // Camera looks down -Z
 	    Vector3 right = Vector3.Normalize(Vector3.Cross(up, forward));
 	    Vector3 actualUp = Vector3.Cross(forward, right);
 	    
@@ -56,7 +59,7 @@ class Transform
 	    Matrix rotMatrix = Matrix(
 	        right.X, right.Y, right.Z, 0,
 	        actualUp.X, actualUp.Y, actualUp.Z, 0,
-	        forward.X, forward.Y, forward.Z, 0,
+	        -forward.X, -forward.Y, -forward.Z, 0,  // Note: negated for -Z forward
 	        0, 0, 0, 1
 	    );
 	    

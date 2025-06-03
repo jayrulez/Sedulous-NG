@@ -10,50 +10,6 @@ namespace Sedulous.Engine.Renderer.SDL;
 
 using internal Sedulous.Engine.Renderer.SDL;
 
-// Render data structures
-struct RenderCommand
-{
-	public Entity Entity;
-	public Matrix WorldMatrix;
-	public MeshRenderer Renderer;
-	public float DistanceToCamera;
-}
-
-// Uniform buffer structures must match shader exactly and follow HLSL alignment rules
-[CRepr, Packed]
-struct LitVertexUniforms
-{
-	public Matrix MVPMatrix; // 64 bytes (4x float4)
-	public Matrix ModelMatrix; // 64 bytes (4x float4)
-	public Matrix NormalMatrix; // 64 bytes (4x float4)
-	// Total: 192 bytes (multiple of 16)
-}
-
-[CRepr, Packed]
-struct LitFragmentUniforms
-{
-	public Vector4 LightDirAndIntensity; // 16 bytes - xyz = direction, w = intensity
-	public Vector4 LightColorPad; // 16 bytes - xyz = color, w = padding
-	public Vector4 MaterialColor; // 16 bytes
-	public Vector4 CameraPosAndPad; // 16 bytes - xyz = position, w = padding
-	// Total: 64 bytes (multiple of 16)
-}
-
-/*[CRepr, Packed]
-struct UnlitVertexUniforms
-{
-	public Matrix MVPMatrix; // 64 bytes (4x float4)
-	public Matrix ModelMatrix; // 64 bytes (4x float4)
-	// Total: 128 bytes (multiple of 16)
-}
-
-[CRepr, Packed]
-struct UnlitFragmentUniforms
-{
-	public Vector4 MaterialColor; // 16 bytes
-	// Total: 16 bytes (multiple of 16)
-}*/
-
 class RenderModule : SceneModule
 {
 	public override StringView Name => "Render";
@@ -151,10 +107,6 @@ class RenderModule : SceneModule
 			{
 				mActiveCamera = entity.GetComponent<Camera>();
 				mActiveCameraTransform = entity.Transform;
-				SDL_Log("Found camera at position: %f, %f, %f",
-					mActiveCameraTransform.Position.X,
-					mActiveCameraTransform.Position.Y,
-					mActiveCameraTransform.Position.Z);
 			}
 
 			if (mMainLight == null && entity.HasComponent<Light>())
@@ -177,18 +129,9 @@ class RenderModule : SceneModule
 				mActiveCamera.AspectRatio = (float)mRenderer.Width / (float)mRenderer.Height;
 			}
 
-			mViewMatrix = mActiveCamera.ViewMatrix;
+			mViewMatrix =  mActiveCamera.ViewMatrix;
+			mViewMatrix = Matrix.Invert(mViewMatrix);
 			mProjectionMatrix = mActiveCamera.ProjectionMatrix;
-
-			// Debug output
-			static bool logged = false;
-			if (!logged)
-			{
-				logged = true;
-				SDL_Log("Camera FOV: %f, Aspect: %f, Near: %f, Far: %f",
-					mActiveCamera.FieldOfView, mActiveCamera.AspectRatio,
-					mActiveCamera.NearPlane, mActiveCamera.FarPlane);
-			}
 		}
 		else
 		{
@@ -198,12 +141,10 @@ class RenderModule : SceneModule
 
 	private void CollectRenderCommands()
 	{
-		int meshRendererCount = 0;
 		for (var entity in TrackedEntities)
 		{
 			if (entity.HasComponent<MeshRenderer>())
 			{
-				meshRendererCount++;
 				var renderer = entity.GetComponent<MeshRenderer>();
 				var transform = entity.Transform;
 
@@ -222,11 +163,6 @@ class RenderModule : SceneModule
 
 				mRenderCommands.Add(command);
 			}
-		}
-
-		if (meshRendererCount > 0)
-		{
-			SDL_Log("Collected %d render commands", mRenderCommands.Count);
 		}
 	}
 
@@ -247,6 +183,8 @@ class RenderModule : SceneModule
 			return;
 		}
 
+		defer SDL_SubmitGPUCommandBuffer(commandBuffer);
+
 		// Create GPU meshes for any new renderers
 		for (var command in mRenderCommands)
 		{
@@ -266,57 +204,55 @@ class RenderModule : SceneModule
 			return;
 		}
 
-		if (swapchainTexture != null)
+		if (swapchainTexture == null)
 		{
+			return;
+		}
 			// Setup render targets
-			var colorTarget = SDL_GPUColorTargetInfo()
-				{
-					texture = swapchainTexture,
-					clear_color = . { r = 0.1f, g = 0.2f, b = 0.3f, a = 1.0f },
-					load_op = .SDL_GPU_LOADOP_CLEAR,
-					store_op = .SDL_GPU_STOREOP_STORE
-				};
+		var colorTarget = SDL_GPUColorTargetInfo()
+			{
+				texture = swapchainTexture,
+				clear_color = . { r = 0.1f, g = 0.2f, b = 0.3f, a = 1.0f },
+				load_op = .SDL_GPU_LOADOP_CLEAR,
+				store_op = .SDL_GPU_STOREOP_STORE
+			};
 
-			var depthTarget = SDL_GPUDepthStencilTargetInfo()
-				{
-					texture = mDepthTexture,
-					clear_depth = 1.0f,
-					load_op = .SDL_GPU_LOADOP_CLEAR,
-					store_op = .SDL_GPU_STOREOP_DONT_CARE,
-					stencil_load_op = .SDL_GPU_LOADOP_DONT_CARE,
-					stencil_store_op = .SDL_GPU_STOREOP_DONT_CARE,
-					cycle = false
-				};
+		var depthTarget = SDL_GPUDepthStencilTargetInfo()
+			{
+				texture = mDepthTexture,
+				clear_depth = 1.0f,
+				load_op = .SDL_GPU_LOADOP_CLEAR,
+				store_op = .SDL_GPU_STOREOP_DONT_CARE,
+				stencil_load_op = .SDL_GPU_LOADOP_DONT_CARE,
+				stencil_store_op = .SDL_GPU_STOREOP_DONT_CARE,
+				cycle = false
+			};
 
-			var renderPass = SDL_BeginGPURenderPass(commandBuffer, &colorTarget, 1, &depthTarget);
+		var renderPass = SDL_BeginGPURenderPass(commandBuffer, &colorTarget, 1, &depthTarget);
+		defer SDL_EndGPURenderPass(renderPass);
 
 			// Set viewport
-			var viewport = SDL_GPUViewport()
-				{
-					x = 0, y = 0,
-					w = (float)mRenderer.Width,
-					h = (float)mRenderer.Height,
-					min_depth = 0.0f,
-					max_depth = 1.0f
-				};
-			SDL_SetGPUViewport(renderPass, &viewport);
+		var viewport = SDL_GPUViewport()
+			{
+				x = 0, y = 0,
+				w = (float)mRenderer.Width,
+				h = (float)mRenderer.Height,
+				min_depth = 0.0f,
+				max_depth = 1.0f
+			};
+		SDL_SetGPUViewport(renderPass, &viewport);
 
 			// Update camera aspect ratio if needed
-			if (mActiveCamera != null)
-			{
-				mActiveCamera.AspectRatio = (float)mRenderer.Width / (float)mRenderer.Height;
-			}
-
-			// Render all commands
-			for (var command in mRenderCommands)
-			{
-				RenderObject(commandBuffer, renderPass, command);
-			}
-
-			SDL_EndGPURenderPass(renderPass);
+		if (mActiveCamera != null)
+		{
+			mActiveCamera.AspectRatio = (float)mRenderer.Width / (float)mRenderer.Height;
 		}
 
-		SDL_SubmitGPUCommandBuffer(commandBuffer);
+			// Render all commands
+		for (var command in mRenderCommands)
+		{
+			RenderObject(commandBuffer, renderPass, command);
+		}
 	}
 
 	private void RenderObject(SDL_GPUCommandBuffer* commandBuffer, SDL_GPURenderPass* renderPass, RenderCommand command)
@@ -351,14 +287,14 @@ class RenderModule : SceneModule
 			{
 				// Prepare vertex uniforms
 				Matrix normalMatrix = command.WorldMatrix;
-				normalMatrix = Matrix.Invert(normalMatrix);
+				//normalMatrix = Matrix.Invert(normalMatrix);
 				normalMatrix = Matrix.Transpose(normalMatrix);
 
 				var vertexUniforms = LitVertexUniforms()
 					{
 						MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
-						ModelMatrix = command.WorldMatrix,
-						NormalMatrix = normalMatrix // Already transposed once
+						ModelMatrix = mViewMatrix * command.WorldMatrix,
+						NormalMatrix = normalMatrix // Already transposed
 					};
 
 				// Push vertex uniform data - slot 0 matches register(b0)
@@ -374,8 +310,7 @@ class RenderModule : SceneModule
 						LightDirAndIntensity = Vector4(lightDir.X, lightDir.Y, lightDir.Z, lightIntensity),
 						LightColorPad = Vector4(lightColor.X, lightColor.Y, lightColor.Z, 0),
 						MaterialColor = command.Renderer.Color.ToVector4(),
-						CameraPosAndPad = Vector4(mActiveCameraTransform.Position.X,
-							mActiveCameraTransform.Position.Y, mActiveCameraTransform.Position.Z, 0)
+						CameraPosAndPad = Vector4(mActiveCameraTransform.Position.X, mActiveCameraTransform.Position.Y, mActiveCameraTransform.Position.Z, 0)
 					};
 
 				// Push fragment uniform data - slot 0 matches register(b0)

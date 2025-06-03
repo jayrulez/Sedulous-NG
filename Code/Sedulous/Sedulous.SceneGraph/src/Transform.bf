@@ -61,7 +61,7 @@ class Transform
 	    );
 	    
 	    // Convert to quaternion
-	    Rotation = Quaternion.RotationMatrix(rotMatrix);
+	    Rotation = Quaternion.CreateFromRotationMatrix(rotMatrix);
 	    MarkDirty();
 	}
 
@@ -73,9 +73,9 @@ class Transform
     
     private void UpdateWorldMatrix()
     {
-        mWorldMatrix = Matrix.Scaling(Scale) * 
-                      Matrix.RotationQuaternion(Rotation) * 
-                      Matrix.Translation(Position);
+        mWorldMatrix = Matrix.CreateScale(Scale) * 
+                      Matrix.CreateFromQuaternion(Rotation) * 
+                      Matrix.CreateTranslation(Position);
     }
     
     public void MarkDirty()

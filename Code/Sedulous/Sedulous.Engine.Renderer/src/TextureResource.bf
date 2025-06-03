@@ -1,6 +1,6 @@
 using System;
 using Sedulous.Resources;
-using Sedulous.Foundation.Utilities;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Renderer;
 
 class TextureResource : Resource
@@ -59,7 +59,7 @@ class TextureResource : Resource
 
     public this(uint32 width, uint32 height, TextureFormat format, uint8[] data = null)
     {
-        Id = GUID.Create();
+        Id = Guid.Create();
         mWidth = width;
         mHeight = height;
         mFormat = format;

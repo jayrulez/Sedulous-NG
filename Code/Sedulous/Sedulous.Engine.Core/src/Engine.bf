@@ -1,13 +1,13 @@
 using System;
-using Sedulous.Foundation.Logging.Abstractions;
+using Sedulous.Logging.Abstractions;
 using System.Collections;
 using System.Threading;
-using Sedulous.Foundation.Logging.Debug;
+using Sedulous.Logging.Debug;
 using Sedulous.Jobs;
 using Sedulous.Resources;
 using Sedulous.SceneGraph;
 using Sedulous.Messaging;
-using Sedulous.Foundation.Utilities;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Core;
 
 using internal Sedulous.Engine.Core;

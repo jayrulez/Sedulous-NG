@@ -1,6 +1,6 @@
 using System;
 using SDL3Native;
-using Sedulous.Foundation.Utilities;
+using Sedulous.Utilities;
 using Sedulous.Foundation;
 using Sedulous.Platform.Core;
 using Sedulous.Foundation.Core;

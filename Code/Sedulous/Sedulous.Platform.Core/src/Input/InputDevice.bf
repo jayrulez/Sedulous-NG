@@ -1,4 +1,4 @@
-using Sedulous.Foundation.Utilities;
+using Sedulous.Utilities;
 
 namespace Sedulous.Platform.Core.Input
 {

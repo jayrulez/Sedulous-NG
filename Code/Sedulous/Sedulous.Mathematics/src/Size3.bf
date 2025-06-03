@@ -1,228 +1,257 @@
 using System;
-// Copyright (c) .NET Foundation and Contributors (https://dotnetfoundation.org/ & https://stride3d.net) and Silicon Studio Corp. (https://www.siliconstudio.co.jp)
-// Distributed under the MIT license. See the LICENSE.md file in the project root for more information.
-//
-// Copyright (c) 2010-2013 SharpDX - Alexandre Mutel
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
 
 namespace Sedulous.Mathematics;
 
 /// <summary>
-/// Structure providing Width, Height and Depth.
+/// Represents a three-dimensional size with integer components.
 /// </summary>
-[CRepr]public struct Size3 : IEquatable<Size3>
+struct Size3 : IEquatable<Size3>, IInterpolatable<Size3>, IEquatable, IHashable
 {
     /// <summary>
-    /// A zero size with (width, height, depth) = (0,0,0)
+    /// Initializes a new instance of the <see cref="Size3"/> structure.
     /// </summary>
-    public static readonly Size3 Zero = .(0, 0, 0);
-
-    /// <summary>
-    /// A one size with (width, height, depth) = (1,1,1)
-    /// </summary>
-    public static readonly Size3 One = .(1, 1, 1);
-
-    /// <summary>
-    /// A zero size with (width, height, depth) = (0,0,0)
-    /// </summary>
-    public static readonly Size3 Empty = Zero;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Size3" /> struct.
-    /// </summary>
-    /// <param name="width">The x.</param>
-    /// <param name="height">The y.</param>
-    /// <param name="depth">The depth.</param>
+    /// <param name="width">The area's width.</param>
+    /// <param name="height">The area's height.</param>
+    /// <param name="depth">The area's depth</param>
     public this(int32 width, int32 height, int32 depth)
     {
-        Width = width;
-        Height = height;
-        Depth = depth;
+        this.Width = width;
+        this.Height = height;
+        this.Depth = depth;
+    }
+    
+    /// <summary>
+    /// Adds a <see cref="Size3"/> to another <see cref="Size3"/>.
+    /// </summary>
+    /// <param name="s1">The <see cref="Size3"/> on the left side of the operator.</param>
+    /// <param name="s2">The <see cref="Size3"/> on the right side of the operator.</param>
+    /// <returns>The result of adding the two instances.</returns>
+    public static Size3 operator +(Size3 s1, Size3 s2)
+    {
+        Size3 result;
+
+        result.Width = s1.Width + s2.Width;
+        result.Height = s1.Height + s2.Height;
+        result.Depth = s1.Depth + s2.Depth;
+
+        return result;
     }
 
     /// <summary>
-    /// Width.
+    /// Subtracts a <see cref="Size3"/> from another <see cref="Size3"/>.
+    /// </summary>
+    /// <param name="s1">The <see cref="Size3"/> on the left side of the operator.</param>
+    /// <param name="s2">The <see cref="Size3"/> on the right side of the operator.</param>
+    /// <returns>The result of subtracting the two instances.</returns>
+    public static Size3 operator -(Size3 s1, Size3 s2)
+    {
+        Size3 result;
+
+        result.Width = s1.Width - s2.Width;
+        result.Height = s1.Height - s2.Height;
+        result.Depth = s1.Depth - s2.Depth;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Multiplies a <see cref="Size3"/> by a scalar multiplier.
+    /// </summary>
+    /// <param name="size">The size to multiply.</param>
+    /// <param name="multiplier">The multiplier to apply to the size.</param>
+    /// <returns>A <see cref="Size3"/> which is the result of the muliplication.</returns>
+    public static Size3 operator *(Size3 size, int32 multiplier)
+    {
+        Size3 result;
+
+        result.Width = size.Width * multiplier;
+        result.Height = size.Height * multiplier;
+        result.Depth = size.Depth * multiplier;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Multiplies a <see cref="Size3"/> by a scalar multiplier.
+    /// </summary>
+    /// <param name="size">The size to multiply.</param>
+    /// <param name="multiplier">The multiplier to apply to the size.</param>
+    /// <returns>A <see cref="Size3F"/> which is the result of the muliplication.</returns>
+    public static Size3F operator *(Size3 size, float multiplier)
+    {
+        Size3F result;
+
+        result.Width = size.Width * multiplier;
+        result.Height = size.Height * multiplier;
+        result.Depth = size.Depth * multiplier;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Multiplies a <see cref="Size3"/> by a scalar multiplier.
+    /// </summary>
+    /// <param name="size">The size to multiply.</param>
+    /// <param name="multiplier">The multiplier to apply to the size.</param>
+    /// <returns>A <see cref="Size3D"/> which is the result of the muliplication.</returns>
+    public static Size3D operator *(Size3 size, double multiplier)
+    {
+        Size3D result;
+
+        result.Width = size.Width * multiplier;
+        result.Height = size.Height * multiplier;
+        result.Depth = size.Depth * multiplier;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Divides a <see cref="Size3"/> by a scalar divisor.
+    /// </summary>
+    /// <param name="size">The size to divide.</param>
+    /// <param name="divisor">The divisor to apply to the size.</param>
+    /// <returns>A <see cref="Size3"/> which is the result of the muliplication.</returns>
+    public static Size3 operator /(Size3 size, int32 divisor)
+    {
+        Size3 result;
+
+        result.Width = size.Width / divisor;
+        result.Height = size.Height / divisor;
+        result.Depth = size.Depth / divisor;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Divides a <see cref="Size3"/> by a scalar divisor.
+    /// </summary>
+    /// <param name="size">The size to divide.</param>
+    /// <param name="divisor">The divisor to apply to the size.</param>
+    /// <returns>A <see cref="Size3F"/> which is the result of the muliplication.</returns>
+    public static Size3F operator /(Size3 size, float divisor)
+    {
+        Size3F result;
+
+        result.Width = size.Width / divisor;
+        result.Height = size.Height / divisor;
+        result.Depth = size.Depth / divisor;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Divides a <see cref="Size3"/> by a scalar divisor.
+    /// </summary>
+    /// <param name="size">The size to divide.</param>
+    /// <param name="divisor">The divisor to apply to the size.</param>
+    /// <returns>A <see cref="Size3D"/> which is the result of the muliplication.</returns>
+    public static Size3D operator /(Size3 size, double divisor)
+    {
+        Size3D result;
+
+        result.Width = size.Width / divisor;
+        result.Height = size.Height / divisor;
+        result.Depth = size.Depth / divisor;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Size3"/> structure to a <see cref="Vector3"/> structure.
+    /// </summary>
+    /// <param name="size">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Vector3(Size3 size)
+    {
+        Vector3 result;
+
+        result.X = size.Width;
+        result.Y = size.Height;
+        result.Z = size.Depth;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Implicitly converts a <see cref="Size3"/> structure to a <see cref="Size3F"/> structure.
+    /// </summary>
+    /// <param name="size">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static implicit operator Size3F(Size3 size)
+    {
+        Size3F result;
+
+        result.Width = size.Width;
+        result.Height = size.Height;
+        result.Depth = size.Depth;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Implicitly converts a <see cref="Size3"/> structure to a <see cref="Size3D"/> structure.
+    /// </summary>
+    /// <param name="size">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static implicit operator Size3D(Size3 size)
+    {
+        Size3D result;
+
+        result.Width = size.Width;
+        result.Height = size.Height;
+        result.Depth = size.Depth;
+
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public override void ToString(String str) => str.Append( scope $"{{Width:{Width} Height:{Height} Depth:{Depth}}}");
+
+    /// <summary>
+    /// Interpolates between this value and the specified value.
+    /// </summary>
+    /// <param name="target">The target value.</param>
+    /// <param name="t">A value between 0.0 and 1.0 representing the interpolation factor.</param>
+    /// <returns>The interpolated value.</returns>
+    public Size3 Interpolate(Size3 target, float t)
+    {
+        Size3 result;
+
+        result.Width = Tweening.Lerp(this.Width, target.Width, t);
+        result.Height = Tweening.Lerp(this.Height, target.Height, t);
+        result.Depth = Tweening.Lerp(this.Depth, target.Depth, t);
+
+        return result;
+    }
+
+    /// <summary>
+    /// A size with zero width, height, and depth.
+    /// </summary>
+    public static Size3 Zero
+    {
+        get { return Size3(0, 0, 0); }
+    }
+
+    /// <summary>
+    /// Gets the size's total volume (width times height times depth).
+    /// </summary>
+    public int32 Volume
+    {
+        get { return Width * Height * Depth; }
+    }
+
+    /// <summary>
+    /// The size's width.
     /// </summary>
     public int32 Width;
 
     /// <summary>
-    /// Height.
+    /// The size's height.
     /// </summary>
     public int32 Height;
 
     /// <summary>
-    /// Height.
+    /// The size's depth.
     /// </summary>
     public int32 Depth;
-
-    /// <summary>
-    /// Gets a volume size.
-    /// </summary>
-    private readonly int64 VolumeSize
-    {
-        get
-        {
-            return (int64)Width * Height * Depth;
-        }
-    }
-
-    /// <inheritdoc/>
-    public bool Equals(Size3 other)
-    {
-        return Width == other.Width && Height == other.Height && Depth == other.Depth;
-    }
-
-    /// <inheritdoc/>
-    public int GetHashCode()
-    {
-		int hash = 17;
-		hash = HashCode.Mix(hash, Width);
-		hash = HashCode.Mix(hash, Height);
-		hash = HashCode.Mix(hash, Depth);
-        return hash;
-    }
-
-    /// <inheritdoc/>
-    public int CompareTo(Size3 other)
-    {
-        return Math.Sign(this.VolumeSize - other.VolumeSize);
-    }
-
-    /// <inheritdoc/>
-    public override void ToString(String strBuffer) => strBuffer.Append("TODO");
-
-    /// <summary>
-    /// Implements the &lt;.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>The result of the operator.</returns>
-    public static bool operator <(Size3 left, Size3 right)
-    {
-        return left.CompareTo(right) < 0;
-    }
-
-    /// <summary>
-    /// Implements the &lt;.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>The result of the operator.</returns>
-    public static bool operator <=(Size3 left, Size3 right)
-    {
-        return left.CompareTo(right) <= 0;
-    }
-
-    /// <summary>
-    /// Implements the &lt; or ==.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>The result of the operator.</returns>
-    public static bool operator >(Size3 left, Size3 right)
-    {
-        return left.CompareTo(right) > 0;
-    }
-
-    /// <summary>
-    /// Implements the &gt; or ==.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>The result of the operator.</returns>
-    public static bool operator >=(Size3 left, Size3 right)
-    {
-        return left.CompareTo(right) >= 0;
-    }
-
-    /// <summary>
-    /// Implements the ==.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>The result of the operator.</returns>
-    public static bool operator ==(Size3 left, Size3 right)
-    {
-        return left.Equals(right);
-    }
-
-    /// <summary>
-    /// Implements the !=.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>The result of the operator.</returns>
-    public static bool operator !=(Size3 left, Size3 right)
-    {
-        return !left.Equals(right);
-    }
-
-    /// <summary>
-    /// Calculates the next up mip-level (*2) of this size.
-    /// </summary>
-    /// <returns>A next up mip-level Size3.</returns>
-    public Size3 Up2(int32 count = 1)
-    {
-        if (count < 0)
-        {
-            Runtime.FatalError(scope $"ArgumentOutOfRangeException - {nameof(count)}: Must be >= 0");
-        }
-
-        return Size3(Math.Max(1, Width << count), Math.Max(1, Height << count), Math.Max(1, Depth << count));
-    }
-
-    /// <summary>
-    /// Calculates the next down mip-level (/2) of this size.
-    /// </summary>
-    /// <param name="count">The count.</param>
-    /// <returns>A next down mip-level Size3.</returns>
-    public Size3 Down2(int32 count = 1)
-    {
-        if (count < 0)
-        {
-            Runtime.FatalError(scope $"ArgumentOutOfRangeException - {nameof(count)}: Must be >= 0");
-        }
-
-        return Size3(Math.Max(1, Width >> count), Math.Max(1, Height >> count), Math.Max(1, Depth >> count));
-    }
-
-    /// <summary>
-    /// Calculates the mip size based on a direction.
-    /// </summary>
-    /// <param name="direction">The direction &lt; 0 then <see cref="Down2"/>, &gt; 0  then <see cref="Up2"/>, else this unchanged.</param>
-    /// <returns>Size3.</returns>
-    public Size3 Mip(int32 direction)
-    {
-        return direction == 0 ? this : direction < 0 ? Down2() : Up2();
-    }
-
-    /// <summary>
-    /// Deconstructs the vector's components into named variables.
-    /// </summary>
-    /// <param name="width">The Width component</param>
-    /// <param name="height">The Height component</param>
-    /// <param name="depth">The Depth component</param>
-    public void Deconstruct(out int32 width, out int32 height, out int32 depth)
-    {
-        width = Width;
-        height = Height;
-        depth = Depth;
-    }
 }

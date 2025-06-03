@@ -1,51 +1,30 @@
 using System;
-// Copyright (c) .NET Foundation and Contributors (https://dotnetfoundation.org/ & https://stride3d.net) and Silicon Studio Corp. (https://www.siliconstudio.co.jp)
-// Distributed under the MIT license. See the LICENSE.md file in the project root for more information.
-//
-// Copyright (c) 2010-2013 SharpDX - Alexandre Mutel
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
 
 namespace Sedulous.Mathematics;
 
 /// <summary>
-/// Define a RectangleF.
+/// Represents a rectangle with single-precision floating point components.
 /// </summary>
-[CRepr]public struct RectangleF : IEquatable<RectangleF>
+struct RectangleF : IEquatable<RectangleF>, IInterpolatable<RectangleF>, IEquatable, IHashable
 {
-    /// <summary>
-    /// An empty rectangle
-    /// </summary>
-    public static readonly RectangleF Empty;
-
-    static this()
-    {
-        Empty = RectangleF(0,0,0,0);
-    }
-
     /// <summary>
     /// Initializes a new instance of the <see cref="RectangleF"/> struct.
     /// </summary>
-    /// <param name="x">The left.</param>
-    /// <param name="y">The top.</param>
-    /// <param name="width">The width.</param>
-    /// <param name="height">The height.</param>
+    /// <param name="position">The rectangle's position.</param>
+    /// <param name="size">The rectangle's size.</param>
+    public this(Point2F position, Size2F size)
+        : this(position.X, position.Y, size.Width, size.Height)
+    {
+
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RectangleF"/> structure.
+    /// </summary>
+    /// <param name="x">The x-coordinate of the rectangle's top-left corner.</param>
+    /// <param name="y">The y-coordinate of the rectangle's top-right corner.</param>
+    /// <param name="width">The rectangle's width.</param>
+    /// <param name="height">The rectangle's height.</param>
     public this(float x, float y, float width, float height)
     {
         this.X = x;
@@ -55,89 +34,604 @@ namespace Sedulous.Mathematics;
     }
 
     /// <summary>
-    /// Gets or sets the X position of the left edge.
+    /// Initializes a new instance of the <see cref="RectangleF"/> structure.
     /// </summary>
-    /// <value>The left.</value>
-    public float Left
+    /// <param name="position">The position of the rectangle's top-left corner.</param>
+    /// <param name="size">The area of the rectangle.</param>
+    public this(Vector2 position, Size2F size)
+        : this(position.X, position.Y, size.Width, size.Height)
     {
-        get { return X; }
-        set mut { X = value; }
+
     }
 
     /// <summary>
-    /// Gets or sets the top.
+    /// Offsets the specified <see cref="RectangleF"/> by adding the specified <see cref="Point2F"/> to its location.
     /// </summary>
-    /// <value>The top.</value>
+    /// <param name="rect">The <see cref="RectangleF"/> to offset.</param>
+    /// <param name="point">The <see cref="Point2"/> by which to offset the rectangle.</param>
+    /// <returns>A <see cref="RectangleF"/> that has been offset by the specified amount.</returns>
+    public static RectangleF operator +(RectangleF rect, Point2 point)
+    {
+        RectangleF result;
+
+        result.X = rect.X + point.X;
+        result.Y = rect.Y + point.Y;
+        result.Width = rect.Width;
+        result.Height = rect.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Offsets the specified <see cref="RectangleF"/> by subtracting the specified <see cref="Point2F"/> from its location.
+    /// </summary>
+    /// <param name="rect">The <see cref="RectangleF"/> to offset.</param>
+    /// <param name="point">The <see cref="Point2"/> by which to offset the rectangle.</param>
+    /// <returns>A <see cref="RectangleF"/> that has been offset by the specified amount.</returns>
+    public static RectangleF operator -(RectangleF rect, Point2 point)
+    {
+        RectangleF result;
+
+        result.X = rect.X - point.X;
+        result.Y = rect.Y - point.Y;
+        result.Width = rect.Width;
+        result.Height = rect.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Offsets the specified <see cref="RectangleF"/> by adding the specified <see cref="Point2F"/> to its location.
+    /// </summary>
+    /// <param name="rect">The <see cref="RectangleF"/> to offset.</param>
+    /// <param name="point">The <see cref="Point2F"/> by which to offset the rectangle.</param>
+    /// <returns>A <see cref="RectangleF"/> that has been offset by the specified amount.</returns>
+    public static RectangleF operator +(RectangleF rect, Point2F point)
+    {
+        RectangleF result;
+
+        result.X = rect.X + point.X;
+        result.Y = rect.Y + point.Y;
+        result.Width = rect.Width;
+        result.Height = rect.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Offsets the specified <see cref="RectangleF"/> by subtracting the specified <see cref="Point2F"/> from its location.
+    /// </summary>
+    /// <param name="rect">The <see cref="RectangleF"/> to offset.</param>
+    /// <param name="point">The <see cref="Point2F"/> by which to offset the rectangle.</param>
+    /// <returns>A <see cref="RectangleF"/> that has been offset by the specified amount.</returns>
+    public static RectangleF operator -(RectangleF rect, Point2F point)
+    {
+        RectangleF result;
+
+        result.X = rect.X - point.X;
+        result.Y = rect.Y - point.Y;
+        result.Width = rect.Width;
+        result.Height = rect.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Offsets the specified <see cref="RectangleF"/> by adding the specified <see cref="Point2D"/> to its location.
+    /// </summary>
+    /// <param name="rect">The <see cref="RectangleF"/> to offset.</param>
+    /// <param name="point">The <see cref="Point2D"/> by which to offset the rectangle.</param>
+    /// <returns>A <see cref="RectangleD"/> that has been offset by the specified amount.</returns>
+    public static RectangleD operator +(RectangleF rect, Point2D point)
+    {
+        RectangleD result;
+
+        result.X = rect.X + point.X;
+        result.Y = rect.Y + point.Y;
+        result.Width = rect.Width;
+        result.Height = rect.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Offsets the specified <see cref="RectangleF"/> by subtracting the specified <see cref="Point2D"/> from its location.
+    /// </summary>
+    /// <param name="rect">The <see cref="RectangleF"/> to offset.</param>
+    /// <param name="point">The <see cref="Point2D"/> by which to offset the rectangle.</param>
+    /// <returns>A <see cref="RectangleD"/> that has been offset by the specified amount.</returns>
+    public static RectangleD operator -(RectangleF rect, Point2D point)
+    {
+        RectangleD result;
+
+        result.X = rect.X - point.X;
+        result.Y = rect.Y - point.Y;
+        result.Width = rect.Width;
+        result.Height = rect.Height;
+
+        return result;
+    }
+    
+    /// <summary>
+    /// Explicitly converts a <see cref="RectangleF"/> structure to a <see cref="Rectangle"/> structure.
+    /// </summary>
+    /// <param name="rect">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Rectangle(RectangleF rect)
+    {
+        Rectangle result;
+
+        result.X = (int32)rect.X;
+        result.Y = (int32)rect.Y;
+        result.Width = (int32)rect.Width;
+        result.Height = (int32)rect.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Implicitly converts a <see cref="RectangleF"/> structure to a <see cref="RectangleD"/> structure.
+    /// </summary>
+    /// <param name="rect">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static implicit operator RectangleD(RectangleF rect)
+    {
+        RectangleD result;
+
+        result.X = rect.X;
+        result.Y = rect.Y;
+        result.Width = rect.Width;
+        result.Height = rect.Height;
+
+        return result;
+    }
+    
+    /// <summary>
+    /// Offsets the specified rectangle by the specified amount.
+    /// </summary>
+    /// <param name="rectangle">The <see cref="RectangleF"/> to offset.</param>
+    /// <param name="offsetX">The amount by which to offset the rectangle along the x-axis.</param>
+    /// <param name="offsetY">The amount by which to offset the rectangle along the y-axis.</param>
+    /// <returns>The offset <see cref="RectangleF"/>.</returns>
+    public static RectangleF Offset(RectangleF rectangle, float offsetX, float offsetY)
+    {
+        RectangleF result;
+
+        result.X = rectangle.X + offsetX;
+        result.Y = rectangle.Y + offsetY;
+        result.Width = rectangle.Width;
+        result.Height = rectangle.Height;
+
+        return result;
+    }
+
+    /// <summary>
+	/// Offsets the specified rectangle by the specified amount.
+	/// </summary>
+	/// <param name="rectangle">The <see cref="RectangleF"/> to offset.</param>
+	/// <param name="offsetX">The amount by which to offset the rectangle along the x-axis.</param>
+	/// <param name="offsetY">The amount by which to offset the rectangle along the y-axis.</param>
+	/// <param name="result">The offset <see cref="RectangleF"/>.</param>
+	public static void Offset(in RectangleF rectangle, float offsetX, float offsetY, out RectangleF result)
+	{
+	    result.X = rectangle.X + offsetX;
+	    result.Y = rectangle.Y + offsetY;
+	    result.Width = rectangle.Width;
+	    result.Height = rectangle.Height;
+	}
+
+	/// <summary>
+	/// Offsets the specified rectangle by the specified amount.
+	/// </summary>
+	/// <param name="rectangle">The <see cref="RectangleF"/> to offset.</param>
+	/// <param name="offset">The amount by which to offset the rectangle.</param>
+	/// <returns>The offset <see cref="RectangleF"/>.</returns>
+	public static RectangleF Offset(RectangleF rectangle, Vector2 offset)
+	{
+	    RectangleF result;
+
+	    result.X = rectangle.X + offset.X;
+	    result.Y = rectangle.Y + offset.Y;
+	    result.Width = rectangle.Width;
+	    result.Height = rectangle.Height;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Offsets the specified rectangle by the specified amount.
+	/// </summary>
+	/// <param name="rectangle">The <see cref="RectangleF"/> to offset.</param>
+	/// <param name="offset">The amount by which to offset the rectangle.</param>
+	/// <param name="result">The offset <see cref="RectangleF"/>.</param>
+	public static void Offset(in RectangleF rectangle, in Vector2 offset, out RectangleF result)
+	{
+	    result.X = rectangle.X + offset.X;
+	    result.Y = rectangle.Y + offset.Y;
+	    result.Width = rectangle.Width;
+	    result.Height = rectangle.Height;
+	}
+
+	/// <summary>
+	/// Inflates the specified rectangle by the specified horizontal and vertical values.
+	/// </summary>
+	/// <param name="rectangle">The <see cref="RectangleF"/> to inflate.</param>
+	/// <param name="horizontalAmount">The amount by which to inflate the rectangle horizontally.</param>
+	/// <param name="verticalAmount">The amount by which to inflate the rectangle vertically.</param>
+	/// <returns>The inflated <see cref="RectangleF"/>.</returns>
+	public static RectangleF Inflate(RectangleF rectangle, float horizontalAmount, float verticalAmount)
+	{
+	    RectangleF result;
+
+	    result.X = rectangle.X - horizontalAmount;
+	    result.Y = rectangle.Y - verticalAmount;
+	    result.Width = rectangle.Width + (2 * horizontalAmount);
+	    result.Height = rectangle.Height + (2 * verticalAmount);
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Inflates the specified rectangle by the specified horizontal and vertical values.
+	/// </summary>
+	/// <param name="rectangle">The <see cref="RectangleF"/> to inflate.</param>
+	/// <param name="horizontalAmount">The amount by which to inflate the rectangle horizontally.</param>
+	/// <param name="verticalAmount">The amount by which to inflate the rectangle vertically.</param>
+	/// <param name="result">The inflated <see cref="RectangleF"/>.</param>
+	public static void Inflate(in RectangleF rectangle, float horizontalAmount, float verticalAmount, out RectangleF result)
+	{
+	    result.X = rectangle.X - horizontalAmount;
+	    result.Y = rectangle.Y - verticalAmount;
+	    result.Width = rectangle.Width + (2 * horizontalAmount);
+	    result.Height = rectangle.Height + (2 * verticalAmount);
+	}
+
+	/// <summary>
+	/// Creates a rectangle which is the union of the specified rectangles.
+	/// </summary>
+	/// <param name="rectangle1">The first <see cref="RectangleF"/>.</param>
+	/// <param name="rectangle2">The second <see cref="RectangleF"/>.</param>
+	/// <returns>The <see cref="RectangleF"/> that was created.</returns>
+	public static RectangleF Union(RectangleF rectangle1, RectangleF rectangle2)
+	{
+	    var minLeft = rectangle1.Left < rectangle2.Left ? rectangle1.Left : rectangle2.Left;
+	    var minTop = rectangle1.Top < rectangle2.Top ? rectangle1.Top : rectangle2.Top;
+	    var maxRight = rectangle1.Right > rectangle2.Right ? rectangle1.Right : rectangle2.Right;
+	    var maxBottom = rectangle1.Bottom > rectangle2.Bottom ? rectangle1.Bottom : rectangle2.Bottom;
+
+	    RectangleF result;
+
+	    result.X = minLeft;
+	    result.Y = minTop;
+	    result.Width = maxRight - minLeft;
+	    result.Height = maxBottom - minTop;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Creates a rectangle which is the union of the specified rectangles.
+	/// </summary>
+	/// <param name="rectangle1">The first <see cref="RectangleF"/>.</param>
+	/// <param name="rectangle2">The second <see cref="RectangleF"/>.</param>
+	/// <param name="result">The <see cref="RectangleF"/> that was created.</param>
+	public static void Union(in RectangleF rectangle1, in RectangleF rectangle2, out RectangleF result)
+	{
+	    var minLeft = rectangle1.Left < rectangle2.Left ? rectangle1.Left : rectangle2.Left;
+	    var minTop = rectangle1.Top < rectangle2.Top ? rectangle1.Top : rectangle2.Top;
+	    var maxRight = rectangle1.Right > rectangle2.Right ? rectangle1.Right : rectangle2.Right;
+	    var maxBottom = rectangle1.Bottom > rectangle2.Bottom ? rectangle1.Bottom : rectangle2.Bottom;
+
+	    result.X = minLeft;
+	    result.Y = minTop;
+	    result.Width = maxRight - minLeft;
+	    result.Height = maxBottom - minTop;
+	}
+
+	/// <summary>
+	/// Creates a rectangle which represents the intersection between the specified rectangles.
+	/// </summary>
+	/// <param name="rectangle1">The first <see cref="RectangleF"/> to intersect.</param>
+	/// <param name="rectangle2">The second <see cref="RectangleF"/> to intersect.</param>
+	/// <returns>The <see cref="RectangleF"/> that was created.</returns>
+	public static RectangleF Intersect(RectangleF rectangle1, RectangleF rectangle2)
+	{
+	    var maxLeft = rectangle1.Left > rectangle2.Left ? rectangle1.Left : rectangle2.Left;
+	    var maxTop = rectangle1.Top > rectangle2.Top ? rectangle1.Top : rectangle2.Top;
+	    var minRight = rectangle1.Right < rectangle2.Right ? rectangle1.Right : rectangle2.Right;
+	    var minBottom = rectangle1.Bottom < rectangle2.Bottom ? rectangle1.Bottom : rectangle2.Bottom;
+
+	    var isEmpty = (minRight <= maxLeft || minBottom <= maxTop);
+	    if (isEmpty)
+	        return RectangleF.Empty;
+	    
+	    RectangleF result;
+
+	    result.X = maxLeft;
+	    result.Y = maxTop;
+	    result.Width = minRight - maxLeft;
+	    result.Height = minBottom - maxTop;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Creates a rectangle which represents the intersection between the specified rectangles.
+	/// </summary>
+	/// <param name="rectangle1">The first <see cref="RectangleF"/> to intersect.</param>
+	/// <param name="rectangle2">The second <see cref="RectangleF"/> to intersect.</param>
+	/// <param name="result">The <see cref="RectangleF"/> that was created.</param>
+	public static void Intersect(in RectangleF rectangle1, in RectangleF rectangle2, out RectangleF result)
+	{
+	    var maxLeft = rectangle1.Left > rectangle2.Left ? rectangle1.Left : rectangle2.Left;
+	    var maxTop = rectangle1.Top > rectangle2.Top ? rectangle1.Top : rectangle2.Top;
+	    var minRight = rectangle1.Right < rectangle2.Right ? rectangle1.Right : rectangle2.Right;
+	    var minBottom = rectangle1.Bottom < rectangle2.Bottom ? rectangle1.Bottom : rectangle2.Bottom;
+
+	    var isEmpty = (minRight <= maxLeft || minBottom <= maxTop);
+	    if (isEmpty)
+	    {
+	        result = RectangleF.Empty;
+	    }
+	    else
+	    {
+	        result.X = maxLeft;
+	        result.Y = maxTop;
+	        result.Width = minRight - maxLeft;
+	        result.Height = minBottom - maxTop;
+	    }
+	}
+
+	/// <summary>
+	/// Transforms the specified rectangle and retrieves the axis-aligned bounding box of the result.
+	/// </summary>
+	/// <param name="rectangle">The rectangle to transform.</param>
+	/// <param name="transform">The transform matrix.</param>
+	/// <returns>The axis-aligned bounding box of <paramref name="rectangle"/> after it has been transformed.</returns>
+	public static RectangleF TransformAxisAligned(RectangleF rectangle, Matrix transform)
+	{
+	    var tl = Vector2(rectangle.Left, rectangle.Top);
+	    var tr = Vector2(rectangle.Right, rectangle.Top);
+	    var bl = Vector2(rectangle.Left, rectangle.Bottom);
+	    var br = Vector2(rectangle.Right, rectangle.Bottom);
+
+	    Vector2.Transform(tl, transform, out tl);
+	    Vector2.Transform(tr, transform, out tr);
+	    Vector2.Transform(bl, transform, out bl);
+	    Vector2.Transform(br, transform, out br);
+
+	    var minX = Math.Min(Math.Min(tl.X, tr.X), Math.Min(bl.X, br.X));
+	    var maxX = Math.Max(Math.Max(tl.X, tr.X), Math.Max(bl.X, br.X));
+	    var minY = Math.Min(Math.Min(tl.Y, tr.Y), Math.Min(bl.Y, br.Y));
+	    var maxY = Math.Max(Math.Max(tl.Y, tr.Y), Math.Max(bl.Y, br.Y));
+
+	    RectangleF result;
+
+	    result.X = minX;
+	    result.Y = minY;
+	    result.Width = maxX - minX;
+	    result.Height = maxY - minY;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Transforms the specified rectangle and retrieves the axis-aligned bounding box of the result.
+	/// </summary>
+	/// <param name="rectangle">The rectangle to transform.</param>
+	/// <param name="transform">The transform matrix.</param>
+	/// <param name="result">The axis-aligned bounding box of <paramref name="rectangle"/> after it has been transformed.</param>
+	public static void TransformAxisAligned(in RectangleF rectangle, in Matrix transform, out RectangleF result)
+	{
+	    var tl = Vector2(rectangle.Left, rectangle.Top);
+	    var tr = Vector2(rectangle.Right, rectangle.Top);
+	    var bl = Vector2(rectangle.Left, rectangle.Bottom);
+	    var br = Vector2(rectangle.Right, rectangle.Bottom);
+
+	    Vector2.Transform(tl, transform, out tl);
+	    Vector2.Transform(tr, transform, out tr);
+	    Vector2.Transform(bl, transform, out bl);
+	    Vector2.Transform(br, transform, out br);
+
+	    var minX = Math.Min(Math.Min(tl.X, tr.X), Math.Min(bl.X, br.X));
+	    var maxX = Math.Max(Math.Max(tl.X, tr.X), Math.Max(bl.X, br.X));
+	    var minY = Math.Min(Math.Min(tl.Y, tr.Y), Math.Min(bl.Y, br.Y));
+	    var maxY = Math.Max(Math.Max(tl.Y, tr.Y), Math.Max(bl.Y, br.Y));
+
+	    result.X = minX;
+	    result.Y = minY;
+	    result.Width = maxX - minX;
+	    result.Height = maxY - minY;
+	}
+
+	/// <inheritdoc/>
+	public override void ToString(String str) => str.Append( scope $"{{X:{X} Y:{Y}: Width:{Width} Height{Height}}}");
+
+	/// <summary>
+	/// Gets a value indicating whether this rectangle intersects the specified rectangle.
+	/// </summary>
+	/// <param name="rectangle">The <see cref="RectangleF"/> to evaluate.</param>
+	/// <returns><see langword="true"/> if this rectangle intersects the specified rectangle; otherwise, <see langword="false"/>.</returns>
+	public bool Intersects(RectangleF rectangle)
+	{
+	    return
+	        rectangle.Left < this.Right && 
+	        this.Left < rectangle.Right && 
+	        rectangle.Top < this.Bottom && 
+	        this.Top < rectangle.Bottom;
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether this rectangle intersects the specified rectangle.
+	/// </summary>
+	/// <param name="rectangle">The <see cref="RectangleF"/> to evaluate.</param>
+	/// <param name="result"><see langword="true"/> if this rectangle intersects the specified rectangle; otherwise, <see langword="false"/>.</param>
+	public void Intersects(in RectangleF rectangle, out bool result)
+	{
+	    result =
+	        rectangle.Left < this.Right && 
+	        this.Left < rectangle.Right && 
+	        rectangle.Top < this.Bottom && 
+	        this.Top < rectangle.Bottom;
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether the rectangle contains the specified point.
+	/// </summary>
+	/// <param name="x">The x-coordinate of the point to evaluate.</param>
+	/// <param name="y">The y-coordinate of the point to evaluate.</param>
+	/// <returns><see langword="true"/> if the rectangle contains the specified point; otherwise, <see langword="false"/>.</returns>
+	public bool Contains(float x, float y)
+	{
+	    return
+	        x >= this.X && x < this.X + this.Width &&
+	        y >= this.Y && y < this.Y + this.Height;
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether the rectangle contains the specified point.
+	/// </summary>
+	/// <param name="point">The point to evaluate.</param>
+	/// <param name="result">A value indicating whether the rectangle contains the specified point.</param>
+	public void Contains(in Point2F point, out bool result)
+	{
+	    result =
+	        point.X >= this.X && point.X < this.X + this.Width &&
+	        point.Y >= this.Y && point.Y < this.Y + this.Height;
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether the rectangle contains the specified point.
+	/// </summary>
+	/// <param name="point">The point to evaluate.</param>
+	/// <returns><see langword="true"/> if the rectangle contains the specified point; otherwise, <see langword="false"/>.</returns>
+	public bool Contains(Point2F point)
+	{
+	    return
+	        point.X >= this.X && point.X < this.X + this.Width &&
+	        point.Y >= this.Y && point.Y < this.Y + this.Height;
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether the rectangle contains the specified point.
+	/// </summary>
+	/// <param name="point">A <see cref="Vector2"/> representing the point to evaluate.</param>
+	/// <param name="result">A value indicating whether the rectangle contains the specified point.</param>
+	public void Contains(in Vector2 point, out bool result)
+	{
+	    result = 
+	        point.X >= this.X && point.X < this.X + this.Width &&
+	        point.Y >= this.Y && point.Y < this.Y + this.Height;
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether the rectangle contains the specified point.
+	/// </summary>
+	/// <param name="point">A <see cref="Vector2"/> representing the point to evaluate.</param>
+	/// <returns><see langword="true"/> if the rectangle contains the specified point; otherwise, <see langword="false"/>.</returns>
+	public bool Contains(Vector2 point)
+	{
+	    return
+	        point.X >= this.X && point.X < this.X + this.Width &&
+	        point.Y >= this.Y && point.Y < this.Y + this.Height;
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether the rectangle completely contains the specified rectangle.
+	/// </summary>
+	/// <param name="rectangle">The <see cref="RectangleF"/> to evaluate.</param>
+	/// <param name="result"><see langword="true"/> if the rectangle completely contains the specified rectangle; otherwise, <see langword="false"/>.</param>
+	public void Contains(in RectangleF rectangle, out bool result)
+	{
+	    result = 
+	        this.X <= rectangle.X && rectangle.X + rectangle.Width <= this.X + this.Width &&
+	        this.Y <= rectangle.Y && rectangle.Y + rectangle.Height <= this.Y + this.Height;
+	}
+
+    /// <summary>
+    /// Gets a value indicating whether the rectangle completely contains the specified rectangle.
+    /// </summary>
+    /// <param name="rectangle">The <see cref="RectangleF"/> to evaluate.</param>
+    /// <returns><see langword="true"/> if the rectangle completely contains the specified rectangle; otherwise, <see langword="false"/>.</returns>
+    public bool Contains(RectangleF rectangle)
+    {
+        return
+            this.X <= rectangle.X && rectangle.X + rectangle.Width <= this.X + this.Width &&
+            this.Y <= rectangle.Y && rectangle.Y + rectangle.Height <= this.Y + this.Height;
+    }
+
+    /// <summary>
+    /// Interpolates between this value and the specified value.
+    /// </summary>
+    /// <param name="target">The target value.</param>
+    /// <param name="t">A value between 0.0 and 1.0 representing the interpolation factor.</param>
+    /// <returns>The interpolated value.</returns>
+    public RectangleF Interpolate(RectangleF target, float t)
+    {
+        RectangleF result;
+
+        result.X = Tweening.Lerp(this.X, target.X, t);
+        result.Y = Tweening.Lerp(this.Y, target.Y, t);
+        result.Width = Tweening.Lerp(this.Width, target.Width, t);
+        result.Height = Tweening.Lerp(this.Height, target.Height, t);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Gets an empty rectangle.
+    /// </summary>
+    public static RectangleF Empty
+    {
+        get { return RectangleF(0, 0, 0, 0); }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the rectangle is empty.
+    /// </summary>
+    public bool IsEmpty
+    {
+        get { return Width == 0 || Height == 0; }
+    }
+
+    /// <summary>
+    /// Gets the y-coordinate of the top edge of the rectangle.
+    /// </summary>
     public float Top
     {
         get { return Y; }
-        set mut { Y = value; }
     }
 
     /// <summary>
-    /// Gets the right.
+    /// Gets the x-coordinate of the left edge of the rectangle.
     /// </summary>
-    /// <value>The right.</value>
-    public readonly float Right
+    public float Left
     {
-        get
-        {
-            return X + Width;
-        }
+        get { return X; }
     }
 
     /// <summary>
-    /// Gets the bottom.
+    /// Gets the y-coordinate of the bottom edge of the rectangle.
     /// </summary>
-    /// <value>The bottom.</value>
-    public readonly float Bottom
+    public float Bottom
     {
-        get
-        {
-            return Y + Height;
-        }
+        get { return Y + Height; }
     }
 
     /// <summary>
-    /// Gets or sets the X position.
+    /// Gets the x-coordinate of the right edge of the rectangle.
     /// </summary>
-    /// <value>The X position.</value>
-    /// <userdoc>The beginning of the rectangle along the Ox axis.</userdoc>
-    public float X;
-
-    /// <summary>
-    /// Gets or sets the Y position.
-    /// </summary>
-    /// <value>The Y position.</value>
-    /// <userdoc>The beginning of the rectangle along the Oy axis.</userdoc>
-    public float Y;
-
-    /// <summary>
-    /// Gets or sets the width.
-    /// </summary>
-    /// <value>The width.</value>
-    /// <userdoc>The width of the rectangle.</userdoc>
-    public float Width;
-
-    /// <summary>
-    /// Gets or sets the height.
-    /// </summary>
-    /// <value>The height.</value>
-    /// <userdoc>The height of the rectangle.</userdoc>
-    public float Height;
-
-    /// <summary>
-    /// Gets or sets the location.
-    /// </summary>
-    /// <value>
-    /// The location.
-    /// </value>
-    public Vector2 Location
+    public float Right
     {
-        get
-        {
-            return Vector2(X, Y);
-        }
+        get { return X + Width; }
+    }
+
+    /// <summary>
+    /// Gets the position of the rectangle's top-left corner.
+    /// </summary>
+    public Point2F Location
+    {
+        get { return Point2F(X, Y); }
         set mut
         {
             X = value.X;
@@ -146,43 +640,19 @@ namespace Sedulous.Mathematics;
     }
 
     /// <summary>
-    /// Gets the Point that specifies the center of the rectangle.
+    /// Gets the position of the rectangle's center.
     /// </summary>
-    /// <value>
-    /// The center.
-    /// </value>
-    public readonly Vector2 Center
+    public Point2F Center
     {
-        get
-        {
-            return Vector2(X + (Width / 2), Y + (Height / 2));
-        }
+        get { return Point2F(X + (Width / 2.0f), Y + (Height / 2.0f)); }
     }
 
     /// <summary>
-    /// Gets a value that indicates whether the rectangle is empty.
+    /// Gets the rectangle's size.
     /// </summary>
-    /// <value>
-    ///   <c>true</c> if [is empty]; otherwise, <c>false</c>.
-    /// </value>
-    public readonly bool IsEmpty
-    {
-        get
-        {
-            return (Width == 0.0f) && (Height == 0.0f) && (X == 0.0f) && (Y == 0.0f);
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the size of the rectangle.
-    /// </summary>
-    /// <value>The size of the rectangle.</value>
     public Size2F Size
     {
-        get
-        {
-            return Size2F(Width, Height);
-        }
+        get { return Size2F(Width, Height); }
         set mut
         {
             Width = value.Width;
@@ -191,265 +661,22 @@ namespace Sedulous.Mathematics;
     }
 
     /// <summary>
-    /// Gets the position of the top-left corner of the rectangle.
+    /// The x-coordinate of the rectangle's top-left corner.
     /// </summary>
-    /// <value>The top-left corner of the rectangle.</value>
-    public readonly Vector2 TopLeft { get { return Vector2(X, Y); } }
+    public float X;
 
     /// <summary>
-    /// Gets the position of the top-right corner of the rectangle.
+    /// The y-coordinate of the rectangle's top-left corner.
     /// </summary>
-    /// <value>The top-right corner of the rectangle.</value>
-    public readonly Vector2 TopRight { get { return Vector2(Right, Y); } }
+    public float Y;
 
     /// <summary>
-    /// Gets the position of the bottom-left corner of the rectangle.
+    /// The rectangle's width.
     /// </summary>
-    /// <value>The bottom-left corner of the rectangle.</value>
-    public readonly Vector2 BottomLeft { get { return Vector2(X, Bottom); } }
+    public float Width;
 
     /// <summary>
-    /// Gets the position of the bottom-right corner of the rectangle.
+    /// The rectangle's height.
     /// </summary>
-    /// <value>The bottom-right corner of the rectangle.</value>
-    public readonly Vector2 BottomRight { get { return Vector2(Right, Bottom); } }
-
-    /// <summary>Changes the position of the rectangle.</summary>
-    /// <param name="amount">The values to adjust the position of the rectangle by.</param>
-    public void Offset(Point amount) mut
-    {
-        Offset(amount.X, amount.Y);
-    }
-
-    /// <summary>Changes the position of the rectangle.</summary>
-    /// <param name="amount">The values to adjust the position of the rectangle by.</param>
-    public void Offset(Vector2 amount) mut
-    {
-        Offset(amount.X, amount.Y);
-    }
-
-    /// <summary>Changes the position of the rectangle.</summary>
-    /// <param name="offsetX">Change in the x-position.</param>
-    /// <param name="offsetY">Change in the y-position.</param>
-    public void Offset(float offsetX, float offsetY) mut
-    {
-        X += offsetX;
-        Y += offsetY;
-    }
-
-    /// <summary>Pushes the edges of the rectangle out by the horizontal and vertical values specified.</summary>
-    /// <param name="horizontalAmount">Value to push the sides out by.</param>
-    /// <param name="verticalAmount">Value to push the top and bottom out by.</param>
-    public void Inflate(float horizontalAmount, float verticalAmount) mut
-    {
-        X -= horizontalAmount;
-        Y -= verticalAmount;
-        Width += horizontalAmount * 2;
-        Height += verticalAmount * 2;
-    }
-
-    /// <summary>Determines whether this rectangle contains a specified Point.</summary>
-    /// <param name="value">The Point to evaluate.</param>
-    /// <param name="result">[OutAttribute] true if the specified Point is contained within this rectangle; false otherwise.</param>
-    public void Contains(Vector2 value, out bool result)
-    {
-        result = value.X >= X && value.X <= Right && value.Y >= Y && value.Y <= Bottom;
-    }
-
-    /// <summary>Determines whether this rectangle entirely contains a specified rectangle.</summary>
-    /// <param name="value">The rectangle to evaluate.</param>
-    public bool Contains(Rectangle value)
-    {
-        return (X <= value.X) && (value.Right <= Right) && (Y <= value.Y) && (value.Bottom <= Bottom);
-    }
-
-    /// <summary>Determines whether this rectangle entirely contains a specified rectangle.</summary>
-    /// <param name="value">The rectangle to evaluate.</param>
-    /// <param name="result">[OutAttribute] On exit, is true if this rectangle entirely contains the specified rectangle, or false if not.</param>
-    public void Contains(RectangleF value, out bool result)
-    {
-        result = (X <= value.X) && (value.Right <= Right) && (Y <= value.Y) && (value.Bottom <= Bottom);
-    }
-
-    /// <summary>
-    /// Checks, if specified point is inside <see cref="RectangleF"/>.
-    /// </summary>
-    /// <param name="x">X point coordinate.</param>
-    /// <param name="y">Y point coordinate.</param>
-    /// <returns><c>true</c> if point is inside <see cref="RectangleF"/>, otherwise <c>false</c>.</returns>
-    public bool Contains(float x, float y)
-    {
-        return x >= X && x <= Right && y >= Y && y <= Bottom;
-    }
-
-    /// <summary>
-    /// Checks, if specified <see cref="Vector2"/> is inside <see cref="RectangleF"/>.
-    /// </summary>
-    /// <param name="vector2D">Coordinate <see cref="Vector2"/>.</param>
-    /// <returns><c>true</c> if <see cref="Vector2"/> is inside <see cref="RectangleF"/>, otherwise <c>false</c>.</returns>
-    public bool Contains(Vector2 vector2D)
-    {
-        return Contains(vector2D.X, vector2D.Y);
-    }
-
-    /// <summary>
-    /// Checks, if specified <see cref="Int2"/> is inside <see cref="Rectangle"/>.
-    /// </summary>
-    /// <param name="int2">Coordinate <see cref="Int2"/>.</param>
-    /// <returns><c>true</c> if <see cref="Int2"/> is inside <see cref="Rectangle"/>, otherwise <c>false</c>.</returns>
-    public bool Contains(Int2 int2)
-    {
-        return Contains(int2.X, int2.Y);
-    }
-
-    /// <summary>
-    /// Checks, if specified <see cref="Point"/> is inside <see cref="RectangleF"/>.
-    /// </summary>
-    /// <param name="point">Coordinate <see cref="Point"/>.</param>
-    /// <returns><c>true</c> if <see cref="Point"/> is inside <see cref="RectangleF"/>, otherwise <c>false</c>.</returns>
-    public bool Contains(Point point)
-    {
-        return Contains(point.X, point.Y);
-    }
-
-    /// <summary>Determines whether a specified rectangle intersects with this rectangle.</summary>
-    /// <param name="value">The rectangle to evaluate.</param>
-    public bool Intersects(RectangleF value)
-    {
-        Intersects(value, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Determines whether a specified rectangle intersects with this rectangle.
-    /// </summary>
-    /// <param name="value">The rectangle to evaluate</param>
-    /// <param name="result">[OutAttribute] true if the specified rectangle intersects with this one; false otherwise.</param>
-    public void Intersects(RectangleF value, out bool result)
-    {
-        result = (value.X < Right) && (X < value.Right) && (value.Y < Bottom) && (Y < value.Bottom);
-    }
-
-    /// <summary>
-    /// Creates a rectangle defining the area where one rectangle overlaps with another rectangle.
-    /// </summary>
-    /// <param name="value1">The first Rectangle to compare.</param>
-    /// <param name="value2">The second Rectangle to compare.</param>
-    /// <returns>The intersection rectangle.</returns>
-    public static RectangleF Intersect(RectangleF value1, RectangleF value2)
-    {
-        Intersect(value1, value2, var result);
-        return result;
-    }
-
-    /// <summary>Creates a rectangle defining the area where one rectangle overlaps with another rectangle.</summary>
-    /// <param name="value1">The first rectangle to compare.</param>
-    /// <param name="value2">The second rectangle to compare.</param>
-    /// <param name="result">[OutAttribute] The area where the two first parameters overlap.</param>
-    public static void Intersect(RectangleF value1, RectangleF value2, out RectangleF result)
-    {
-        float newLeft = (value1.X > value2.X) ? value1.X : value2.X;
-        float newTop = (value1.Y > value2.Y) ? value1.Y : value2.Y;
-        float newRight = (value1.Right < value2.Right) ? value1.Right : value2.Right;
-        float newBottom = (value1.Bottom < value2.Bottom) ? value1.Bottom : value2.Bottom;
-        if ((newRight > newLeft) && (newBottom > newTop))
-        {
-            result = RectangleF(newLeft, newTop, newRight - newLeft, newBottom - newTop);
-        }
-        else
-        {
-            result = Empty;
-        }
-    }
-
-    /// <summary>
-    /// Creates a new rectangle that exactly contains two other rectangles.
-    /// </summary>
-    /// <param name="value1">The first rectangle to contain.</param>
-    /// <param name="value2">The second rectangle to contain.</param>
-    /// <returns>The union rectangle.</returns>
-    public static RectangleF Union(RectangleF value1, RectangleF value2)
-    {
-        Union(value1, value2, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Creates a new rectangle that exactly contains two other rectangles.
-    /// </summary>
-    /// <param name="value1">The first rectangle to contain.</param>
-    /// <param name="value2">The second rectangle to contain.</param>
-    /// <param name="result">[OutAttribute] The rectangle that must be the union of the first two rectangles.</param>
-    public static void Union(RectangleF value1, RectangleF value2, out RectangleF result)
-    {
-        var left = Math.Min(value1.Left, value2.Left);
-        var right = Math.Max(value1.Right, value2.Right);
-        var top = Math.Min(value1.Top, value2.Top);
-        var bottom = Math.Max(value1.Bottom, value2.Bottom);
-        result = RectangleF(left, top, right - left, bottom - top);
-    }
-
-    /// <inheritdoc/>
-    public bool Equals(RectangleF other)
-    {
-        return MathUtil.NearEqual(other.Left, Left) &&
-               MathUtil.NearEqual(other.Right, Right) &&
-               MathUtil.NearEqual(other.Top, Top) &&
-               MathUtil.NearEqual(other.Bottom, Bottom);
-    }
-
-    /// <summary>
-    /// Returns a hash code for this instance.
-    /// </summary>
-    /// <returns>
-    /// A hash code for this instance, suitable for use in hashing algorithms and data structures like a hash table.
-    /// </returns>
-    public int GetHashCode()
-    {
-        unchecked
-        {
-            var hash = 17;
-            hash = hash * 23 + X.GetHashCode();
-            hash = hash * 23 + Y.GetHashCode();
-            hash = hash * 23 + Width.GetHashCode();
-            hash = hash * 23 + Height.GetHashCode();
-            return hash;
-        }
-    }
-
-    /// <summary>
-    /// Implements the operator ==.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>The result of the operator.</returns>
-    public static bool operator ==(RectangleF left, RectangleF right)
-    {
-        return left.Equals(right);
-    }
-
-    /// <summary>
-    /// Implements the operator !=.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>The result of the operator.</returns>
-    public static bool operator !=(RectangleF left, RectangleF right)
-    {
-        return !(left == right);
-    }
-
-    /// <summary>
-    /// Performs an explicit conversion to <see cref="Rectangle"/> structure.
-    /// </summary>
-    /// <remarks>Performs direct float to int32 conversion, any fractional data is truncated.</remarks>
-    /// <param name="value">The source <see cref="RectangleF"/> value.</param>
-    /// <returns>A converted <see cref="Rectangle"/> structure.</returns>
-    public static explicit operator Rectangle(RectangleF value)
-    {
-        return Rectangle((int32)value.X, (int32)value.Y, (int32)value.Width, (int32)value.Height);
-    }
-
-    /// <inheritdoc/>
-	public override void ToString(String str) => str.Append(scope $"{{X:{X} Y:{Y}: Width:{Width} Height{Height}}}");
+    public float Height;
 }

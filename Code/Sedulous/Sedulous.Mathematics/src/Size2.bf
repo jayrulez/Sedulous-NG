@@ -1,123 +1,283 @@
 using System;
-// Copyright (c) .NET Foundation and Contributors (https://dotnetfoundation.org/ & https://stride3d.net) and Silicon Studio Corp. (https://www.siliconstudio.co.jp)
-// Distributed under the MIT license. See the LICENSE.md file in the project root for more information.
-//
-// Copyright (c) 2010-2013 SharpDX - Alexandre Mutel
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
 
 namespace Sedulous.Mathematics;
 
 /// <summary>
-/// Defines a 2D rectangular size (width,height).
+/// Represents a two-dimensional size with integer components.
 /// </summary>
-[CRepr]public struct Size2 : IEquatable<Size2>
+struct Size2 : IEquatable<Size2>, IInterpolatable<Size2>, IEquatable, IHashable
 {
     /// <summary>
-    /// A zero size with (width, height) = (0,0)
+    /// Initializes a new instance of the <see cref="Size2"/> structure.
     /// </summary>
-    public static readonly Size2 Zero = .(0, 0);
-
-    /// <summary>
-    /// A zero size with (width, height) = (0,0)
-    /// </summary>
-    public static readonly Size2 Empty = Zero;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Size2"/> struct.
-    /// </summary>
-    /// <param name="width">The x.</param>
-    /// <param name="height">The y.</param>
+    /// <param name="width">The size's width.</param>
+    /// <param name="height">The size's height.</param>
     public this(int32 width, int32 height)
     {
-        Width = width;
-        Height = height;
+        this.Width = width;
+        this.Height = height;
+    }
+    
+    /// <summary>
+    /// Adds a <see cref="Size2"/> to another <see cref="Size2"/>.
+    /// </summary>
+    /// <param name="s1">The <see cref="Size2"/> on the left side of the operator.</param>
+    /// <param name="s2">The <see cref="Size2"/> on the right side of the operator.</param>
+    /// <returns>The result of adding the two instances.</returns>
+    public static Size2 operator +(Size2 s1, Size2 s2)
+    {
+        Size2 result;
+
+        result.Width = s1.Width + s2.Width;
+        result.Height = s1.Height + s2.Height;
+
+        return result;
     }
 
     /// <summary>
-    /// Width.
+    /// Subtracts a <see cref="Size2"/> from another <see cref="Size2"/>.
+    /// </summary>
+    /// <param name="s1">The <see cref="Size2"/> on the left side of the operator.</param>
+    /// <param name="s2">The <see cref="Size2"/> on the right side of the operator.</param>
+    /// <returns>The result of subtracting the two instances.</returns>
+    public static Size2 operator -(Size2 s1, Size2 s2)
+    {
+        Size2 result;
+
+        result.Width = s1.Width - s2.Width;
+        result.Height = s1.Height - s2.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Multiplies a <see cref="Size2"/> by a scalar multiplier.
+    /// </summary>
+    /// <param name="size">The size to multiply.</param>
+    /// <param name="multiplier">The multiplier to apply to the size.</param>
+    /// <returns>A <see cref="Size2"/> which is the result of the muliplication.</returns>
+    public static Size2 operator *(Size2 size, int32 multiplier)
+    {
+        Size2 result;
+
+        result.Width = size.Width * multiplier;
+        result.Height = size.Height * multiplier;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Multiplies a <see cref="Size2"/> by a scalar multiplier.
+    /// </summary>
+    /// <param name="size">The size to multiply.</param>
+    /// <param name="multiplier">The multiplier to apply to the size.</param>
+    /// <returns>A <see cref="Size2F"/> which is the result of the muliplication.</returns>
+    public static Size2F operator *(Size2 size, float multiplier)
+    {
+        Size2F result;
+
+        result.Width = size.Width * multiplier;
+        result.Height = size.Height * multiplier;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Multiplies a <see cref="Size2"/> by a scalar multiplier.
+    /// </summary>
+    /// <param name="size">The size to multiply.</param>
+    /// <param name="multiplier">The multiplier to apply to the size.</param>
+    /// <returns>A <see cref="Size2D"/> which is the result of the muliplication.</returns>
+    public static Size2D operator *(Size2 size, double multiplier)
+    {
+        Size2D result;
+
+        result.Width = size.Width * multiplier;
+        result.Height = size.Height * multiplier;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Divides a <see cref="Size2"/> by a scalar divisor.
+    /// </summary>
+    /// <param name="size">The size to divide.</param>
+    /// <param name="divisor">The divisor to apply to the size.</param>
+    /// <returns>A <see cref="Size2"/> which is the result of the muliplication.</returns>
+    public static Size2 operator /(Size2 size, int32 divisor)
+    {
+        Size2 result;
+
+        result.Width = size.Width / divisor;
+        result.Height = size.Height / divisor;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Divides a <see cref="Size2"/> by a scalar divisor.
+    /// </summary>
+    /// <param name="size">The size to divide.</param>
+    /// <param name="divisor">The divisor to apply to the size.</param>
+    /// <returns>A <see cref="Size2F"/> which is the result of the muliplication.</returns>
+    public static Size2F operator /(Size2 size, float divisor)
+    {
+        Size2F result;
+
+        result.Width = size.Width / divisor;
+        result.Height = size.Height / divisor;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Divides a <see cref="Size2"/> by a scalar divisor.
+    /// </summary>
+    /// <param name="size">The size to divide.</param>
+    /// <param name="divisor">The divisor to apply to the size.</param>
+    /// <returns>A <see cref="Size2D"/> which is the result of the muliplication.</returns>
+    public static Size2D operator /(Size2 size, double divisor)
+    {
+        Size2D result;
+
+        result.Width = size.Width / divisor;
+        result.Height = size.Height / divisor;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Size2"/> structure to a <see cref="Vector2"/> structure.
+    /// </summary>
+    /// <param name="size">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Vector2(Size2 size)
+    {
+        Vector2 result;
+
+        result.X = size.Width;
+        result.Y = size.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Size2"/> structure to a <see cref="Point2"/> structure.
+    /// </summary>
+    /// <param name="size">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Point2(Size2 size)
+    {
+        Point2 result;
+
+        result.X = size.Width;
+        result.Y = size.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Size2"/> structure to a <see cref="Point2F"/> structure.
+    /// </summary>
+    /// <param name="size">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Point2F(Size2 size)
+    {
+        Point2F result;
+
+        result.X = size.Width;
+        result.Y = size.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Size2"/> structure to a <see cref="Point2D"/> structure.
+    /// </summary>
+    /// <param name="size">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Point2D(Size2 size)
+    {
+        Point2D result;
+
+        result.X = size.Width;
+        result.Y = size.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Implicitly converts a <see cref="Size2"/> structure to a <see cref="Size2F"/> structure.
+    /// </summary>
+    /// <param name="size">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static implicit operator Size2F(Size2 size)
+    {
+        Size2F result;
+
+        result.Width = size.Width;
+        result.Height = size.Height;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Implicitly converts a <see cref="Size2"/> structure to a <see cref="Size2D"/> structure.
+    /// </summary>
+    /// <param name="size">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static implicit operator Size2D(Size2 size)
+    {
+        Size2D result;
+
+        result.Width = size.Width;
+        result.Height = size.Height;
+
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public override void ToString(String str) => str.Append( scope $"{{Width:{Width} Height:{Height}}}");
+
+    /// <summary>
+    /// Interpolates between this value and the specified value.
+    /// </summary>
+    /// <param name="target">The target value.</param>
+    /// <param name="t">A value between 0.0 and 1.0 representing the interpolation factor.</param>
+    /// <returns>The interpolated value.</returns>
+    public Size2 Interpolate(Size2 target, float t)
+    {
+        Size2 result;
+
+        result.Width = Tweening.Lerp(this.Width, target.Width, t);
+        result.Height = Tweening.Lerp(this.Height, target.Height, t);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a size with zero width and height.
+    /// </summary>
+    public static Size2 Zero
+    {
+        get { return Size2(0, 0); }
+    }
+
+    /// <summary>
+    /// Gets the size's total area (width times height).
+    /// </summary>
+    public int32 Area
+    {
+        get { return Width * Height; }
+    }
+
+    /// <summary>
+    /// The size's width.
     /// </summary>
     public int32 Width;
 
     /// <summary>
-    /// Height.
+    /// The size's height.
     /// </summary>
     public int32 Height;
-
-    /// <summary>
-    /// Determines whether the specified <see cref="object"/> is equal to this instance.
-    /// </summary>
-    /// <param name="other">The <see cref="object"/> to compare with this instance.</param>
-    /// <returns>
-    ///   <c>true</c> if the specified <see cref="object"/> is equal to this instance; otherwise, <c>false</c>.
-    /// </returns>
-    public bool Equals(Size2 other)
-    {
-        return other.Width == Width && other.Height == Height;
-    }
-
-    /// <inheritdoc/>
-    public int GetHashCode()
-    {
-		int hash = 17;
-		hash = HashCode.Mix(hash, Width);
-		hash = HashCode.Mix(hash, Height);
-        return hash;
-    }
-
-    /// <summary>
-    /// Implements the operator ==.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>
-    /// The result of the operator.
-    /// </returns>
-    public static bool operator ==(Size2 left, Size2 right)
-    {
-        return left.Equals(right);
-    }
-
-    /// <summary>
-    /// Implements the operator !=.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>
-    /// The result of the operator.
-    /// </returns>
-    public static bool operator !=(Size2 left, Size2 right)
-    {
-        return !left.Equals(right);
-    }
-
-    /// <inheritdoc/>
-    public override void ToString(String strBuffer) => strBuffer.Append("TODO");
-
-    /// <summary>
-    /// Deconstructs the vector's components into named variables.
-    /// </summary>
-    /// <param name="width">The Width component</param>
-    /// <param name="height">The Height component</param>
-    public void Deconstruct(out int32 width, out int32 height)
-    {
-        width = Width;
-        height = Height;
-    }
 }

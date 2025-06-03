@@ -1,406 +1,630 @@
 using System;
-// Copyright (c) .NET Foundation and Contributors (https://dotnetfoundation.org/ & https://stride3d.net) and Silicon Studio Corp. (https://www.siliconstudio.co.jp)
-// Distributed under the MIT license. See the LICENSE.md file in the project root for more information.
-//
-// -----------------------------------------------------------------------------
-// Original code from SlimMath project. http://code.google.com/p/slimmath/
-// Greetings to SlimDX Group. Original code published with the following license:
-// -----------------------------------------------------------------------------
-/*
-* Copyright (c) 2007-2011 SlimDX Group
-* 
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-* 
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-* 
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*/
+using System.Collections;
+using Sedulous.Foundation.Core;
+
+using internal Sedulous.Mathematics;
 
 namespace Sedulous.Mathematics;
 
 /// <summary>
-/// Represents an axis-aligned bounding box in three dimensional space.
+/// Represents an axis-aligned 3D bounding box.
 /// </summary>
-[CRepr]public struct BoundingBox : IEquatable<BoundingBox>, IIntersectableWithRay, IIntersectableWithPlane
+struct BoundingBox : IEquatable<BoundingBox>, IEquatable, IHashable
 {
     /// <summary>
-    /// A <see cref="BoundingBox"/> which represents an empty space.
+    /// Initializes a new instance of the <see cref="BoundingBox"/> structure.
     /// </summary>
-    public static readonly BoundingBox Empty = .(Vector3(float.MaxValue), Vector3(float.MinValue));
-
-    /// <summary>
-    /// The minimum point of the box.
-    /// </summary>
-    public Vector3 Minimum;
-
-    /// <summary>
-    /// The maximum point of the box.
-    /// </summary>
-    public Vector3 Maximum;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BoundingBox"/> struct.
-    /// </summary>
-    /// <param name="minimum">The minimum vertex of the bounding box.</param>
-    /// <param name="maximum">The maximum vertex of the bounding box.</param>
-    public this(Vector3 minimum, Vector3 maximum)
+    /// <param name="min">The minimum point included within the bounding box.</param>
+    /// <param name="max">The maximum point included within the bounding box.</param>
+    public this(Vector3 min, Vector3 max)
     {
-        Minimum = minimum;
-        Maximum = maximum;
+        this.Min = min;
+        this.Max = max;
     }
 
     /// <summary>
-    /// Gets the center of this bouding box.
+    /// Creates a <see cref="BoundingBox"/> which contains the specified collection of points.
     /// </summary>
-    public readonly Vector3 Center
+    /// <param name="points">The collection of points from which to create a bounding box.</param>
+    /// <returns>The <see cref="BoundingBox"/> which was created from the specified collection of points.</returns>
+    /*public static BoundingBox CreateFromPoints(IEnumerable<Vector3> points)
     {
-        get { return (Minimum + Maximum) / 2; }
-    }
+        CreateFromPoints(points, var result);
+        return result;
+    }*/
 
     /// <summary>
-    /// Gets the extent of this bouding box.
+    /// Creates a <see cref="BoundingBox"/> which contains the specified collection of points.
     /// </summary>
-    public readonly Vector3 Extent
+    /// <param name="points">The collection of points from which to create a bounding box.</param>
+    /// <param name="result">The <see cref="BoundingBox"/> which was created from the specified collection of points.</param>
+    /*public static void CreateFromPoints(IEnumerable<Vector3> points, out BoundingBox result)
     {
-        get { return (Maximum - Minimum) / 2; }
-    }
+        Contract.Require(points, nameof(points));
 
-    /// <summary>
-    /// Retrieves the eight corners of the bounding box.
-    /// </summary>
-    /// <returns>An array of points representing the eight corners of the bounding box.</returns>
-    public Vector3[8] GetCorners()
-    {
-        return
-        .(
-            Vector3(Minimum.X, Maximum.Y, Maximum.Z),
-            Vector3(Maximum.X, Maximum.Y, Maximum.Z),
-            Vector3(Maximum.X, Minimum.Y, Maximum.Z),
-            Vector3(Minimum.X, Minimum.Y, Maximum.Z),
-            Vector3(Minimum.X, Maximum.Y, Minimum.Z),
-            Vector3(Maximum.X, Maximum.Y, Minimum.Z),
-            Vector3(Maximum.X, Minimum.Y, Minimum.Z),
-            Vector3(Minimum.X, Minimum.Y, Minimum.Z),
-        );
-    }
+        var empty = false;
+        var min = Vector3(float.MaxValue);
+        var max = Vector3(float.MinValue);
 
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Ray"/>.
-    /// </summary>
-    /// <param name="ray">The ray to test.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Ray ray)
-    {
-		float _;
-        return CollisionHelper.RayIntersectsBox(ray, this, out _);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Ray"/>.
-    /// </summary>
-    /// <param name="ray">The ray to test.</param>
-    /// <param name="distance">When the method completes, contains the distance of the intersection,
-    /// or 0 if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Ray ray, out float distance)
-    {
-        return CollisionHelper.RayIntersectsBox(ray, this, out distance);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Ray"/>.
-    /// </summary>
-    /// <param name="ray">The ray to test.</param>
-    /// <param name="point">When the method completes, contains the point of intersection,
-    /// or <see cref="Vector3.Zero"/> if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Ray ray, out Vector3 point)
-    {
-        return CollisionHelper.RayIntersectsBox(ray, this, out point);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Plane"/>.
-    /// </summary>
-    /// <param name="plane">The plane to test.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public PlaneIntersectionType Intersects(Plane plane)
-    {
-        return CollisionHelper.PlaneIntersectsBox(plane, this);
-    }
-
-    /* This implentation is wrong
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a triangle.
-    /// </summary>
-    /// <param name="vertex1">The first vertex of the triangle to test.</param>
-    /// <param name="vertex2">The second vertex of the triagnle to test.</param>
-    /// <param name="vertex3">The third vertex of the triangle to test.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(ref Vector3 vertex1, ref Vector3 vertex2, ref Vector3 vertex3)
-    {
-        return Collision.BoxIntersectsTriangle(ref this, ref vertex1, ref vertex2, ref vertex3);
-    }
-    */
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="BoundingBox"/>.
-    /// </summary>
-    /// <param name="box">The box to test.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(BoundingBox @box)
-    {
-        return CollisionHelper.BoxIntersectsBox(this, @box);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="BoundingSphere"/>.
-    /// </summary>
-    /// <param name="sphere">The sphere to test.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(BoundingSphere sphere)
-    {
-        return CollisionHelper.BoxIntersectsSphere(this, sphere);
-    }
-
-    /// <summary>
-    /// Determines whether the current objects contains a point.
-    /// </summary>
-    /// <param name="point">The point to test.</param>
-    /// <returns>The type of containment the two objects have.</returns>
-    public ContainmentType Contains(Vector3 point)
-    {
-        return CollisionHelper.BoxContainsPoint(this, point);
-    }
-
-    /* This implentation is wrong
-    /// <summary>
-    /// Determines whether the current objects contains a triangle.
-    /// </summary>
-    /// <param name="vertex1">The first vertex of the triangle to test.</param>
-    /// <param name="vertex2">The second vertex of the triagnle to test.</param>
-    /// <param name="vertex3">The third vertex of the triangle to test.</param>
-    /// <returns>The type of containment the two objects have.</returns>
-    public ContainmentType Contains(ref Vector3 vertex1, ref Vector3 vertex2, ref Vector3 vertex3)
-    {
-        return Collision.BoxContainsTriangle(ref this, ref vertex1, ref vertex2, ref vertex3);
-    }
-    */
-
-    /// <summary>
-    /// Determines whether the current objects contains a <see cref="BoundingBox"/>.
-    /// </summary>
-    /// <param name="box">The box to test.</param>
-    /// <returns>The type of containment the two objects have.</returns>
-    public ContainmentType Contains(BoundingBox @box)
-    {
-        return CollisionHelper.BoxContainsBox(this, @box);
-    }
-
-    /// <summary>
-    /// Determines whether the current objects contains a <see cref="BoundingSphere"/>.
-    /// </summary>
-    /// <param name="sphere">The sphere to test.</param>
-    /// <returns>The type of containment the two objects have.</returns>
-    public ContainmentType Contains(BoundingSphere sphere)
-    {
-        return CollisionHelper.BoxContainsSphere(this, sphere);
-    }
-
-    /// <summary>
-    /// Constructs a <see cref="BoundingBox"/> that fully contains the given points.
-    /// </summary>
-    /// <param name="points">The points that will be contained by the box.</param>
-    /// <param name="result">When the method completes, contains the newly constructed bounding box.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="points"/> is <c>null</c>.</exception>
-    public static void FromPoints(Vector3[] points, out BoundingBox result)
-    {
-		if(points == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(points)}");
-
-        Vector3 min = Vector3(float.MaxValue);
-        Vector3 max = Vector3(float.MinValue);
-
-        for (int32 i = 0; i < points.Count; ++i)
+        for (var point in points)
         {
-            Vector3.Min(min, points[i], out min);
-            Vector3.Max(max, points[i], out max);
+            empty = false;
+
+            if (point.X < min.X)
+                min.X = point.X;
+
+            if (point.Y < min.Y)
+                min.Y = point.Y;
+
+            if (point.Z < min.Z)
+                min.Z = point.Z;
+
+            if (point.X > max.X)
+                max.X = point.X;
+
+            if (point.Y > max.Y)
+                max.Y = point.Y;
+
+            if (point.Z > max.Z)
+                max.Z = point.Z;
         }
+
+        if (empty)
+            Runtime.ArgumentError(nameof(points));
+
+        result = BoundingBox(min, max);
+    }*/
+
+    /// <summary>
+    /// Creates a <see cref="BoundingBox"/> which contains the specified collection of points.
+    /// </summary>
+    /// <param name="points">The collection of points from which to create a bounding box.</param>
+    /// <returns>The <see cref="BoundingBox"/> which was created from the specified collection of points.</returns>
+    public static BoundingBox CreateFromPoints(Span<Vector3> points)
+    {
+        CreateFromPoints(points, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a <see cref="BoundingBox"/> which contains the specified collection of points.
+    /// </summary>
+    /// <param name="points">The collection of points from which to create a bounding box.</param>
+    /// <param name="result">The <see cref="BoundingBox"/> which was created from the specified collection of points.</param>
+    public static void CreateFromPoints(Span<Vector3> points, out BoundingBox result)
+    {
+        //Contract.Require(points, nameof(points));
+
+        var empty = false;
+        var min = Vector3(float.MaxValue);
+        var max = Vector3(float.MinValue);
+
+        for (var point in points)
+        {
+            empty = false;
+
+            if (point.X < min.X)
+                min.X = point.X;
+
+            if (point.Y < min.Y)
+                min.Y = point.Y;
+
+            if (point.Z < min.Z)
+                min.Z = point.Z;
+
+            if (point.X > max.X)
+                max.X = point.X;
+
+            if (point.Y > max.Y)
+                max.Y = point.Y;
+
+            if (point.Z > max.Z)
+                max.Z = point.Z;
+        }
+
+        if (empty)
+            Runtime.ArgumentError(nameof(points));
 
         result = BoundingBox(min, max);
     }
 
     /// <summary>
-    /// Constructs a <see cref="Sedulous.Mathematics.BoundingBox"/> that fully contains the given points.
+    /// Creates a <see cref="BoundingBox"/> which contains the specified sphere.
     /// </summary>
-    /// <param name="points">The points that will be contained by the box.</param>
-    /// <returns>The newly constructed bounding box.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="points"/> is <c>null</c>.</exception>
-    public static BoundingBox FromPoints(Vector3[] points)
+    /// <param name="sphere">The bounding sphere from which to create a bounding box.</param>
+    /// <returns>The <see cref="BoundingBox"/> which was created from the specified sphere.</returns>
+    public static BoundingBox CreateFromSphere(BoundingSphere sphere)
     {
-		if(points == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(points)}");
+        CreateFromSphere(sphere, var result);
+        return result;
+    }
 
-        Vector3 min = Vector3(float.MaxValue);
-        Vector3 max = Vector3(float.MinValue);
+    /// <summary>
+    /// Creates a <see cref="BoundingBox"/> which contains the specified sphere.
+    /// </summary>
+    /// <param name="sphere">The bounding sphere from which to create a bounding box.</param>
+    /// <param name="result">The <see cref="BoundingBox"/> which was created from the specified sphere.</param>
+    public static void CreateFromSphere(in BoundingSphere sphere, out BoundingBox result)
+    {
+        var corner = Vector3(sphere.Radius);
+        result.Min = sphere.Center - corner;
+        result.Max = sphere.Center + corner;
+    }
 
-        for (int32 i = 0; i < points.Count; ++i)
+    /// <summary>
+    /// Creates a <see cref="BoundingBox"/> by merging the specified bounding boxes together.
+    /// </summary>
+    /// <param name="original">The original bounding box.</param>
+    /// <param name="additional">The bounding box to merge with the original bounding box.</param>
+    /// <returns>The <see cref="BoundingBox"/> which was created from merging the specified bounding boxes.</returns>
+    public static BoundingBox CreateMerged(BoundingBox original, BoundingBox additional)
+    {
+        CreateMerged(original, additional, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a <see cref="BoundingBox"/> by merging the specified bounding boxes together.
+    /// </summary>
+    /// <param name="original">The original bounding box.</param>
+    /// <param name="additional">The bounding box to merge with the original bounding box.</param>
+    /// <param name="result">The <see cref="BoundingBox"/> which was created from merging the specified bounding boxes.</param>
+    public static void CreateMerged(in BoundingBox original, in BoundingBox additional, out BoundingBox result)
+    {
+        result.Min.X = Math.Min(original.Min.X, additional.Min.X);
+        result.Min.Y = Math.Min(original.Min.Y, additional.Min.Y);
+        result.Min.Z = Math.Min(original.Min.Z, additional.Min.Z);
+
+        result.Max.X = Math.Max(original.Max.X, additional.Max.X);
+        result.Max.Y = Math.Max(original.Max.Y, additional.Max.Y);
+        result.Max.Z = Math.Max(original.Max.Z, additional.Max.Z);
+    }
+    
+    /// <inheritdoc/>
+    public override void ToString(String str) => str.Append( scope $"{{Min:{Min} Max:{Max}}}");
+    
+    /// <summary>
+    /// Gets the corner with the specified index.
+    /// </summary>
+    /// <param name="index">The index of the corner to retrieve.</param>
+    /// <returns>The corner with the specified index.</returns>
+    public Vector3 GetCorner(int index)
+    {
+        GetCorner(index, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Gets the corner with the specified index.
+    /// </summary>
+    /// <param name="index">The index of the corner to retrieve.</param>
+    /// <param name="result">The corner with the specified index.</param>
+    public void GetCorner(int index, out Vector3 result)
+    {
+        switch (index)
         {
-            Vector3.Min(min, points[i], out min);
-            Vector3.Max(max, points[i], out max);
+            case 0:
+				result = default;
+                result.X = this.Min.X;
+                result.Y = this.Max.Y;
+                result.Z = this.Max.Z;
+                break;
+
+            case 1:
+				result = default;
+                result.X = this.Max.X;
+                result.Y = this.Max.Y;
+                result.Z = this.Max.Z;
+                break;
+
+            case 2:
+				result = default;
+                result.X = this.Max.X;
+                result.Y = this.Min.Y;
+                result.Z = this.Max.Z;
+                break;
+
+            case 3:
+				result = default;
+                result.X = this.Min.X;
+                result.Y = this.Min.Y;
+                result.Z = this.Max.Z;
+                break;
+
+            case 4:
+                result.X = this.Min.X;
+                result.Y = this.Max.Y;
+                result.Z = this.Min.Z;
+                break;
+
+            case 5:
+                result.X = this.Max.X;
+                result.Y = this.Max.Y;
+                result.Z = this.Min.Z;
+                break;
+
+            case 6:
+				result = default;
+                result.X = this.Max.X;
+                result.Y = this.Min.Y;
+                result.Z = this.Min.Z;
+                break;
+
+            case 7:
+				result = default;
+                result.X = this.Min.X;
+                result.Y = this.Min.Y;
+                result.Z = this.Min.Z;
+                break;
+
+            default:
+				result = ?;
+                Runtime.ArgumentOutOfRangeError(nameof(index));
+        }
+    }
+
+    /// <summary>
+    /// Populates the specified array with the set of points that describe the frustum's corners.
+    /// </summary>
+    /// <param name="corners">The array to populate.</param>
+    public void GetCorners(Vector3[] corners)
+    {
+        Contract.Require(corners, nameof(corners));
+        // Contract.Ensure<ArgumentException>(corners.Length >= CornerCount, nameof(corners));
+
+        corners[0].X = this.Min.X;
+        corners[0].Y = this.Max.Y;
+        corners[0].Z = this.Max.Z;
+
+        corners[1].X = this.Max.X;
+        corners[1].Y = this.Max.Y;
+        corners[1].Z = this.Max.Z;
+
+        corners[2].X = this.Max.X;
+        corners[2].Y = this.Min.Y;
+        corners[2].Z = this.Max.Z;
+
+        corners[3].X = this.Min.X;
+        corners[3].Y = this.Min.Y;
+        corners[3].Z = this.Max.Z;
+
+        corners[4].X = this.Min.X;
+        corners[4].Y = this.Max.Y;
+        corners[4].Z = this.Min.Z;
+
+        corners[5].X = this.Max.X;
+        corners[5].Y = this.Max.Y;
+        corners[5].Z = this.Min.Z;
+
+        corners[6].X = this.Max.X;
+        corners[6].Y = this.Min.Y;
+        corners[6].Z = this.Min.Z;
+
+        corners[7].X = this.Min.X;
+        corners[7].Y = this.Min.Y;
+        corners[7].Z = this.Min.Z;
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> contains the specified point.
+    /// </summary>
+    /// <param name="point">A <see cref="Vector3"/> which represents the point to evaluate.</param>
+    /// <returns>A <see cref="ContainmentType"/> value representing the relationship between this box and the evaluated point.</returns>
+    public ContainmentType Contains(Vector3 point)
+    {
+        Contains(point, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> contains the specified point.
+    /// </summary>
+    /// <param name="point">A <see cref="Vector3"/> which represents the point to evaluate.</param>
+    /// <param name="result">A <see cref="ContainmentType"/> value representing the relationship between this box and the evaluated point.</param>
+    public void Contains(in Vector3 point, out ContainmentType result)
+    {
+        if (point.X < Min.X ||
+            point.X > Max.X ||
+            point.Y < Min.Y ||
+            point.Y > Max.Y ||
+            point.Z < Min.Z ||
+            point.Z > Max.Z)
+        {
+            result = ContainmentType.Disjoint;
+        }
+        else
+        {
+            result = ContainmentType.Contains;
+        }
+    }
+    
+    /// <summary>
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> contains the specified bounding box.
+    /// </summary>
+    /// <param name="box">A <see cref="BoundingBox"/> which represents the box to evaluate.</param>
+    /// <returns>A <see cref="ContainmentType"/> value representing the relationship between this box and the evaluated bounding box.</returns>
+    public ContainmentType Contains(BoundingBox @box)
+    {
+        Contains(@box, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> contains the specified bounding box.
+    /// </summary>
+    /// <param name="box">A <see cref="BoundingBox"/> which represents the box to evaluate.</param>
+    /// <param name="result">A <see cref="ContainmentType"/> value representing the relationship between this box and the evaluated bounding box.</param>
+    public void Contains(in BoundingBox @box, out ContainmentType result)
+    {
+        if (@box.Max.X < Min.X ||
+            @box.Min.X > Max.X ||
+            @box.Max.Y < Min.Y ||
+            @box.Min.Y > Max.Y ||
+            @box.Max.Z < Min.Z ||
+            @box.Min.Z > Max.Z)
+        {
+            result = ContainmentType.Disjoint;
+            return;
         }
 
-        return BoundingBox(min, max);
+        if (@box.Min.X >= Min.X &&
+            @box.Max.X <= Max.X &&
+            @box.Min.Y >= Min.Y &&
+            @box.Max.Y <= Max.Y &&
+            @box.Min.Z >= Min.Z &&
+            @box.Max.Z <= Max.Z)
+        {
+            result = ContainmentType.Contains;
+            return;
+        }
+
+        result = ContainmentType.Intersects;
     }
 
     /// <summary>
-    /// Constructs a <see cref="Sedulous.Mathematics.BoundingBox"/> from a given sphere.
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> contains the specified bounding sphere.
     /// </summary>
-    /// <param name="sphere">The sphere that will designate the extents of the box.</param>
-    /// <param name="result">When the method completes, contains the newly constructed bounding box.</param>
-    public static void FromSphere(BoundingSphere sphere, out BoundingBox result)
+    /// <param name="sphere">A <see cref="BoundingSphere"/> which represents the box to evaluate.</param>
+    /// <returns>A <see cref="ContainmentType"/> value representing the relationship between this box and the evaluated sphere.</returns>
+    public ContainmentType Contains(BoundingSphere sphere)
     {
-        result.Minimum = Vector3(sphere.Center.X - sphere.Radius, sphere.Center.Y - sphere.Radius, sphere.Center.Z - sphere.Radius);
-        result.Maximum = Vector3(sphere.Center.X + sphere.Radius, sphere.Center.Y + sphere.Radius, sphere.Center.Z + sphere.Radius);
+        Contains(sphere, var result);
+        return result;
     }
 
     /// <summary>
-    /// Constructs a <see cref="Sedulous.Mathematics.BoundingBox"/> from a given sphere.
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> contains the specified bounding sphere.
     /// </summary>
-    /// <param name="sphere">The sphere that will designate the extents of the box.</param>
-    /// <returns>The newly constructed bounding box.</returns>
-    public static BoundingBox FromSphere(BoundingSphere sphere)
+    /// <param name="sphere">A <see cref="BoundingSphere"/> which represents the sphere to evaluate.</param>
+    /// <param name="result">A <see cref="ContainmentType"/> value representing the relationship between this box and the evaluated sphere.</param>
+    public void Contains(in BoundingSphere sphere, out ContainmentType result)
     {
-        BoundingBox @box;
-        @box.Minimum = Vector3(sphere.Center.X - sphere.Radius, sphere.Center.Y - sphere.Radius, sphere.Center.Z - sphere.Radius);
-        @box.Maximum = Vector3(sphere.Center.X + sphere.Radius, sphere.Center.Y + sphere.Radius, sphere.Center.Z + sphere.Radius);
-        return @box;
+        Vector3.Clamp(sphere.Center, Min, Max, var clampedCenter);
+        Vector3.DistanceSquared(sphere.Center, clampedCenter, var clampedCenterOffset);
+
+        var radiusSquared = sphere.Radius * sphere.Radius;
+        if (radiusSquared <= clampedCenterOffset)
+        {
+            result = ContainmentType.Disjoint;
+            return;
+        }
+
+        if (sphere.Center.X > Max.X - sphere.Radius ||
+            sphere.Center.Y > Max.Y - sphere.Radius ||
+            sphere.Center.Z > Max.Z - sphere.Radius ||
+            Min.X + sphere.Radius > sphere.Center.X ||
+            Min.Y + sphere.Radius > sphere.Center.Y ||
+            Min.Z + sphere.Radius > sphere.Center.Z ||
+            Max.X - Min.X <= sphere.Radius ||
+            Max.Y - Min.Y <= sphere.Radius ||
+            Max.X - Min.X <= sphere.Radius)
+        {
+            result = ContainmentType.Intersects;
+            return;
+        }
+
+        result = ContainmentType.Contains;
     }
 
     /// <summary>
-    /// Transform a bounding box.
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> contains the specified bounding frustum.
     /// </summary>
-    /// <param name="value">The original bounding box.</param>
-    /// <param name="transform">The transform to apply to the bounding box.</param>
-    /// <param name="result">The transformed bounding box.</param>
-    public static void Transform(BoundingBox value, Matrix transform, out BoundingBox result)
+    /// <param name="frustum">A <see cref="BoundingFrustum"/> which represents the frustum to evaluate.</param>
+    /// <returns>A <see cref="ContainmentType"/> value representing the relationship between this box and the evaluated frustum.</returns>
+    public ContainmentType Contains(BoundingFrustum frustum)
     {
-        var boundingBox = BoundingBoxExt(value);
-        boundingBox.Transform(transform);
-        result = (BoundingBox)boundingBox;
+        Contains(frustum, var result);
+        return result;
     }
 
     /// <summary>
-    /// Constructs a <see cref="Sedulous.Mathematics.BoundingBox"/> that is as large enough to contains the bounding box and the given point.
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> contains the specified bounding frustum.
     /// </summary>
-    /// <param name="value1">The box to merge.</param>
-    /// <param name="value2">The point to merge.</param>
-    /// <param name="result">When the method completes, contains the newly constructed bounding box.</param>
-    public static void Merge(BoundingBox value1, Vector3 value2, out BoundingBox result)
+    /// <param name="frustum">A <see cref="BoundingFrustum"/> which represents the frustum to evaluate.</param>
+    /// <param name="result">A <see cref="ContainmentType"/> value representing the relationship between this box and the evaluated frustum.</param>
+    public void Contains(in BoundingFrustum frustum, out ContainmentType result)
     {
-        Vector3.Min(value1.Minimum, value2, out result.Minimum);
-        Vector3.Max(value1.Maximum, value2, out result.Maximum);
+        if (!frustum.Intersects(this))
+        {
+            result = ContainmentType.Disjoint;
+            return;
+        }
+
+        for (var corner in frustum.CornersInternal)
+        {
+            if (Contains(corner) == ContainmentType.Disjoint)
+            {
+                result = ContainmentType.Intersects;
+                return;
+            }
+        }
+
+        result = ContainmentType.Contains;
     }
 
     /// <summary>
-    /// Constructs a <see cref="Sedulous.Mathematics.BoundingBox"/> that is as large as the total combined area of the two specified boxes.
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> intersects the specified bounding box.
     /// </summary>
-    /// <param name="value1">The first box to merge.</param>
-    /// <param name="value2">The second box to merge.</param>
-    /// <param name="result">When the method completes, contains the newly constructed bounding box.</param>
-    public static void Merge(BoundingBox value1, BoundingBox value2, out BoundingBox result)
+    /// <param name="box">A <see cref="BoundingBox"/> which represents the box to evaluate.</param>
+    /// <returns><see langword="true"/> if this box intersects the evaluated box; otherwise, <see langword="false"/>.</returns>
+    public bool Intersects(BoundingBox @box)
     {
-        Vector3.Min(value1.Minimum, value2.Minimum, out result.Minimum);
-        Vector3.Max(value1.Maximum, value2.Maximum, out result.Maximum);
+        Intersects(@box, var result);
+        return result;
     }
 
     /// <summary>
-    /// Constructs a <see cref="Sedulous.Mathematics.BoundingBox"/> that is as large as the total combined area of the two specified boxes.
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> intersects the specified bounding box.
     /// </summary>
-    /// <param name="value1">The first box to merge.</param>
-    /// <param name="value2">The second box to merge.</param>
-    /// <returns>The newly constructed bounding box.</returns>
-    public static BoundingBox Merge(BoundingBox value1, BoundingBox value2)
+    /// <param name="box">A <see cref="BoundingBox"/> which represents the box to evaluate.</param>
+    /// <param name="result"><see langword="true"/> if this box intersects the evaluated box; otherwise, <see langword="false"/>.</param>
+    public void Intersects(in BoundingBox @box, out bool result)
     {
-        BoundingBox @box;
-        Vector3.Min(value1.Minimum, value2.Minimum, out @box.Minimum);
-        Vector3.Max(value1.Maximum, value2.Maximum, out @box.Maximum);
-        return @box;
+        if (Max.X >= @box.Min.X && Min.X <= @box.Max.X &&
+            Max.Y >= @box.Min.Y && Min.Y <= @box.Max.Y &&
+            Max.Z >= @box.Min.Z && Min.Z <= @box.Max.Z)
+        {
+            result = true;
+            return;
+        }
+
+        result = false;
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> intersects the specified bounding sphere.
+    /// </summary>
+    /// <param name="sphere">A <see cref="BoundingSphere"/> which represents the sphere to evaluate.</param>
+    /// <returns><see langword="true"/> if this box intersects the evaluated sphere; otherwise, <see langword="false"/>.</returns>
+    public bool Intersects(BoundingSphere sphere)
+    {
+        Intersects(sphere, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> intersects the specified bounding sphere.
+    /// </summary>
+    /// <param name="sphere">A <see cref="BoundingSphere"/> which represents the sphere to evaluate.</param>
+    /// <param name="result"><see langword="true"/> if this box intersects the evaluated sphere; otherwise, <see langword="false"/>.</param>
+    public void Intersects(in BoundingSphere sphere, out bool result)
+    {
+        Vector3.Clamp(sphere.Center, Min, Max, var clampedCenter);
+        Vector3.DistanceSquared(sphere.Center, clampedCenter, var clampedCenterOffset);
+        result = (clampedCenterOffset <= sphere.Radius * sphere.Radius);
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> intersects the specified bounding frustum.
+    /// </summary>
+    /// <param name="frustum">A <see cref="BoundingFrustum"/> which represents the frustum to evaluate.</param>
+    /// <returns><see langword="true"/> if this box intersects the evaluated frustum; otherwise, <see langword="false"/>.</returns>
+    public bool Intersects(BoundingFrustum frustum)
+    {
+        frustum.Intersects(this, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> intersects the specified bounding frustum.
+    /// </summary>
+    /// <param name="frustum">A <see cref="BoundingFrustum"/> which represents the frustum to evaluate.</param>
+    /// <param name="result"><see langword="true"/> if this box intersects the evaluated frustum; otherwise, <see langword="false"/>.</param>
+    public void Intersects(in BoundingFrustum frustum, out bool result)
+    {
+        frustum.Intersects(this, out result);
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> intersects the specified plane.
+    /// </summary>
+    /// <param name="plane">A <see cref="Plane"/> which represents the plane to evaluate.</param>
+    /// <returns><see langword="true"/> if this box intersects the evaluated plane; otherwise, <see langword="false"/>.</returns>
+    public PlaneIntersectionType Intersects(Plane plane)
+    {
+        plane.Intersects(this, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether this <see cref="BoundingBox"/> intersects the specified plane.
+    /// </summary>
+    /// <param name="plane">A <see cref="Plane"/> which represents the plane to evaluate.</param>
+    /// <param name="result"><see langword="true"/> if this box intersects the evaluated plane; otherwise, <see langword="false"/>.</param>
+    public void Intersects(in Plane plane, out PlaneIntersectionType result)
+    {
+        Vector3 positiveVertex;
+        positiveVertex.X = plane.Normal.X >= 0.0 ? this.Min.X : this.Max.X;
+        positiveVertex.Y = plane.Normal.Y >= 0.0 ? this.Min.Y : this.Max.Y;
+        positiveVertex.Z = plane.Normal.Z >= 0.0 ? this.Min.Z : this.Max.Z;
+
+        Vector3 negativeVertex;
+        negativeVertex.X = plane.Normal.X >= 0.0 ? this.Max.X : this.Min.X;
+        negativeVertex.Y = plane.Normal.Y >= 0.0 ? this.Max.Y : this.Min.Y;
+        negativeVertex.Z = plane.Normal.Z >= 0.0 ? this.Max.Z : this.Min.Z;
+
+        var normalDotPositive = plane.Normal.X * positiveVertex.X + plane.Normal.Y * positiveVertex.Y + plane.Normal.Z * positiveVertex.Z + plane.D;
+        if (normalDotPositive > 0.0f)
+        {
+            result = PlaneIntersectionType.Front;
+            return;
+        }
+
+        var normalDotNegative = plane.Normal.X * negativeVertex.X + plane.Normal.Y * negativeVertex.Y + plane.Normal.Z * negativeVertex.Z + plane.D;
+        if (normalDotNegative < 0.0f)
+        {
+            result = PlaneIntersectionType.Back;
+            return;
+        }
+
+        result = PlaneIntersectionType.Intersecting;
+    }
+
+    /// <summary>
+    /// Gets a value indicating the distance at which this <see cref="BoundingBox"/> is intersted by the specified ray,
+    /// if an intersection occurs.
+    /// </summary>
+    /// <param name="ray">A <see cref="Ray"/> which represents the ray to evaluate.</param>
+    /// <returns>The distance along the ray at which it intersects the bounding box, or <see langword="null"/> if there is no intersection.</returns>
+    public float? Intersects(Ray ray)
+    {
+        ray.Intersects(this, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a value indicating the distance at which this <see cref="BoundingBox"/> is intersted by the specified ray,
+    /// if an intersection occurs.
+    /// </summary>
+    /// <param name="ray">A <see cref="Ray"/> which represents the ray to evaluate.</param>
+    /// <param name="result">The distance along the ray at which it intersects the bounding box, or <see langword="null"/> if there is no intersection.</param>
+    public void Intersects(in Ray ray, out float? result)
+    {
+        ray.Intersects(this, out result);
     }
 
 	public void Expand(Vector3 point) mut
 	{
-	    Minimum.X = Math.Min(Minimum.X, point.X);
-	    Minimum.Y = Math.Min(Minimum.Y, point.Y);
-	    Minimum.Z = Math.Min(Minimum.Z, point.Z);
-	    Maximum.X = Math.Max(Maximum.X, point.X);
-	    Maximum.Y = Math.Max(Maximum.Y, point.Y);
-	    Maximum.Z = Math.Max(Maximum.Z, point.Z);
+	    Min.X = Math.Min(Min.X, point.X);
+	    Min.Y = Math.Min(Min.Y, point.Y);
+	    Min.Z = Math.Min(Min.Z, point.Z);
+	    Max.X = Math.Max(Max.X, point.X);
+	    Max.Y = Math.Max(Max.Y, point.Y);
+	    Max.Z = Math.Max(Max.Z, point.Z);
 	}
 
     /// <summary>
-    /// Tests for equality between two objects.
+    /// The number of corners in a bounding box.
     /// </summary>
-    /// <param name="left">The first value to compare.</param>
-    /// <param name="right">The second value to compare.</param>
-    /// <returns><c>true</c> if <paramref name="left"/> has the same value as <paramref name="right"/>; otherwise, <c>false</c>.</returns>
-    public static bool operator ==(BoundingBox left, BoundingBox right)
-    {
-        return left.Equals(right);
-    }
+    public const int32 CornerCount = 8;
 
     /// <summary>
-    /// Tests for inequality between two objects.
+    /// The minimum point included within the bounding box.
     /// </summary>
-    /// <param name="left">The first value to compare.</param>
-    /// <param name="right">The second value to compare.</param>
-    /// <returns><c>true</c> if <paramref name="left"/> has a different value than <paramref name="right"/>; otherwise, <c>false</c>.</returns>
-    public static bool operator !=(BoundingBox left, BoundingBox right)
-    {
-        return !left.Equals(right);
-    }
+    public Vector3 Min;
 
     /// <summary>
-    /// Returns a <see cref="string"/> that represents this instance.
+    /// The maximum point included within the bounding box.
     /// </summary>
-    /// <returns>
-    /// A <see cref="string"/> that represents this instance.
-    /// </returns>
-    public override void ToString(String str) => str.Append( scope $"{{Min:{Minimum} Max:{Maximum}}}");
-
-    /// <summary>
-    /// Returns a hash code for this instance.
-    /// </summary>
-    /// <returns>
-    /// A hash code for this instance, suitable for use in hashing algorithms and data structures like a hash table.
-    /// </returns>
-    public int GetHashCode()
-    {
-		int hash = 17;
-		hash = HashCode.Mix(hash, Minimum.GetHashCode());
-		hash = HashCode.Mix(hash, Maximum.GetHashCode());
-        return hash;
-    }
-
-    /// <summary>
-    /// Determines whether the specified <see cref="Vector4"/> is equal to this instance.
-    /// </summary>
-    /// <param name="value">The <see cref="Vector4"/> to compare with this instance.</param>
-    /// <returns>
-    /// <c>true</c> if the specified <see cref="Vector4"/> is equal to this instance; otherwise, <c>false</c>.
-    /// </returns>
-    public bool Equals(BoundingBox value)
-    {
-        return Minimum == value.Minimum && Maximum == value.Maximum;
-    }
+    public Vector3 Max;
 }

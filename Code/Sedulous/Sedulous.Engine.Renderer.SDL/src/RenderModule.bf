@@ -373,7 +373,7 @@ class RenderModule : SceneModule
 					{
 						LightDirAndIntensity = Vector4(lightDir.X, lightDir.Y, lightDir.Z, lightIntensity),
 						LightColorPad = Vector4(lightColor.X, lightColor.Y, lightColor.Z, 0),
-						MaterialColor = command.Renderer.Color,
+						MaterialColor = command.Renderer.Color.ToVector4(),
 						CameraPosAndPad = Vector4(mActiveCameraTransform.Position.X,
 							mActiveCameraTransform.Position.Y, mActiveCameraTransform.Position.Z, 0)
 					};

@@ -1,6 +1,6 @@
 using Sedulous.Engine.Core;
 using Sedulous.Platform.Core;
-using Sedulous.Foundation.Logging.Abstractions;
+using Sedulous.Logging.Abstractions;
 namespace Sedulous.Runtime;
 
 class Application : IEngineHost

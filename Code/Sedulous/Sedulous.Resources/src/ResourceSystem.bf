@@ -2,7 +2,7 @@ using Sedulous.Jobs;
 using System.Threading;
 using System.Collections;
 using System;
-using Sedulous.Foundation.Logging.Abstractions;
+using Sedulous.Logging.Abstractions;
 namespace Sedulous.Resources;
 
 using internal Sedulous.Resources;

@@ -5,7 +5,7 @@ using System;
 using System.Collections;
 using Sedulous.Platform.SDL3.Input;
 using Sedulous.Platform.Core.Input;
-using Sedulous.Foundation.Utilities;
+using Sedulous.Utilities;
 namespace Sedulous.Platform.SDL3;
 
 using internal Sedulous.Platform.SDL3;

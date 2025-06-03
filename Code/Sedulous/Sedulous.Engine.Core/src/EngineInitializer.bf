@@ -1,6 +1,6 @@
 using System.Collections;
 using System;
-using Sedulous.Foundation.Logging.Abstractions;
+using Sedulous.Logging.Abstractions;
 namespace Sedulous.Engine.Core;
 
 class EngineInitializer

@@ -1,8 +1,8 @@
 using System;
 using System.Threading;
 using System.Collections;
-using Sedulous.Foundation.Logging.Abstractions;
-using Sedulous.Foundation.Logging.Console;
+using Sedulous.Logging.Abstractions;
+using Sedulous.Logging.Console;
 namespace Sedulous.Jobs.Tests;
 
 using internal Sedulous.Jobs;

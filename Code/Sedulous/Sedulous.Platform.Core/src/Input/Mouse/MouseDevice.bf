@@ -83,7 +83,7 @@ namespace Sedulous.Platform.Core.Input
         /// <param name="window">The window to evaluate.</param>
         /// <returns>The cursor's compositor-space position within the specified 
         /// window, or <see langword="null"/> if the cursor is outside of the window.</returns>
-        public abstract Point? GetPositionInWindow(Window window);
+        public abstract Point2? GetPositionInWindow(Window window);
 
         /// <summary>
         /// Gets a value indicating whether the specified button was clicked this frame.

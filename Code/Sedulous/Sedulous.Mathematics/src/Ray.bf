@@ -1,55 +1,17 @@
 using System;
-// Copyright (c) .NET Foundation and Contributors (https://dotnetfoundation.org/ & https://stride3d.net) and Silicon Studio Corp. (https://www.siliconstudio.co.jp)
-// Distributed under the MIT license. See the LICENSE.md file in the project root for more information.
-//
-// -----------------------------------------------------------------------------
-// Original code from SlimMath project. http://code.google.com/p/slimmath/
-// Greetings to SlimDX Group. Original code published with the following license:
-// -----------------------------------------------------------------------------
-/*
-* Copyright (c) 2007-2011 SlimDX Group
-* 
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-* 
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-* 
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*/
 
 namespace Sedulous.Mathematics;
 
 /// <summary>
-/// Represents a three dimensional line based on a point in space and a direction.
+/// Represents a line proceeding from a point in space.
 /// </summary>
-[CRepr]public struct Ray : IEquatable<Ray>
+struct Ray : IEquatable<Ray>, IInterpolatable<Ray>, IEquatable, IHashable
 {
     /// <summary>
-    /// The position in three dimensional space where the ray starts.
+    /// Initializes a new instance of the <see cref="Ray"/> structure.
     /// </summary>
-    public Vector3 Position;
-
-    /// <summary>
-    /// The normalized direction in which the ray points.
-    /// </summary>
-    public Vector3 Direction;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Sedulous.Mathematics.Ray"/> struct.
-    /// </summary>
-    /// <param name="position">The position in three dimensional space of the origin of the ray.</param>
-    /// <param name="direction">The normalized direction of the ray.</param>
+    /// <param name="position">The ray's position in space.</param>
+    /// <param name="direction">The ray's direction vector.</param>
     public this(Vector3 position, Vector3 direction)
     {
         this.Position = position;
@@ -57,240 +19,255 @@ namespace Sedulous.Mathematics;
     }
 
     /// <summary>
-    /// Determines if there is an intersection between the current object and a point.
+    /// Determines whether this <see cref="Ray"/> intersects a specified <see cref="Plane"/>.
     /// </summary>
-    /// <param name="point">The point to test.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Vector3 point)
+    /// <param name="plane">The <see cref="Plane"/> to evaluate.</param>
+    /// <returns>The distance along the ray at which it intersects the plane, or <see langword="null"/> if there is no intersection.</returns>
+    public float? Intersects(Plane plane)
     {
-        return CollisionHelper.RayIntersectsPoint(this, point);
+        var normalDotDirection = plane.Normal.X * Direction.X + plane.Normal.Y * Direction.Y + plane.Normal.Z * Direction.Z;
+        if (MathUtil.IsApproximatelyZero(normalDotDirection))
+            return null;
+
+        var normalDotPosition = plane.Normal.X * Position.X + plane.Normal.Y * Position.Y + plane.Normal.Z * Position.Z;
+        var distance = -(normalDotPosition + plane.D) / normalDotDirection;
+        if (MathUtil.IsApproximatelyZero(distance))
+            return 0f;
+
+        if (distance < 0)
+            return null;
+
+        return distance;
     }
 
     /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.Ray"/>.
+    /// Determines whether this <see cref="Ray"/> intersects a specified <see cref="Plane"/>.
     /// </summary>
-    /// <param name="ray">The ray to test.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Ray ray)
+    /// <param name="plane">The <see cref="Plane"/> to evaluate.</param>
+    /// <param name="result">The distance along the ray at which it intersects the plane, or <see langword="null"/> if there is no intersection.</param>
+    public void Intersects(in Plane plane, out float? result)
     {
-        Vector3 point;
-        return CollisionHelper.RayIntersectsRay(this, ray, out point);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.Ray"/>.
-    /// </summary>
-    /// <param name="ray">The ray to test.</param>
-    /// <param name="point">When the method completes, contains the point of intersection,
-    /// or <see cref="Sedulous.Mathematics.Vector3.Zero"/> if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Ray ray, out Vector3 point)
-    {
-        return CollisionHelper.RayIntersectsRay(this, ray, out point);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.Plane"/>.
-    /// </summary>
-    /// <param name="plane">The plane to test</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Plane plane)
-    {
-        float distance;
-        return CollisionHelper.RayIntersectsPlane(this, plane, out distance);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.Plane"/>.
-    /// </summary>
-    /// <param name="plane">The plane to test.</param>
-    /// <param name="distance">When the method completes, contains the distance of the intersection,
-    /// or 0 if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Plane plane, out float distance)
-    {
-        return CollisionHelper.RayIntersectsPlane(this, plane, out distance);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.Plane"/>.
-    /// </summary>
-    /// <param name="plane">The plane to test.</param>
-    /// <param name="point">When the method completes, contains the point of intersection,
-    /// or <see cref="Sedulous.Mathematics.Vector3.Zero"/> if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Plane plane, out Vector3 point)
-    {
-        return CollisionHelper.RayIntersectsPlane(this, plane, out point);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a triangle.
-    /// </summary>
-    /// <param name="vertex1">The first vertex of the triangle to test.</param>
-    /// <param name="vertex2">The second vertex of the triangle to test.</param>
-    /// <param name="vertex3">The third vertex of the triangle to test.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Vector3 vertex1, Vector3 vertex2, Vector3 vertex3)
-    {
-        float distance;
-        return CollisionHelper.RayIntersectsTriangle(this, vertex1, vertex2, vertex3, out distance);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a triangle.
-    /// </summary>
-    /// <param name="vertex1">The first vertex of the triangle to test.</param>
-    /// <param name="vertex2">The second vertex of the triangle to test.</param>
-    /// <param name="vertex3">The third vertex of the triangle to test.</param>
-    /// <param name="distance">When the method completes, contains the distance of the intersection,
-    /// or 0 if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Vector3 vertex1, Vector3 vertex2, Vector3 vertex3, out float distance)
-    {
-        return CollisionHelper.RayIntersectsTriangle(this, vertex1, vertex2, vertex3, out distance);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a triangle.
-    /// </summary>
-    /// <param name="vertex1">The first vertex of the triangle to test.</param>
-    /// <param name="vertex2">The second vertex of the triangle to test.</param>
-    /// <param name="vertex3">The third vertex of the triangle to test.</param>
-    /// <param name="point">When the method completes, contains the point of intersection,
-    /// or <see cref="Sedulous.Mathematics.Vector3.Zero"/> if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(Vector3 vertex1, Vector3 vertex2, Vector3 vertex3, out Vector3 point)
-    {
-        return CollisionHelper.RayIntersectsTriangle(this, vertex1, vertex2, vertex3, out point);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.BoundingBox"/>.
-    /// </summary>
-    /// <param name="box">The box to test.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(BoundingBox @box)
-    {
-        float distance;
-        return CollisionHelper.RayIntersectsBox(this, @box, out distance);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.BoundingBox"/>.
-    /// </summary>
-    /// <param name="box">The box to test.</param>
-    /// <param name="distance">When the method completes, contains the distance of the intersection,
-    /// or 0 if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(BoundingBox @box, out float distance)
-    {
-        return CollisionHelper.RayIntersectsBox(this, @box, out distance);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.BoundingBox"/>.
-    /// </summary>
-    /// <param name="box">The box to test.</param>
-    /// <param name="point">When the method completes, contains the point of intersection,
-    /// or <see cref="Sedulous.Mathematics.Vector3.Zero"/> if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(BoundingBox @box, out Vector3 point)
-    {
-        return CollisionHelper.RayIntersectsBox(this, @box, out point);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.BoundingSphere"/>.
-    /// </summary>
-    /// <param name="sphere">The sphere to test.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(BoundingSphere sphere)
-    {
-        float distance;
-        return CollisionHelper.RayIntersectsSphere(this, sphere, out distance);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.BoundingSphere"/>.
-    /// </summary>
-    /// <param name="sphere">The sphere to test.</param>
-    /// <param name="distance">When the method completes, contains the distance of the intersection,
-    /// or 0 if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(BoundingSphere sphere, out float distance)
-    {
-        return CollisionHelper.RayIntersectsSphere(this, sphere, out distance);
-    }
-
-    /// <summary>
-    /// Determines if there is an intersection between the current object and a <see cref="Sedulous.Mathematics.BoundingSphere"/>.
-    /// </summary>
-    /// <param name="sphere">The sphere to test.</param>
-    /// <param name="point">When the method completes, contains the point of intersection,
-    /// or <see cref="Sedulous.Mathematics.Vector3.Zero"/> if there was no intersection.</param>
-    /// <returns>Whether the two objects intersected.</returns>
-    public bool Intersects(BoundingSphere sphere, out Vector3 point)
-    {
-        return CollisionHelper.RayIntersectsSphere(this, sphere, out point);
-    }
-
-    /// <summary>
-    /// Tests for equality between two objects.
-    /// </summary>
-    /// <param name="left">The first value to compare.</param>
-    /// <param name="right">The second value to compare.</param>
-    /// <returns><c>true</c> if <paramref name="left"/> has the same value as <paramref name="right"/>; otherwise, <c>false</c>.</returns>
-    public static bool operator ==(Ray left, Ray right)
-    {
-        return left.Equals(right);
-    }
-
-    /// <summary>
-    /// Tests for inequality between two objects.
-    /// </summary>
-    /// <param name="left">The first value to compare.</param>
-    /// <param name="right">The second value to compare.</param>
-    /// <returns><c>true</c> if <paramref name="left"/> has a different value than <paramref name="right"/>; otherwise, <c>false</c>.</returns>
-    public static bool operator !=(Ray left, Ray right)
-    {
-        return !left.Equals(right);
-    }
-
-    /// <summary>
-    /// Returns a <see cref="string"/> that represents this instance.
-    /// </summary>
-    /// <returns>
-    /// A <see cref="string"/> that represents this instance.
-    /// </returns>
-    public override void ToString(String str) => str.Append( scope $"{{Position:{Position} Direction:{Direction}}}");
-
-    /// <summary>
-    /// Returns a hash code for this instance.
-    /// </summary>
-    /// <returns>
-    /// A hash code for this instance, suitable for use in hashing algorithms and data structures like a hash table. 
-    /// </returns>
-    public int GetHashCode()
-    {
-        unchecked
+        var normalDotDirection = plane.Normal.X * Direction.X + plane.Normal.Y * Direction.Y + plane.Normal.Z * Direction.Z;
+        if (MathUtil.IsApproximatelyZero(normalDotDirection))
         {
-            var hash = 17;
-            hash = hash * 23 + Position.GetHashCode();
-            hash = hash * 23 + Direction.GetHashCode();
-            return hash;
+            result = null;
+        }
+        else
+        {
+            var normalDotPosition = plane.Normal.X * Position.X + plane.Normal.Y * Position.Y + plane.Normal.Z * Position.Z;
+            var distance = -(normalDotPosition + plane.D) / normalDotDirection;
+            if (MathUtil.IsApproximatelyZero(distance))
+            {
+                result = 0f;
+            }
+            else
+            {
+                if (distance < 0)
+                {
+                    result = null;
+                }
+                else
+                {
+                    result = distance;
+                }
+            }
         }
     }
 
     /// <summary>
-    /// Determines whether the specified <see cref="Sedulous.Mathematics.Vector4"/> is equal to this instance.
+    /// Determines whether this <see cref="Ray"/> intersects a specified <see cref="BoundingFrustum"/>.
     /// </summary>
-    /// <param name="value">The <see cref="Sedulous.Mathematics.Vector4"/> to compare with this instance.</param>
-    /// <returns>
-    /// <c>true</c> if the specified <see cref="Sedulous.Mathematics.Vector4"/> is equal to this instance; otherwise, <c>false</c>.
-    /// </returns>
-    public bool Equals(Ray value)
+    /// <param name="frustum">The <see cref="BoundingFrustum"/> to evaluate.</param>
+    /// <returns>The distance along the ray at which it intersects the frustum, or <see langword="null"/> if there is no intersection.</returns>
+    public float? Intersects(BoundingFrustum frustum)
     {
-        return Position == value.Position && Direction == value.Direction;
+        frustum.Intersects(this, var result);
+        return result;
     }
+
+    /// <summary>
+    /// Determines whether this <see cref="Ray"/> intersects a specified <see cref="BoundingFrustum"/>.
+    /// </summary>
+    /// <param name="frustum">The <see cref="BoundingFrustum"/> to evaluate.</param>
+    /// <param name="result">The distance along the ray at which it intersects the frustum, or <see langword="null"/> if there is no intersection.</param>
+    public void Intersects(in BoundingFrustum frustum, out float? result)
+    {
+        frustum.Intersects(this, out result);
+    }
+
+    /// <summary>
+    /// Determines whether this <see cref="Ray"/> intersects a specified <see cref="BoundingSphere"/>.
+    /// </summary>
+    /// <param name="sphere">The <see cref="BoundingSphere"/> to evaluate.</param>
+    /// <returns>The distance along the ray at which it intersects the sphere, or <see langword="null"/> if there is no intersection.</returns>
+    public float? Intersects(BoundingSphere sphere)
+    {
+        Intersects(sphere, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Determines whether this <see cref="Ray"/> intersects a specified <see cref="BoundingSphere"/>.
+    /// </summary>
+    /// <param name="sphere">The <see cref="BoundingSphere"/> to evaluate.</param>
+    /// <param name="result">The distance along the ray at which it intersects the sphere, or <see langword="null"/> if there is no intersection.</param>
+    public void Intersects(BoundingSphere sphere, out float? result)
+    {
+        var radiusSquared = sphere.Radius * sphere.Radius;
+
+        var offset = sphere.Center - Position;
+        var offsetLengthSquared = offset.LengthSquared();
+        if (offsetLengthSquared < radiusSquared)
+        {
+            result = 0.0f;
+            return;
+        }
+
+        Vector3.Dot(Direction, offset, var distanceToCenter);
+        if (distanceToCenter < 0)
+        {
+            result = null;
+            return;
+        }
+
+        var distanceToCenterSquared = distanceToCenter * distanceToCenter;
+        var distanceToSphere = radiusSquared + distanceToCenterSquared - offsetLengthSquared;
+
+        result = (distanceToSphere < 0) ? null : distanceToCenter - (float?)Math.Sqrt(distanceToSphere);
+    }
+
+    /// <summary>
+    /// Determines whether this <see cref="Ray"/> intersects a specified <see cref="BoundingBox"/>.
+    /// </summary>
+    /// <param name="box">The <see cref="BoundingBox"/> to evaluate.</param>
+    /// <returns>The distance along the ray at which it intersects the sphere, or <see langword="null"/> if there is no intersection.</returns>
+    public float? Intersects(BoundingBox @box)
+    {
+        Intersects(@box, var result);
+        return result;
+    }
+
+    /// <summary>
+    /// Determines whether this <see cref="Ray"/> intersects a specified <see cref="BoundingBox"/>.
+    /// </summary>
+    /// <param name="box">The <see cref="BoundingBox"/> to evaluate.</param>
+    /// <param name="result">The distance along the ray at which it intersects the bounding box, or <see langword="null"/> if there is no intersection.</param>
+    public void Intersects(in BoundingBox @box, out float? result)
+    {
+        var min = default(float?);
+        var max = default(float?);
+
+        if (MathUtil.IsApproximatelyZero(Direction.X))
+        {
+            if (Position.X < @box.Min.X || Position.X > @box.Max.X)
+            {
+                result = null;
+                return;
+            }
+        }
+        else
+        {
+            min = (@box.Min.X - Position.X) / Direction.X;
+            max = (@box.Max.X - Position.X) / Direction.X;
+
+            if (min > max)
+            {
+                var temp = min;
+                min = max;
+                max = temp;
+            }
+        }
+
+        if (MathUtil.IsApproximatelyZero(Direction.Y))
+        {
+            if (Position.Y < @box.Min.Y || Position.Y > @box.Max.Y)
+            {
+                result = null;
+                return;
+            }
+        }
+        else
+        {
+            var minY = (@box.Min.Y - Position.Y) / Direction.Y;
+            var maxY = (@box.Max.Y - Position.Y) / Direction.Y;
+
+            if (minY > maxY)
+            {
+                var temp = minY;
+                minY = maxY;
+                maxY = temp;
+            }
+
+            if (min == null || minY > min)
+                min = minY;
+
+            if (max == null || maxY > max)
+                max = maxY;
+        }
+
+        if (MathUtil.IsApproximatelyZero(Direction.Z))
+        {
+            if (Position.Z < @box.Min.Z || Position.Z > @box.Max.Z)
+            {
+                result = null;
+                return;
+            }
+        }
+        else
+        {
+            var minZ = (@box.Min.Z - Position.Z) / Direction.Z;
+            var maxZ = (@box.Max.Z - Position.Z) / Direction.Z;
+
+            if (minZ > maxZ)
+            {
+                var temp = minZ;
+                minZ = maxZ;
+                maxZ = temp;
+            }
+
+            if (min == null || minZ > min)
+                min = minZ;
+
+            if (max == null || maxZ > max)
+                max = maxZ;
+        }
+
+        if (min != null && min < 0 && max > 0)
+        {
+            result = 0;
+            return;
+        }
+
+        if (min < 0)
+        {
+            result = null;
+            return;
+        }
+
+        result = min;
+    }
+
+    /// <inheritdoc/>
+    public override void ToString(String str) => str.Append( scope $"{{Position:{Position} Direction:{Direction}}}");
+
+    /// <inheritdoc/>
+    public Ray Interpolate(Ray target, float t)
+    {
+        Ray result;
+
+        result.Position = this.Position.Interpolate(target.Position, t);
+        result.Direction = this.Direction.Interpolate(target.Direction, t);
+
+        return result;
+    }
+
+    /// <summary>
+    /// The ray's position in space.
+    /// </summary>
+    public Vector3 Position;
+
+    /// <summary>
+    /// The ray's direction vector.
+    /// </summary>
+    public Vector3 Direction;
 }

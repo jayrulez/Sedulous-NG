@@ -1,6 +1,6 @@
 using System;
 using System.Text;
-using Sedulous.Foundation.Utilities;
+using Sedulous.Utilities;
 using Sedulous.Platform.Core.Input;
 using SDL3Native;
 using Sedulous.Platform.Core;

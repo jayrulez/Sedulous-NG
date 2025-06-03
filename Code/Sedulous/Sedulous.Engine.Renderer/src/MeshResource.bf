@@ -1,7 +1,6 @@
 using Sedulous.Resources;
 using System;
 using Sedulous.Geometry;
-using Sedulous.Foundation.Utilities;
 namespace Sedulous.Engine.Renderer;
 
 class MeshResource : Resource
@@ -13,7 +12,7 @@ class MeshResource : Resource
 
     public this(Mesh mesh, bool ownsMesh = false)
     {
-        Id = GUID.Create();
+        Id = Guid.Create();
         mMesh = mesh;
 		mOwnsMesh = ownsMesh;
     }

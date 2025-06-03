@@ -1,5 +1,5 @@
 using System;
-using Sedulous.Foundation.Utilities;
+using Sedulous.Utilities;
 using Sedulous.Mathematics;
 using Sedulous.Platform.Core;
 using Sedulous.Platform.Core.Input;

@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using Sedulous.Resources;
-using Sedulous.Foundation.Utilities;
 namespace Sedulous.Engine.Renderer;
 
 class ShaderResource : Resource
@@ -21,7 +20,7 @@ class ShaderResource : Resource
 
     public this(StringView name)
     {
-        Id = GUID.Create();
+        Id = Guid.Create();
         mName.Set(name);
     }
 

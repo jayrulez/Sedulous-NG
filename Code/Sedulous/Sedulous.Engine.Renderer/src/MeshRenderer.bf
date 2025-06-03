@@ -12,5 +12,5 @@ class MeshRenderer : Component
 	public ResourceHandle<MaterialResource> Material { get; set; }
 
     //public bool UseLighting = true;
-    public Color4 Color = .(1, 1, 1, 1);
+    public Color Color = .White;
 }

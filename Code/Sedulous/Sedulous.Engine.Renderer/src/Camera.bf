@@ -18,7 +18,7 @@ class Camera : Component
 
 	private Matrix CalculateViewMatrix()
 	{
-	    return Matrix.LookAtRH(
+	    return Matrix.CreateLookAt(
 	        Entity.Transform.Position,
 	        Entity.Transform.Position + Entity.Transform.Forward,
 	        Entity.Transform.Up
@@ -27,8 +27,8 @@ class Camera : Component
 
 	private Matrix CalculateProjectionMatrix()
 	{
-	    return Matrix.PerspectiveFovRH(
-	        AngleSingle(FieldOfView, .Degree).Radians,
+	    return Matrix.CreatePerspectiveFieldOfView(
+	        Radians.FromDegrees(FieldOfView),
 	        AspectRatio,
 	        NearPlane,
 	        FarPlane

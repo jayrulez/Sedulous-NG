@@ -1,1364 +1,1086 @@
 using System;
-// Copyright (c) .NET Foundation and Contributors (https://dotnetfoundation.org/ & https://stride3d.net) and Silicon Studio Corp. (https://www.siliconstudio.co.jp)
-// Distributed under the MIT license. See the LICENSE.md file in the project root for more information.
-//
-// -----------------------------------------------------------------------------
-// Original code from SlimMath project. http://code.google.com/p/slimmath/
-// Greetings to SlimDX Group. Original code published with the following license:
-// -----------------------------------------------------------------------------
-/*
-* Copyright (c) 2007-2011 SlimDX Group
-* 
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-* 
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-* 
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*/
 
 namespace Sedulous.Mathematics;
 
 /// <summary>
-/// Represents a two dimensional mathematical vector.
+/// Represents a two-dimensional vector.
 /// </summary>
-[CRepr]public struct Vector2 : IEquatable<Vector2>
+struct Vector2 : IEquatable<Vector2>, IInterpolatable<Vector2>, IEquatable, IHashable
 {
     /// <summary>
-    /// The size of the <see cref="Sedulous.Mathematics.Vector2"/> type, in bytes.
+    /// Initializes a new instance of the <see cref="Vector2"/> structure with all of its components set to the specified value.
     /// </summary>
-    public static readonly int32 SizeInBytes = sizeof(Vector2);
-
-    /// <summary>
-    /// A <see cref="Sedulous.Mathematics.Vector2"/> with all of its components set to zero.
-    /// </summary>
-    public static readonly Vector2 Zero = .();
-
-    /// <summary>
-    /// The X unit <see cref="Sedulous.Mathematics.Vector2"/> (1, 0).
-    /// </summary>
-    public static readonly Vector2 UnitX = .(1.0f, 0.0f);
-
-    /// <summary>
-    /// The Y unit <see cref="Sedulous.Mathematics.Vector2"/> (0, 1).
-    /// </summary>
-    public static readonly Vector2 UnitY = .(0.0f, 1.0f);
-
-    /// <summary>
-    /// A <see cref="Sedulous.Mathematics.Vector2"/> with all of its components set to one.
-    /// </summary>
-    public static readonly Vector2 One = .(1.0f, 1.0f);
-
-    /// <summary>
-    /// The X component of the vector.
-    /// </summary>
-    public float X;
-
-    /// <summary>
-    /// The Y component of the vector.
-    /// </summary>
-    public float Y;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Sedulous.Mathematics.Vector2"/> struct.
-    /// </summary>
-    public this()
-    {
-		float value = 0;
-        X = value;
-        Y = value;
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Sedulous.Mathematics.Vector2"/> struct.
-    /// </summary>
-    /// <param name="value">The value that will be assigned to all components.</param>
+    /// <param name="value">The value to which to set the vector's components.</param>
     public this(float value)
     {
-        X = value;
-        Y = value;
+        this.X = value;
+        this.Y = value;
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Sedulous.Mathematics.Vector2"/> struct.
+    /// Initializes a new instance of the <see cref="Vector2"/> structure with the specified x and y components.
     /// </summary>
-    /// <param name="x">Initial value for the X component of the vector.</param>
-    /// <param name="y">Initial value for the Y component of the vector.</param>
+    /// <param name="x">The vector's x component.</param>
+    /// <param name="y">The vector's y component.</param>
     public this(float x, float y)
     {
-        X = x;
-        Y = y;
+        this.X = x;
+        this.Y = y;
     }
 
     /// <summary>
-    /// Gets a value indicting whether this instance is normalized.
+    /// Implicitly converts an instance of the <see cref="System.Numerics.Vector2"/> structure
+    /// to an instance of the <see cref="Vector2"/> structure.
     /// </summary>
-    public bool IsNormalized
+    /// <param name="value">The value to convert.</param>
+    /*public static implicit operator Vector2(System.Numerics.Vector2 value)
     {
-        get { return Math.Abs((X * X) + (Y * Y) - 1f) < MathUtil.ZeroTolerance; }
+        var x = (Vector2*)&value;
+        return *x;
+    }*/
+
+    /// <summary>
+    /// Implicitly converts an instance of the <see cref="Vector2"/> structure
+    /// to an instance of the <see cref="System.Numerics.Vector2"/> structure.
+    /// </summary>
+    /// <param name="value">The value to convert.</param>
+    /*public static implicit operator System.Numerics.Vector2(Vector2 value)
+    {
+        var x = (System.Numerics.Vector2*)&value;
+        return *x;
+    }*/
+
+    /// <summary>
+    /// Adds two vectors.
+    /// </summary>
+    /// <param name="vector1">The <see cref="Vector2"/> to the left of the addition operator.</param>
+    /// <param name="vector2">The <see cref="Vector2"/> to the right of the addition operator.</param>
+    /// <returns>The resulting <see cref="Vector2"/>.</returns>
+    public static Vector2 operator +(Vector2 vector1, Vector2 vector2)
+    {
+        Vector2 result;
+
+        result.X = vector1.X + vector2.X;
+        result.Y = vector1.Y + vector2.Y;
+
+        return result;
     }
 
     /// <summary>
-    /// Gets or sets the component at the specified index.
+    /// Subtracts one vector from another vector.
     /// </summary>
-    /// <value>The value of the X or Y component, depending on the index.</value>
-    /// <param name="index">The index of the component to access. Use 0 for the X component and 1 for the Y component.</param>
-    /// <returns>The value of the component at the specified index.</returns>
-    /// <exception cref="System.ArgumentOutOfRangeException">Thrown when the <paramref name="index"/> is out of the range [0, 1].</exception>
-    public float this[int32 index]
+    /// <param name="vector1">The <see cref="Vector2"/> to the left of the subtraction operator.</param>
+    /// <param name="vector2">The <see cref="Vector2"/> to the right of the subtraction operator.</param>
+    /// <returns>The resulting <see cref="Vector2"/>.</returns>
+    public static Vector2 operator -(Vector2 vector1, Vector2 vector2)
     {
-        get
-        {
-            switch (index)
-            {
-                case 0: return X;
-                case 1: return Y;
-            }
+        Vector2 result;
 
-            Runtime.FatalError(scope $"ArgumentOutOfRangeException - {nameof(index)}:Indices for Vector2 run from 0 to 1, inclusive.");
-        }
+        result.X = vector1.X - vector2.X;
+        result.Y = vector1.Y - vector2.Y;
 
-        set mut
-        {
-            switch (index)
-            {
-                case 0: X = value; break;
-                case 1: Y = value; break;
-                default: Runtime.FatalError(scope $"ArgumentOutOfRangeException - {nameof(index)}:Indices for Vector2 run from 0 to 1, inclusive.");
-            }
-        }
+        return result;
     }
+
+    /// <summary>
+    /// Multiplies two vectors.
+    /// </summary>
+    /// <param name="vector1">The <see cref="Vector2"/> to the left of the multiplication operator.</param>
+    /// <param name="vector2">The <see cref="Vector2"/> to the right of the multiplication operator.</param>
+    /// <returns>The resulting <see cref="Vector2"/>.</returns>
+    public static Vector2 operator *(Vector2 vector1, Vector2 vector2)
+    {
+        Vector2 result;
+
+        result.X = vector1.X * vector2.X;
+        result.Y = vector1.Y * vector2.Y;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Multiplies a vector by a scaling factor.
+    /// </summary>
+    /// <param name="vector">The <see cref="Vector2"/> to multiply.</param>
+    /// <param name="factor">The scaling factor by which to multiply the vector.</param>
+    /// <returns>The resulting <see cref="Vector2"/>.</returns>
+    public static Vector2 operator *(float factor, Vector2 vector)
+    {
+        Vector2 result;
+
+        result.X = vector.X * factor;
+        result.Y = vector.Y * factor;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Multiplies a vector by a scaling factor.
+    /// </summary>
+    /// <param name="vector">The <see cref="Vector2"/> to multiply.</param>
+    /// <param name="factor">The scaling factor by which to multiply the vector.</param>
+    /// <returns>The resulting <see cref="Vector2"/>.</returns>
+    public static Vector2 operator *(Vector2 vector, float factor)
+    {
+        Vector2 result;
+
+        result.X = vector.X * factor;
+        result.Y = vector.Y * factor;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Divides two vectors.
+    /// </summary>
+    /// <param name="vector1">The <see cref="Vector2"/> to the left of the division operator.</param>
+    /// <param name="vector2">The <see cref="Vector2"/> to the right of the division operator.</param>
+    /// <returns>The resulting <see cref="Vector2"/>.</returns>
+    public static Vector2 operator /(Vector2 vector1, Vector2 vector2)
+    {
+        Vector2 result;
+
+        result.X = vector1.X / vector2.X;
+        result.Y = vector1.Y / vector2.Y;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Divides a vector by a scaling factor.
+    /// </summary>
+    /// <param name="vector">The <see cref="Vector2"/> to divide.</param>
+    /// <param name="factor">The scaling factor by which to divide the vector.</param>
+    /// <returns>The resulting <see cref="Vector2"/>.</returns>
+    public static Vector2 operator /(Vector2 vector, float factor)
+    {
+        Vector2 result;
+
+        result.X = vector.X / factor;
+        result.Y = vector.Y / factor;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Reverses the signs of a vector's components.
+    /// </summary>
+    /// <param name="vector">The <see cref="Vector2"/> to reverse.</param>
+    /// <returns>The reversed <see cref="Vector2"/>.</returns>
+    public static Vector2 operator -(Vector2 vector)
+    {
+        Vector2 result;
+
+        result.X = -vector.X;
+        result.Y = -vector.Y;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Vector2"/> structure to a <see cref="Point2"/> structure.
+    /// </summary>
+    /// <param name="vector">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Point2(Vector2 vector)
+    {
+        Point2 result;
+
+        result.X = (int32)vector.X;
+        result.Y = (int32)vector.Y;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Vector2"/> structure to a <see cref="Point2F"/> structure.
+    /// </summary>
+    /// <param name="vector">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Point2F(Vector2 vector)
+    {
+        Point2F result;
+
+        result.X = vector.X;
+        result.Y = vector.Y;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Vector2"/> structure to a <see cref="Point2D"/> structure.
+    /// </summary>
+    /// <param name="vector">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Point2D(Vector2 vector)
+    {
+        Point2D result;
+
+        result.X = vector.X;
+        result.Y = vector.Y;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Vector2"/> structure to a <see cref="Size2"/> structure.
+    /// </summary>
+    /// <param name="vector">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Size2(Vector2 vector)
+    {
+        Size2 result;
+
+        result.Width = (int32)vector.X;
+        result.Height = (int32)vector.Y;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Vector2"/> structure to a <see cref="Size2F"/> structure.
+    /// </summary>
+    /// <param name="vector">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Size2F(Vector2 vector)
+    {
+        Size2F result;
+
+        result.Width = vector.X;
+        result.Height = vector.Y;
+
+        return result;
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="Vector2"/> structure to a <see cref="Size2D"/> structure.
+    /// </summary>
+    /// <param name="vector">The structure to convert.</param>
+    /// <returns>The converted structure.</returns>
+    public static explicit operator Size2D(Vector2 vector)
+    {
+        Size2D result;
+
+        result.Width = vector.X;
+        result.Height = vector.Y;
+
+        return result;
+    }
+    
+    /// <summary>
+    /// Calculates the dot product of two vectors.
+    /// </summary>
+    /// <param name="vector1">The first <see cref="Vector2"/>.</param>
+    /// <param name="vector2">The second <see cref="Vector2"/>.</param>
+    /// <returns>The dot product of the specified vectors.</returns>
+    public static float Dot(Vector2 vector1, Vector2 vector2)
+    {
+        return vector1.X * vector2.X + vector1.Y * vector2.Y;
+    }
+
+    /// <summary>
+	/// Calculates the dot product of two vectors.
+	/// </summary>
+	/// <param name="vector1">The first <see cref="Vector2"/>.</param>
+	/// <param name="vector2">The second <see cref="Vector2"/>.</param>
+	/// <param name="result">The dot product of the specified vectors.</param>
+	public static void Dot(in Vector2 vector1, in Vector2 vector2, out float result)
+	{
+	    result = vector1.X * vector2.X + vector1.Y * vector2.Y;
+	}
+
+	/// <summary>
+	/// Adds two vectors.
+	/// </summary>
+	/// <param name="vector1">The <see cref="Vector2"/> to the left of the addition operator.</param>
+	/// <param name="vector2">The <see cref="Vector2"/> to the right of the addition operator.</param>
+	/// <returns>The resulting <see cref="Vector2"/>.</returns>
+	public static Vector2 Add(Vector2 vector1, Vector2 vector2)
+	{
+	    Vector2 result;
+
+	    result.X = vector1.X + vector2.X;
+	    result.Y = vector1.Y + vector2.Y;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Adds two vectors.
+	/// </summary>
+	/// <param name="vector1">The <see cref="Vector2"/> to the left of the addition operator.</param>
+	/// <param name="vector2">The <see cref="Vector2"/> to the right of the addition operator.</param>
+	/// <param name="result">The resulting <see cref="Vector2"/>.</param>
+	public static void Add(in Vector2 vector1, in Vector2 vector2, out Vector2 result)
+	{
+	    result.X = vector1.X + vector2.X;
+	    result.Y = vector1.Y + vector2.Y;
+	}
+
+	/// <summary>
+	/// Subtracts one vector from another vector.
+	/// </summary>
+	/// <param name="vector1">The <see cref="Vector2"/> to the left of the subtraction operator.</param>
+	/// <param name="vector2">The <see cref="Vector2"/> to the right of the subtraction operator.</param>
+	/// <returns>The resulting <see cref="Vector2"/>.</returns>
+	public static Vector2 Subtract(Vector2 vector1, Vector2 vector2)
+	{
+	    Vector2 result;
+
+	    result.X = vector1.X - vector2.X;
+	    result.Y = vector1.Y - vector2.Y;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Subtracts one vector from another vector.
+	/// </summary>
+	/// <param name="vector1">The <see cref="Vector2"/> to the left of the subtraction operator.</param>
+	/// <param name="vector2">The <see cref="Vector2"/> to the right of the subtraction operator.</param>
+	/// <param name="result">The resulting <see cref="Vector2"/>.</param>
+	public static void Subtract(in Vector2 vector1, in Vector2 vector2, out Vector2 result)
+	{
+	    result.X = vector1.X - vector2.X;
+	    result.Y = vector1.Y - vector2.Y;
+	}
+
+	/// <summary>
+	/// Multiplies two vectors.
+	/// </summary>
+	/// <param name="left">The <see cref="Vector2"/> to the left of the multiplication operator.</param>
+	/// <param name="right">The <see cref="Vector2"/> to the right of the multiplication operator.</param>
+	/// <returns>The resulting <see cref="Vector2"/>.</returns>
+	public static Vector2 Multiply(Vector2 left, Vector2 right)
+	{
+	    Vector2 result;
+
+	    result.X = left.X * right.X;
+	    result.Y = left.Y * right.Y;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Multiplies two vectors.
+	/// </summary>
+	/// <param name="left">The <see cref="Vector2"/> to the left of the multiplication operator.</param>
+	/// <param name="right">The <see cref="Vector2"/> to the right of the multiplication operator.</param>
+	/// <param name="result">The resulting <see cref="Vector2"/>.</param>
+	public static void Multiply(in Vector2 left, in Vector2 right, out Vector2 result)
+	{
+	    result.X = left.X * right.X;
+	    result.Y = left.Y * right.Y;
+	}
+
+	/// <summary>
+	/// Multiplies a vector by a scaling factor.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to multiply.</param>
+	/// <param name="factor">The scaling factor by which to multiply the vector.</param>
+	/// <returns>The resulting <see cref="Vector2"/>.</returns>
+	public static Vector2 Multiply(Vector2 vector, float factor)
+	{
+	    Vector2 result;
+
+	    result.X = vector.X * factor;
+	    result.Y = vector.Y * factor;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Multiplies a vector by a scaling factor.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to multiply.</param>
+	/// <param name="factor">The scaling factor by which to multiply the vector.</param>
+	/// <param name="result">The resulting <see cref="Vector2"/>.</param>
+	public static void Multiply(in Vector2 vector, float factor, out Vector2 result)
+	{
+	    result.X = vector.X * factor;
+	    result.Y = vector.Y * factor;
+	}
+
+	/// <summary>
+	/// Divides two vectors.
+	/// </summary>
+	/// <param name="left">The <see cref="Vector2"/> to the left of the division operator.</param>
+	/// <param name="right">The <see cref="Vector2"/> to the right of the division operator.</param>
+	/// <returns>The resulting <see cref="Vector2"/>.</returns>
+	public static Vector2 Divide(Vector2 left, Vector2 right)
+	{
+	    Vector2 result;
+
+	    result.X = left.X / right.X;
+	    result.Y = left.Y / right.Y;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Divides two vectors.
+	/// </summary>
+	/// <param name="left">The <see cref="Vector2"/> to the left of the division operator.</param>
+	/// <param name="right">The <see cref="Vector2"/> to the right of the division operator.</param>
+	/// <param name="result">The resulting <see cref="Vector2"/>.</param>
+	public static void Divide(in Vector2 left, in Vector2 right, out Vector2 result)
+	{
+	    result.X = left.X / right.X;
+	    result.Y = left.Y / right.Y;
+	}
+
+	/// <summary>
+	/// Divides a vector by a scaling factor.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to divide.</param>
+	/// <param name="factor">The scaling factor by which to divide the vector.</param>
+	/// <returns>The resulting <see cref="Vector2"/>.</returns>
+	public static Vector2 Divide(Vector2 vector, float factor)
+	{
+	    Vector2 result;
+
+	    result.X = vector.X / factor;
+	    result.Y = vector.Y / factor;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Divides a vector by a scaling factor.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to divide.</param>
+	/// <param name="factor">The scaling factor by which to divide the vector.</param>
+	/// <param name="result">The resulting <see cref="Vector2"/>.</param>
+	public static void Divide(in Vector2 vector, float factor, out Vector2 result)
+	{
+	    result.X = vector.X / factor;
+	    result.Y = vector.Y / factor;
+	}
+
+	/// <summary>
+	/// Transforms a vector by a quaternion.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to transform.</param>
+	/// <param name="quaternion">The quaternion by which to transform the vector.</param>
+	/// <returns>The transformed <see cref="Vector2"/>.</returns>
+	public static Vector2 Transform(Vector2 vector, Quaternion quaternion)
+	{
+	    var x2 = quaternion.X + quaternion.X;
+	    var y2 = quaternion.Y + quaternion.Y;
+	    var z2 = quaternion.Z + quaternion.Z;
+
+	    var wz2 = quaternion.W * z2;
+	    var xx2 = quaternion.X * x2;
+	    var xy2 = quaternion.X * y2;
+	    var yy2 = quaternion.Y * y2;
+	    var zz2 = quaternion.Z * z2;
+
+	    Vector2 result;
+
+	    result.X = vector.X * (1.0f - yy2 - zz2) + vector.Y * (xy2 - wz2);
+	    result.Y = vector.X * (xy2 + wz2) + vector.Y * (1.0f - xx2 - zz2);
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Transforms a vector by a quaternion.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to transform.</param>
+	/// <param name="quaternion">The quaternion by which to transform the vector.</param>
+	/// <param name="result">The transformed <see cref="Vector2"/>.</param>
+	public static void Transform(in Vector2 vector, in Quaternion quaternion, out Vector2 result)
+	{
+	    var x2 = quaternion.X + quaternion.X;
+	    var y2 = quaternion.Y + quaternion.Y;
+	    var z2 = quaternion.Z + quaternion.Z;
+
+	    var wz2 = quaternion.W * z2;
+	    var xx2 = quaternion.X * x2;
+	    var xy2 = quaternion.X * y2;
+	    var yy2 = quaternion.Y * y2;
+	    var zz2 = quaternion.Z * z2;
+
+	    Vector2 temp;
+
+	    temp.X = vector.X * (1.0f - yy2 - zz2) + vector.Y * (xy2 - wz2);
+	    temp.Y = vector.X * (xy2 + wz2) + vector.Y * (1.0f - xx2 - zz2);
+
+	    result = temp;
+	}
+
+	/// <summary>
+	/// Transforms a vector by a matrix.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to transform.</param>
+	/// <param name="matrix">The matrix by which to transform the vector.</param>
+	/// <returns>The transformed <see cref="Vector2"/>.</returns>
+	public static Vector2 Transform(Vector2 vector, Matrix matrix)
+	{
+	    Vector2 result;
+
+	    result.X = (matrix.M11 * vector.X + matrix.M21 * vector.Y) + matrix.M41;
+	    result.Y = (matrix.M12 * vector.X + matrix.M22 * vector.Y) + matrix.M42;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Transforms a vector by a matrix.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to transform.</param>
+	/// <param name="matrix">The matrix by which to transform the vector.</param>
+	/// <param name="result">The transformed <see cref="Vector2"/>.</param>
+	public static void Transform(in Vector2 vector, in Matrix matrix, out Vector2 result)
+	{
+	    Vector2 temp;
+
+	    temp.X = (matrix.M11 * vector.X + matrix.M21 * vector.Y) + matrix.M41;
+	    temp.Y = (matrix.M12 * vector.X + matrix.M22 * vector.Y) + matrix.M42;
+
+	    result = temp;
+	}
+
+	/// <summary>
+	/// Transforms a vector normal by a matrix.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to transform.</param>
+	/// <param name="matrix">The matrix by which to transform the vector.</param>
+	/// <returns>The transformed <see cref="Vector2"/>.</returns>
+	public static Vector2 TransformNormal(Vector2 vector, Matrix matrix)
+	{
+	    Vector2 result;
+
+	    result.X = (matrix.M11 * vector.X + matrix.M21 * vector.Y);
+	    result.Y = (matrix.M12 * vector.X + matrix.M22 * vector.Y);
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Transforms a vector normal by a matrix.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to transform.</param>
+	/// <param name="matrix">The matrix by which to transform the vector.</param>
+	/// <param name="result">The transformed <see cref="Vector2"/>.</param>
+	public static void TransformNormal(in Vector2 vector, in Matrix matrix, out Vector2 result)
+	{
+	    Vector2 temp;
+
+	    temp.X = (matrix.M11 * vector.X + matrix.M21 * vector.Y);
+	    temp.Y = (matrix.M12 * vector.X + matrix.M22 * vector.Y);
+
+	    result = temp;
+	}
+
+	/// <summary>
+	/// Normalizes a vector.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to normalize.</param>
+	/// <returns>The normalized <see cref="Vector2"/>.</returns>
+	public static Vector2 Normalize(Vector2 vector)
+	{
+	    var magnitude = (float)Math.Sqrt(
+	        vector.X * vector.X +
+	        vector.Y * vector.Y);
+	    var inverseMagnitude = 1f / magnitude;
+
+	    Vector2 result;
+
+	    result.X = vector.X * inverseMagnitude;
+	    result.Y = vector.Y * inverseMagnitude;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Normalizes a vector.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to normalize.</param>
+	/// <param name="result">The normalized <see cref="Vector2"/>.</param>
+	public static void Normalize(in Vector2 vector, out Vector2 result)
+	{
+	    var magnitude = (float)Math.Sqrt(
+	        vector.X * vector.X +
+	        vector.Y * vector.Y);
+	    var inverseMagnitude = 1f / magnitude;
+
+	    result.X = vector.X * inverseMagnitude;
+	    result.Y = vector.Y * inverseMagnitude;
+	}
+
+	/// <summary>
+	/// Negates the specified vector.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to negate.</param>
+	/// <returns>The negated <see cref="Vector2"/>.</returns>
+	public static Vector2 Negate(Vector2 vector)
+	{
+	    Vector2 result;
+
+	    result.X = -vector.X;
+	    result.Y = -vector.Y;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Negates the specified vector.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to negate.</param>
+	/// <param name="result">The negated <see cref="Vector2"/>.</param>
+	public static void Negate(in Vector2 vector, out Vector2 result)
+	{
+	    result.X = -vector.X;
+	    result.Y = -vector.Y;
+	}
+
+	/// <summary>
+	/// Clamps a vector to the specified range.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to clamp.</param>
+	/// <param name="min">The minimum value.</param>
+	/// <param name="max">The maximum value.</param>
+	/// <returns>The clamped <see cref="Vector2"/>.</returns>
+	public static Vector2 Clamp(Vector2 vector, Vector2 min, Vector2 max)
+	{
+	    Vector2 result;
+
+	    result.X = vector.X < min.X ? min.X : vector.X > max.X ? max.X : vector.X;
+	    result.Y = vector.Y < min.Y ? min.Y : vector.Y > max.Y ? max.Y : vector.Y;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Clamps a vector to the specified range.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to clamp.</param>
+	/// <param name="min">The minimum value.</param>
+	/// <param name="max">The maximum value.</param>
+	/// <param name="result">The clamped <see cref="Vector2"/>.</param>
+	public static void Clamp(in Vector2 vector, in Vector2 min, in Vector2 max, out Vector2 result)
+	{
+	    result.X = vector.X < min.X ? min.X : vector.X > max.X ? max.X : vector.X;
+	    result.Y = vector.Y < min.Y ? min.Y : vector.Y > max.Y ? max.Y : vector.Y;
+	}
+
+	/// <summary>
+	/// Returns a vector which contains the lowest value of each component of the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first <see cref="Vector2"/>.</param>
+	/// <param name="vector2">The second <see cref="Vector2"/>.</param>
+	/// <returns>A <see cref="Vector2"/> which contains the lowest value of each component of the specified vectors.</returns>
+	public static Vector2 Min(Vector2 vector1, Vector2 vector2)
+	{
+	    Vector2 result;
+
+	    result.X = vector1.X < vector2.X ? vector1.X : vector2.X;
+	    result.Y = vector1.Y < vector2.Y ? vector1.Y : vector2.Y;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Returns a vector which contains the lowest value of each component of the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first <see cref="Vector2"/>.</param>
+	/// <param name="vector2">The second <see cref="Vector2"/>.</param>
+	/// <param name="result">A <see cref="Vector2"/> which contains the lowest value of each component of the specified vectors.</param>
+	public static void Min(in Vector2 vector1, in Vector2 vector2, out Vector2 result)
+	{
+	    result.X = vector1.X < vector2.X ? vector1.X : vector2.X;
+	    result.Y = vector1.Y < vector2.Y ? vector1.Y : vector2.Y;
+	}
+
+	/// <summary>
+	/// Returns a vector which contains the highest value of each component of the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first <see cref="Vector2"/>.</param>
+	/// <param name="vector2">The second <see cref="Vector2"/>.</param>
+	/// <returns>A <see cref="Vector2"/> which contains the highest value of each component of the specified vectors.</returns>
+	public static Vector2 Max(Vector2 vector1, Vector2 vector2)
+	{
+	    Vector2 result;
+
+	    result.X = vector1.X < vector2.X ? vector2.X : vector1.X;
+	    result.Y = vector1.Y < vector2.Y ? vector2.Y : vector1.Y;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Returns a vector which contains the highest value of each component of the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first <see cref="Vector2"/>.</param>
+	/// <param name="vector2">The second <see cref="Vector2"/>.</param>
+	/// <param name="result">A <see cref="Vector2"/> which contains the highest value of each component of the specified vectors.</param>
+	public static void Max(in Vector2 vector1, in Vector2 vector2, out Vector2 result)
+	{
+	    result.X = vector1.X < vector2.X ? vector2.X : vector1.X;
+	    result.Y = vector1.Y < vector2.Y ? vector2.Y : vector1.Y;
+	}
+
+	/// <summary>
+	/// Reflects the specified vector off of a surface with the specified normal.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to reflect.</param>
+	/// <param name="normal">The normal vector of the surface over which to reflect the vector.</param>
+	/// <returns>The reflected <see cref="Vector2"/>.</returns>
+	public static Vector2 Reflect(Vector2 vector, Vector2 normal)
+	{
+	    var dot = vector.X * normal.X + vector.Y * normal.Y;
+
+	    Vector2 result;
+
+	    result.X = vector.X - 2f * dot * normal.X;
+	    result.Y = vector.Y - 2f * dot * normal.Y;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Reflects the specified vector off of a surface with the specified normal.
+	/// </summary>
+	/// <param name="vector">The <see cref="Vector2"/> to reflect.</param>
+	/// <param name="normal">The normal vector of the surface over which to reflect the vector.</param>
+	/// <param name="result">The reflected <see cref="Vector2"/>.</param>
+	public static void Reflect(in Vector2 vector, in Vector2 normal, out Vector2 result)
+	{
+	    var dot = vector.X * normal.X + vector.Y * normal.Y;
+
+	    result.X = vector.X - 2f * dot * normal.X;
+	    result.Y = vector.Y - 2f * dot * normal.Y;
+	}
+
+	/// <summary>
+	/// Performs a linear interpolation between the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first <see cref="Vector2"/>.</param>
+	/// <param name="vector2">The second <see cref="Vector2"/>.</param>
+	/// <param name="amount">A value from 0.0 to 1.0 representing the interpolation factor.</param>
+	/// <returns>The interpolated <see cref="Vector2"/>.</returns>
+	public static Vector2 Lerp(Vector2 vector1, Vector2 vector2, float amount)
+	{
+	    Vector2 result;
+
+	    result.X = vector1.X + (vector2.X - vector1.X) * amount;
+	    result.Y = vector1.Y + (vector2.Y - vector1.Y) * amount;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Performs a linear interpolation between the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first <see cref="Vector2"/>.</param>
+	/// <param name="vector2">The second <see cref="Vector2"/>.</param>
+	/// <param name="amount">A value from 0.0 to 1.0 representing the interpolation factor.</param>
+	/// <param name="result">The interpolated <see cref="Vector2"/>.</param>
+	public static void Lerp(in Vector2 vector1, in Vector2 vector2, float amount, out Vector2 result)
+	{
+	    result.X = vector1.X + (vector2.X - vector1.X) * amount;
+	    result.Y = vector1.Y + (vector2.Y - vector1.Y) * amount;
+	}
+
+	/// <summary>
+	/// Performs a cubic Hermite spline interpolation between the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first position vector.</param>
+	/// <param name="tangent1">The first tangent vector.</param>
+	/// <param name="vector2">The second position vector.</param>
+	/// <param name="tangent2">The second tangent vector.</param>
+	/// <param name="amount">A value from 0.0 to 1.0 representing the interpolation factor.</param>
+	/// <returns>The interpolated <see cref="Vector2"/>.</returns>
+	public static Vector2 Hermite(Vector2 vector1, Vector2 tangent1, Vector2 vector2, Vector2 tangent2, float amount)
+	{
+	    var t2 = amount * amount;
+	    var t3 = t2 * amount;
+
+	    var polynomial1 = (2.0f * t3 - 3.0f * t2 + 1f); // (2t^3 - 3t^2 + 1)
+	    var polynomial2 = (t3 - 2.0f * t2 + amount);    // (t3 - 2t^2 + t)  
+	    var polynomial3 = (-2.0f * t3 + 3.0f * t2);     // (-2t^2 + 3t^2)
+	    var polynomial4 = (t3 - t2);                    // (t^3 - t^2)
+
+	    Vector2 result;
+
+	    result.X = vector1.X * polynomial1 + tangent1.X * polynomial2 + vector2.X * polynomial3 + tangent2.X * polynomial4;
+	    result.Y = vector1.Y * polynomial1 + tangent1.Y * polynomial2 + vector2.Y * polynomial3 + tangent2.Y * polynomial4;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Performs a cubic Hermite spline interpolation between the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first position vector.</param>
+	/// <param name="tangent1">The first tangent vector.</param>
+	/// <param name="vector2">The second position vector.</param>
+	/// <param name="tangent2">The second tangent vector.</param>
+	/// <param name="amount">A value from 0.0 to 1.0 representing the interpolation factor.</param>
+	/// <param name="result">The interpolated <see cref="Vector2"/>.</param>
+	public static void Hermite(in Vector2 vector1, in Vector2 tangent1, in Vector2 vector2, in Vector2 tangent2, float amount, out Vector2 result)
+	{
+	    var t2 = amount * amount;
+	    var t3 = t2 * amount;
+
+	    var polynomial1 = (2.0f * t3 - 3.0f * t2 + 1f); // (2t^3 - 3t^2 + 1)
+	    var polynomial2 = (t3 - 2.0f * t2 + amount);    // (t3 - 2t^2 + t)  
+	    var polynomial3 = (-2.0f * t3 + 3.0f * t2);     // (-2t^2 + 3t^2)
+	    var polynomial4 = (t3 - t2);                    // (t^3 - t^2)
+	    
+	    result.X = vector1.X * polynomial1 + tangent1.X * polynomial2 + vector2.X * polynomial3 + tangent2.X * polynomial4;
+	    result.Y = vector1.Y * polynomial1 + tangent1.Y * polynomial2 + vector2.Y * polynomial3 + tangent2.Y * polynomial4;
+	}
+
+	/// <summary>
+	/// Performs a smooth step interpolation between the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first <see cref="Vector2"/>.</param>
+	/// <param name="vector2">The second <see cref="Vector2"/>.</param>
+	/// <param name="amount">A value from 0.0 to 1.0 representing the interpolation factor.</param>
+	/// <returns>The interpolated vector.</returns>
+	public static Vector2 SmoothStep(Vector2 vector1, Vector2 vector2, float amount)
+	{
+		var amount;
+	    amount = amount > 1 ? 1 : amount < 0 ? 0 : amount;
+	    amount = amount * amount * (3.0f - 2.0f * amount);
+
+	    Vector2 result;
+
+	    result.X = vector1.X + (vector2.X - vector1.X) * amount;
+	    result.Y = vector1.Y + (vector2.Y - vector1.Y) * amount;
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Performs a smooth step interpolation between the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first vector.</param>
+	/// <param name="vector2">The second vector.</param>
+	/// <param name="amount">A value from 0.0 to 1.0 representing the interpolation factor.</param>
+	/// <param name="result">The interpolated <see cref="Vector2"/>.</param>
+	public static void SmoothStep(in Vector2 vector1, in Vector2 vector2, float amount, out Vector2 result)
+	{
+		var amount;
+	    amount = amount > 1 ? 1 : amount < 0 ? 0 : amount;
+	    amount = amount * amount * (3.0f - 2.0f * amount);
+
+	    result.X = vector1.X + (vector2.X - vector1.X) * amount;
+	    result.Y = vector1.Y + (vector2.Y - vector1.Y) * amount;
+	}
+
+	/// <summary>
+	/// Performs a Catmull-Rom spline interpolation between the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first vector.</param>
+	/// <param name="vector2">The second vector.</param>
+	/// <param name="vector3">The third vector.</param>
+	/// <param name="vector4">The fourth vector.</param>
+	/// <param name="amount">A value from 0.0 to 1.0 representing the interpolation factor.</param>
+	/// <returns>The interpolated <see cref="Vector2"/>.</returns>
+	public static Vector2 CatmullRom(Vector2 vector1, Vector2 vector2, Vector2 vector3, Vector2 vector4, float amount)
+	{
+	    var t2 = amount * amount;
+	    var t3 = t2 * amount;
+
+	    Vector2 result;
+
+	    result.X = 0.5f * (2.0f * vector2.X + (-vector1.X + vector3.X) * amount + (2.0f * vector1.X - 5.0f * vector2.X + 4.0f * vector3.X - vector4.X) * t2 + (-vector1.X + 3.0f * vector2.X - 3.0f * vector3.X + vector4.X) * t3);
+	    result.Y = 0.5f * (2.0f * vector2.Y + (-vector1.Y + vector3.Y) * amount + (2.0f * vector1.Y - 5.0f * vector2.Y + 4.0f * vector3.Y - vector4.Y) * t2 + (-vector1.Y + 3.0f * vector2.Y - 3.0f * vector3.Y + vector4.Y) * t3);
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Performs a Catmull-Rom spline interpolation between the specified vectors.
+	/// </summary>
+	/// <param name="vector1">The first vector.</param>
+	/// <param name="vector2">The second vector.</param>
+	/// <param name="vector3">The third vector.</param>
+	/// <param name="vector4">The fourth vector.</param>
+	/// <param name="amount">A value from 0.0 to 1.0 representing the interpolation factor.</param>
+	/// <param name="result">The interpolated <see cref="Vector2"/>.</param>
+	public static void CatmullRom(in Vector2 vector1, in Vector2 vector2, in Vector2 vector3, in Vector2 vector4, float amount, out Vector2 result)
+	{
+	    var t2 = amount * amount;
+	    var t3 = t2 * amount;
+
+	    result.X = 0.5f * (2.0f * vector2.X + (-vector1.X + vector3.X) * amount + (2.0f * vector1.X - 5.0f * vector2.X + 4.0f * vector3.X - vector4.X) * t2 + (-vector1.X + 3.0f * vector2.X - 3.0f * vector3.X + vector4.X) * t3);
+	    result.Y = 0.5f * (2.0f * vector2.Y + (-vector1.Y + vector3.Y) * amount + (2.0f * vector1.Y - 5.0f * vector2.Y + 4.0f * vector3.Y - vector4.Y) * t2 + (-vector1.Y + 3.0f * vector2.Y - 3.0f * vector3.Y + vector4.Y) * t3);
+	}
+
+	/// <summary>
+	/// Calculates the distance between two coordinates.
+	/// </summary>
+	/// <param name="vector1">The first coordinate.</param>
+	/// <param name="vector2">The second coordinate.</param>
+	/// <returns>The distance between the specified coordinates.</returns>
+	public static float Distance(Vector2 vector1, Vector2 vector2)
+	{
+	    var dx = vector2.X - vector1.X;
+	    var dy = vector2.Y - vector1.Y;
+
+	    return (float)Math.Sqrt(dx * dx + dy * dy);
+	}
+
+	/// <summary>
+	/// Calculates the distance between two coordinates.
+	/// </summary>
+	/// <param name="vector1">The first coordinate.</param>
+	/// <param name="vector2">The second coordinate.</param>
+	/// <param name="result">The distance between the specified coordinates.</param>
+	public static void Distance(in Vector2 vector1, in Vector2 vector2, out float result)
+	{
+	    var dx = vector2.X - vector1.X;
+	    var dy = vector2.Y - vector1.Y;
+
+	    result = (float)Math.Sqrt(dx * dx + dy * dy);
+	}
+
+	/// <summary>
+	/// Calculates the square of the distance between two coordinates.
+	/// </summary>
+	/// <param name="vector1">The first coordinate.</param>
+	/// <param name="vector2">The second coordinate.</param>
+	/// <returns>The square of the distance between the specified coordinates.</returns>
+	public static float DistanceSquared(Vector2 vector1, Vector2 vector2)
+	{
+	    var dx = vector2.X - vector1.X;
+	    var dy = vector2.Y - vector1.Y;
+
+	    return dx * dx + dy * dy;
+	}
+
+	/// <summary>
+	/// Calculates the square of the distance between two coordinates.
+	/// </summary>
+	/// <param name="vector1">The first coordinate.</param>
+	/// <param name="vector2">The second coordinate.</param>
+	/// <param name="result">The square of the distance between the specified coordinates.</param>
+	public static void DistanceSquared(in Vector2 vector1, in Vector2 vector2, out float result)
+	{
+	    var dx = vector2.X - vector1.X;
+	    var dy = vector2.Y - vector1.Y;
+
+	    result = dx * dx + dy * dy;
+	}
+
+	/// <summary>
+	/// Computes the Cartesian coordinates of a point specified in areal Barycentric coordinates relative to a triangle.
+	/// </summary>
+	/// <param name="v1">The first vertex of the triangle.</param>
+	/// <param name="v2">The second vertex of the triangle.</param>
+	/// <param name="v3">The third vertex of the triangle.</param>
+	/// <param name="b2">Barycentric coordinate b2, which expresses the weighting factor towards the second triangle vertex.</param>
+	/// <param name="b3">Barycentric coordinate b3, which expresses the weighting factor towards the third triangle vertex.</param>
+	/// <returns>A <see cref="Vector2"/> containing the Cartesian coordinates of the specified point.</returns>
+	public static Vector2 Barycentric(Vector2 v1, Vector2 v2, Vector2 v3, float b2, float b3)
+	{
+	    var b1 = (1 - b2 - b3);
+
+	    Vector2 result;
+
+	    result.X = (b1 * v1.X) + (b2 * v2.X) + (b3 * v3.X);
+	    result.Y = (b1 * v1.Y) + (b2 * v2.Y) + (b3 * v3.Y);
+
+	    return result;
+	}
+
+	/// <summary>
+	/// Computes the Cartesian coordinates of a point specified in areal Barycentric coordinates relative to a triangle.
+	/// </summary>
+	/// <param name="v1">The first vertex of the triangle.</param>
+	/// <param name="v2">The second vertex of the triangle.</param>
+	/// <param name="v3">The third vertex of the triangle.</param>
+	/// <param name="b2">Barycentric coordinate b2, which expresses the weighting factor towards the second triangle vertex.</param>
+	/// <param name="b3">Barycentric coordinate b3, which expresses the weighting factor towards the third triangle vertex.</param>
+	/// <param name="result">A <see cref="Vector2"/> containing the Cartesian coordinates of the specified point.</param>
+	public static void Barycentric(in Vector2 v1, in Vector2 v2, in Vector2 v3, float b2, float b3, out Vector2 result)
+	{
+	    var b1 = (1 - b2 - b3);
+
+	    result.X = (b1 * v1.X) + (b2 * v2.X) + (b3 * v3.X);
+	    result.Y = (b1 * v1.Y) + (b2 * v2.Y) + (b3 * v3.Y);
+	}
+
+    /// <inheritdoc/>
+    public override void ToString(String str) => str.Append( scope $"{{X:{X} Y:{Y}}}");
 
     /// <summary>
     /// Calculates the length of the vector.
     /// </summary>
     /// <returns>The length of the vector.</returns>
-    /// <remarks>
-    /// <see cref="Sedulous.Mathematics.Vector2.LengthSquared"/> may be preferred when only the relative length is needed
-    /// and speed is of the essence.
-    /// </remarks>
-    [Inline]
     public float Length()
     {
-        return Math.Sqrt((X * X) + (Y * Y));
+        return (float)Math.Sqrt(X * X + Y * Y);
     }
 
     /// <summary>
     /// Calculates the squared length of the vector.
     /// </summary>
     /// <returns>The squared length of the vector.</returns>
-    /// <remarks>
-    /// This method may be preferred to <see cref="Sedulous.Mathematics.Vector2.Length"/> when only a relative length is needed
-    /// and speed is of the essence.
-    /// </remarks>
-    [Inline]
     public float LengthSquared()
     {
-        return (X * X) + (Y * Y);
+        return X * X + Y * Y;
     }
 
     /// <summary>
-    /// Converts the vector into a unit vector.
+    /// Interpolates between this value and the specified value.
     /// </summary>
-    [Inline]
-    public void Normalize() mut
+    /// <param name="target">The target value.</param>
+    /// <param name="t">A value between 0.0 and 1.0 representing the interpolation factor.</param>
+    /// <returns>The interpolated value.</returns>
+    public Vector2 Interpolate(Vector2 target, float t)
     {
-        float length = Length();
-        if (length > MathUtil.ZeroTolerance)
-        {
-            float inv = 1.0f / length;
-            X *= inv;
-            Y *= inv;
-        }
-    }
+        Vector2 result;
 
-    /// <summary>
-    /// Creates an array containing the elements of the vector.
-    /// </summary>
-    /// <returns>A two-element array containing the components of the vector.</returns>
-    public float[2] ToArray()
-    {
-        return .(X, Y);
-    }
+        result.X = Tweening.Lerp(this.X, target.X, t);
+        result.Y = Tweening.Lerp(this.Y, target.Y, t);
 
-    /// <summary>
-    /// Moves the first vector2 to the second one in a straight line.
-    /// </summary>
-    /// <param name="from">The first point.</param>
-    /// <param name="to">The second point.</param>
-    /// <param name="maxTravelDistance">The rate at which the first point is going to move towards the second point.</param>
-    public static Vector2 MoveTo(in Vector2 from, in Vector2 to, float maxTravelDistance)
-    {
-        Vector2 distance = Subtract(to, from);
-
-        float length = distance.Length();
-
-        if (maxTravelDistance >= length || length == 0)
-            return to;
-        else
-            return Vector2(from.X + distance.X / length * maxTravelDistance, from.Y + distance.Y / length * maxTravelDistance);
-    }
-
-    /// <summary>
-    /// Adds two vectors.
-    /// </summary>
-    /// <param name="left">The first vector to add.</param>
-    /// <param name="right">The second vector to add.</param>
-    /// <param name="result">When the method completes, contains the sum of the two vectors.</param>
-    [Inline]
-    public static void Add(Vector2 left, Vector2 right, out Vector2 result)
-    {
-        result = Vector2(left.X + right.X, left.Y + right.Y);
-    }
-
-    /// <summary>
-    /// Adds two vectors.
-    /// </summary>
-    /// <param name="left">The first vector to add.</param>
-    /// <param name="right">The second vector to add.</param>
-    /// <returns>The sum of the two vectors.</returns>
-    [Inline]
-    public static Vector2 Add(Vector2 left, Vector2 right)
-    {
-        return Vector2(left.X + right.X, left.Y + right.Y);
-    }
-
-    /// <summary>
-    /// Subtracts two vectors.
-    /// </summary>
-    /// <param name="left">The first vector to subtract.</param>
-    /// <param name="right">The second vector to subtract.</param>
-    /// <param name="result">When the method completes, contains the difference of the two vectors.</param>
-    [Inline]
-    public static void Subtract(Vector2 left, Vector2 right, out Vector2 result)
-    {
-        result = Vector2(left.X - right.X, left.Y - right.Y);
-    }
-
-    /// <summary>
-    /// Subtracts two vectors.
-    /// </summary>
-    /// <param name="left">The first vector to subtract.</param>
-    /// <param name="right">The second vector to subtract.</param>
-    /// <returns>The difference of the two vectors.</returns>
-    [Inline]
-    public static Vector2 Subtract(in Vector2 left, in Vector2 right)
-    {
-        return Vector2(left.X - right.X, left.Y - right.Y);
-    }
-
-    /// <summary>
-    /// Scales a vector by the given value.
-    /// </summary>
-    /// <param name="value">The vector to scale.</param>
-    /// <param name="scale">The amount by which to scale the vector.</param>
-    /// <param name="result">When the method completes, contains the scaled vector.</param>
-    [Inline]
-    public static void Multiply(Vector2 value, float scale, out Vector2 result)
-    {
-        result = Vector2(value.X * scale, value.Y * scale);
-    }
-
-    /// <summary>
-    /// Scales a vector by the given value.
-    /// </summary>
-    /// <param name="value">The vector to scale.</param>
-    /// <param name="scale">The amount by which to scale the vector.</param>
-    /// <returns>The scaled vector.</returns>
-    [Inline]
-    public static Vector2 Multiply(Vector2 value, float scale)
-    {
-        return Vector2(value.X * scale, value.Y * scale);
-    }
-
-    /// <summary>
-    /// Modulates a vector with another by performing component-wise multiplication.
-    /// </summary>
-    /// <param name="left">The first vector to modulate.</param>
-    /// <param name="right">The second vector to modulate.</param>
-    /// <param name="result">When the method completes, contains the modulated vector.</param>
-    [Inline]
-    public static void Modulate(Vector2 left, Vector2 right, out Vector2 result)
-    {
-        result = Vector2(left.X * right.X, left.Y * right.Y);
-    }
-
-    /// <summary>
-    /// Modulates a vector with another by performing component-wise multiplication.
-    /// </summary>
-    /// <param name="left">The first vector to modulate.</param>
-    /// <param name="right">The second vector to modulate.</param>
-    /// <returns>The modulated vector.</returns>
-    [Inline]
-    public static Vector2 Modulate(Vector2 left, Vector2 right)
-    {
-        return Vector2(left.X * right.X, left.Y * right.Y);
-    }
-
-    /// <summary>
-    /// Scales a vector by the given value.
-    /// </summary>
-    /// <param name="value">The vector to scale.</param>
-    /// <param name="scale">The amount by which to scale the vector.</param>
-    /// <param name="result">When the method completes, contains the scaled vector.</param>
-    [Inline]
-    public static void Divide(Vector2 value, float scale, out Vector2 result)
-    {
-        result = Vector2(value.X / scale, value.Y / scale);
-    }
-
-    /// <summary>
-    /// Scales a vector by the given value.
-    /// </summary>
-    /// <param name="value">The vector to scale.</param>
-    /// <param name="scale">The amount by which to scale the vector.</param>
-    /// <returns>The scaled vector.</returns>
-    [Inline]
-    public static Vector2 Divide(Vector2 value, float scale)
-    {
-        return Vector2(value.X / scale, value.Y / scale);
-    }
-
-    /// <summary>
-    /// Demodulates a vector with another by performing component-wise division.
-    /// </summary>
-    /// <param name="left">The first vector to demodulate.</param>
-    /// <param name="right">The second vector to demodulate.</param>
-    /// <param name="result">When the method completes, contains the demodulated vector.</param>
-    [Inline]
-    public static void Demodulate(Vector2 left, Vector2 right, out Vector2 result)
-    {
-        result = Vector2(left.X / right.X, left.Y / right.Y);
-    }
-
-    /// <summary>
-    /// Demodulates a vector with another by performing component-wise division.
-    /// </summary>
-    /// <param name="left">The first vector to demodulate.</param>
-    /// <param name="right">The second vector to demodulate.</param>
-    /// <returns>The demodulated vector.</returns>
-    [Inline]
-    public static Vector2 Demodulate(Vector2 left, Vector2 right)
-    {
-        return Vector2(left.X / right.X, left.Y / right.Y);
-    }
-
-    /// <summary>
-    /// Reverses the direction of a given vector.
-    /// </summary>
-    /// <param name="value">The vector to negate.</param>
-    /// <param name="result">When the method completes, contains a vector facing in the opposite direction.</param>
-    [Inline]
-    public static void Negate(Vector2 value, out Vector2 result)
-    {
-        result = Vector2(-value.X, -value.Y);
-    }
-
-    /// <summary>
-    /// Reverses the direction of a given vector.
-    /// </summary>
-    /// <param name="value">The vector to negate.</param>
-    /// <returns>A vector facing in the opposite direction.</returns>
-    [Inline]
-    public static Vector2 Negate(Vector2 value)
-    {
-        return Vector2(-value.X, -value.Y);
-    }
-
-    /// <summary>
-    /// Returns a <see cref="Sedulous.Mathematics.Vector2"/> containing the 2D Cartesian coordinates of a point specified in Barycentric coordinates relative to a 2D triangle.
-    /// </summary>
-    /// <param name="value1">A <see cref="Sedulous.Mathematics.Vector2"/> containing the 2D Cartesian coordinates of vertex 1 of the triangle.</param>
-    /// <param name="value2">A <see cref="Sedulous.Mathematics.Vector2"/> containing the 2D Cartesian coordinates of vertex 2 of the triangle.</param>
-    /// <param name="value3">A <see cref="Sedulous.Mathematics.Vector2"/> containing the 2D Cartesian coordinates of vertex 3 of the triangle.</param>
-    /// <param name="amount1">Barycentric coordinate b2, which expresses the weighting factor toward vertex 2 (specified in <paramref name="value2"/>).</param>
-    /// <param name="amount2">Barycentric coordinate b3, which expresses the weighting factor toward vertex 3 (specified in <paramref name="value3"/>).</param>
-    /// <param name="result">When the method completes, contains the 2D Cartesian coordinates of the specified point.</param>
-    public static void Barycentric(Vector2 value1, Vector2 value2, Vector2 value3, float amount1, float amount2, out Vector2 result)
-    {
-        result = Vector2(
-            (value1.X + (amount1 * (value2.X - value1.X))) + (amount2 * (value3.X - value1.X)),
-            (value1.Y + (amount1 * (value2.Y - value1.Y))) + (amount2 * (value3.Y - value1.Y)));
-    }
-
-    /// <summary>
-    /// Returns a <see cref="Sedulous.Mathematics.Vector2"/> containing the 2D Cartesian coordinates of a point specified in Barycentric coordinates relative to a 2D triangle.
-    /// </summary>
-    /// <param name="value1">A <see cref="Sedulous.Mathematics.Vector2"/> containing the 2D Cartesian coordinates of vertex 1 of the triangle.</param>
-    /// <param name="value2">A <see cref="Sedulous.Mathematics.Vector2"/> containing the 2D Cartesian coordinates of vertex 2 of the triangle.</param>
-    /// <param name="value3">A <see cref="Sedulous.Mathematics.Vector2"/> containing the 2D Cartesian coordinates of vertex 3 of the triangle.</param>
-    /// <param name="amount1">Barycentric coordinate b2, which expresses the weighting factor toward vertex 2 (specified in <paramref name="value2"/>).</param>
-    /// <param name="amount2">Barycentric coordinate b3, which expresses the weighting factor toward vertex 3 (specified in <paramref name="value3"/>).</param>
-    /// <returns>A new <see cref="Sedulous.Mathematics.Vector2"/> containing the 2D Cartesian coordinates of the specified point.</returns>
-    public static Vector2 Barycentric(Vector2 value1, Vector2 value2, Vector2 value3, float amount1, float amount2)
-    {
-        Barycentric(value1, value2, value3, amount1, amount2, var result);
         return result;
     }
 
     /// <summary>
-    /// Restricts a value to be within a specified range.
+    /// Gets a vector with both components set to zero.
     /// </summary>
-    /// <param name="value">The value to clamp.</param>
-    /// <param name="min">The minimum value.</param>
-    /// <param name="max">The maximum value.</param>
-    /// <param name="result">When the method completes, contains the clamped value.</param>
-    public static void Clamp(Vector2 value, Vector2 min, Vector2 max, out Vector2 result)
+    public static Vector2 Zero
     {
-        float x = value.X;
-        x = (x > max.X) ? max.X : x;
-        x = (x < min.X) ? min.X : x;
-
-        float y = value.Y;
-        y = (y > max.Y) ? max.Y : y;
-        y = (y < min.Y) ? min.Y : y;
-
-        result = Vector2(x, y);
+        get { return Vector2(0, 0); }
     }
 
     /// <summary>
-    /// Restricts a value to be within a specified range.
+    /// Gets a vector with both components set to one.
     /// </summary>
-    /// <param name="value">The value to clamp.</param>
-    /// <param name="min">The minimum value.</param>
-    /// <param name="max">The maximum value.</param>
-    /// <returns>The clamped value.</returns>
-    public static Vector2 Clamp(Vector2 value, Vector2 min, Vector2 max)
+    public static Vector2 One
     {
-        Clamp(value, min, max, var result);
-        return result;
+        get { return Vector2(1, 1); }
     }
 
     /// <summary>
-    /// Calculates the distance between two vectors.
+    /// Returns the unit vector for the x-axis.
     /// </summary>
-    /// <param name="value1">The first vector.</param>
-    /// <param name="value2">The second vector.</param>
-    /// <param name="result">When the method completes, contains the distance between the two vectors.</param>
-    /// <remarks>
-    /// <see cref="Sedulous.Mathematics.Vector2.DistanceSquared(Vector2, Vector2, out float)"/> may be preferred when only the relative distance is needed
-    /// and speed is of the essence.
-    /// </remarks>
-    public static void Distance(Vector2 value1, Vector2 value2, out float result)
+    public static Vector2 UnitX
     {
-        float x = value1.X - value2.X;
-        float y = value1.Y - value2.Y;
-
-        result = Math.Sqrt((x * x) + (y * y));
+        get { return Vector2(1, 0); }
     }
 
     /// <summary>
-    /// Calculates the distance between two vectors.
+    /// Returns the unit vector for the y-axis.
     /// </summary>
-    /// <param name="value1">The first vector.</param>
-    /// <param name="value2">The second vector.</param>
-    /// <returns>The distance between the two vectors.</returns>
-    /// <remarks>
-    /// <see cref="Sedulous.Mathematics.Vector2.DistanceSquared(Vector2, Vector2)"/> may be preferred when only the relative distance is needed
-    /// and speed is of the essence.
-    /// </remarks>
-    public static float Distance(Vector2 value1, Vector2 value2)
+    public static Vector2 UnitY
     {
-        float x = value1.X - value2.X;
-        float y = value1.Y - value2.Y;
-
-        return Math.Sqrt((x * x) + (y * y));
+        get { return Vector2(0, 1); }
     }
 
     /// <summary>
-    /// Calculates the squared distance between two vectors.
+    /// The vector's x-coordinate.
     /// </summary>
-    /// <param name="value1">The first vector.</param>
-    /// <param name="value2">The second vector</param>
-    /// <param name="result">When the method completes, contains the squared distance between the two vectors.</param>
-    /// <remarks>Distance squared is the value before taking the square root. 
-    /// Distance squared can often be used in place of distance if relative comparisons are being made. 
-    /// For example, consider three points A, B, and C. To determine whether B or C is further from A, 
-    /// compare the distance between A and B to the distance between A and C. Calculating the two distances 
-    /// involves two square roots, which are computationally expensive. However, using distance squared 
-    /// provides the same information and avoids calculating two square roots.
-    /// </remarks>
-    public static void DistanceSquared(Vector2 value1, Vector2 value2, out float result)
-    {
-        float x = value1.X - value2.X;
-        float y = value1.Y - value2.Y;
-
-        result = (x * x) + (y * y);
-    }
+    public float X;
 
     /// <summary>
-    /// Calculates the squared distance between two vectors.
+    /// The vector's y-coordinate.
     /// </summary>
-    /// <param name="value1">The first vector.</param>
-    /// <param name="value2">The second vector.</param>
-    /// <returns>The squared distance between the two vectors.</returns>
-    /// <remarks>Distance squared is the value before taking the square root. 
-    /// Distance squared can often be used in place of distance if relative comparisons are being made. 
-    /// For example, consider three points A, B, and C. To determine whether B or C is further from A, 
-    /// compare the distance between A and B to the distance between A and C. Calculating the two distances 
-    /// involves two square roots, which are computationally expensive. However, using distance squared 
-    /// provides the same information and avoids calculating two square roots.
-    /// </remarks>
-    public static float DistanceSquared(Vector2 value1, Vector2 value2)
-    {
-        float x = value1.X - value2.X;
-        float y = value1.Y - value2.Y;
-
-        return (x * x) + (y * y);
-    }
-
-    /// <summary>
-    /// Calculates the dot product of two vectors.
-    /// </summary>
-    /// <param name="left">First source vector.</param>
-    /// <param name="right">Second source vector.</param>
-    /// <param name="result">When the method completes, contains the dot product of the two vectors.</param>
-    [Inline]
-    public static void Dot(Vector2 left, Vector2 right, out float result)
-    {
-        result = (left.X * right.X) + (left.Y * right.Y);
-    }
-
-    /// <summary>
-    /// Calculates the dot product of two vectors.
-    /// </summary>
-    /// <param name="left">First source vector.</param>
-    /// <param name="right">Second source vector.</param>
-    /// <returns>The dot product of the two vectors.</returns>
-    [Inline]
-    public static float Dot(Vector2 left, Vector2 right)
-    {
-        return (left.X * right.X) + (left.Y * right.Y);
-    }
-
-    /// <summary>
-    /// Converts the vector into a unit vector.
-    /// </summary>
-    /// <param name="value">The vector to normalize.</param>
-    /// <param name="result">When the method completes, contains the normalized vector.</param>
-    [Inline]
-    public static void Normalize(Vector2 value, out Vector2 result)
-    {
-        result = value;
-        result.Normalize();
-    }
-
-    /// <summary>
-    /// Converts the vector into a unit vector.
-    /// </summary>
-    /// <param name="value">The vector to normalize.</param>
-    /// <returns>The normalized vector.</returns>
-    [Inline]
-    public static Vector2 Normalize(Vector2 value)
-    {
-		var value;
-        value.Normalize();
-        return value;
-    }
-
-    /// <summary>
-    /// Performs a linear interpolation between two vectors.
-    /// </summary>
-    /// <param name="start">Start vector.</param>
-    /// <param name="end">End vector.</param>
-    /// <param name="amount">Value between 0 and 1 indicating the weight of <paramref name="end"/>.</param>
-    /// <param name="result">When the method completes, contains the linear interpolation of the two vectors.</param>
-    /// <remarks>
-    /// This method performs the linear interpolation based on the following formula.
-    /// <code>start + (end - start) * amount</code>
-    /// Passing <paramref name="amount"/> a value of 0 will cause <paramref name="start"/> to be returned; a value of 1 will cause <paramref name="end"/> to be returned. 
-    /// </remarks>
-    public static void Lerp(Vector2 start, Vector2 end, float amount, out Vector2 result)
-    {
-        result.X = start.X + ((end.X - start.X) * amount);
-        result.Y = start.Y + ((end.Y - start.Y) * amount);
-    }
-
-    /// <summary>
-    /// Performs a linear interpolation between two vectors.
-    /// </summary>
-    /// <param name="start">Start vector.</param>
-    /// <param name="end">End vector.</param>
-    /// <param name="amount">Value between 0 and 1 indicating the weight of <paramref name="end"/>.</param>
-    /// <returns>The linear interpolation of the two vectors.</returns>
-    /// <remarks>
-    /// This method performs the linear interpolation based on the following formula.
-    /// <code>start + (end - start) * amount</code>
-    /// Passing <paramref name="amount"/> a value of 0 will cause <paramref name="start"/> to be returned; a value of 1 will cause <paramref name="end"/> to be returned. 
-    /// </remarks>
-    public static Vector2 Lerp(Vector2 start, Vector2 end, float amount)
-    {
-        Lerp(start, end, amount, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Performs a cubic interpolation between two vectors.
-    /// </summary>
-    /// <param name="start">Start vector.</param>
-    /// <param name="end">End vector.</param>
-    /// <param name="amount">Value between 0 and 1 indicating the weight of <paramref name="end"/>.</param>
-    /// <param name="result">When the method completes, contains the cubic interpolation of the two vectors.</param>
-    public static void SmoothStep(Vector2 start, Vector2 end, float amount, out Vector2 result)
-    {
-		var amount;
-        amount = (amount > 1.0f) ? 1.0f : ((amount < 0.0f) ? 0.0f : amount);
-        amount = (amount * amount) * (3.0f - (2.0f * amount));
-
-        result.X = start.X + ((end.X - start.X) * amount);
-        result.Y = start.Y + ((end.Y - start.Y) * amount);
-    }
-
-    /// <summary>
-    /// Performs a cubic interpolation between two vectors.
-    /// </summary>
-    /// <param name="start">Start vector.</param>
-    /// <param name="end">End vector.</param>
-    /// <param name="amount">Value between 0 and 1 indicating the weight of <paramref name="end"/>.</param>
-    /// <returns>The cubic interpolation of the two vectors.</returns>
-    public static Vector2 SmoothStep(Vector2 start, Vector2 end, float amount)
-    {
-        SmoothStep(start, end, amount, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Performs a Hermite spline interpolation.
-    /// </summary>
-    /// <param name="value1">First source position vector.</param>
-    /// <param name="tangent1">First source tangent vector.</param>
-    /// <param name="value2">Second source position vector.</param>
-    /// <param name="tangent2">Second source tangent vector.</param>
-    /// <param name="amount">Weighting factor.</param>
-    /// <param name="result">When the method completes, contains the result of the Hermite spline interpolation.</param>
-    public static void Hermite(Vector2 value1, Vector2 tangent1, Vector2 value2, Vector2 tangent2, float amount, out Vector2 result)
-    {
-        float squared = amount * amount;
-        float cubed = amount * squared;
-        float part1 = ((2.0f * cubed) - (3.0f * squared)) + 1.0f;
-        float part2 = (-2.0f * cubed) + (3.0f * squared);
-        float part3 = (cubed - (2.0f * squared)) + amount;
-        float part4 = cubed - squared;
-
-        result.X = (((value1.X * part1) + (value2.X * part2)) + (tangent1.X * part3)) + (tangent2.X * part4);
-        result.Y = (((value1.Y * part1) + (value2.Y * part2)) + (tangent1.Y * part3)) + (tangent2.Y * part4);
-    }
-
-    /// <summary>
-    /// Performs a Hermite spline interpolation.
-    /// </summary>
-    /// <param name="value1">First source position vector.</param>
-    /// <param name="tangent1">First source tangent vector.</param>
-    /// <param name="value2">Second source position vector.</param>
-    /// <param name="tangent2">Second source tangent vector.</param>
-    /// <param name="amount">Weighting factor.</param>
-    /// <returns>The result of the Hermite spline interpolation.</returns>
-    public static Vector2 Hermite(Vector2 value1, Vector2 tangent1, Vector2 value2, Vector2 tangent2, float amount)
-    {
-        Hermite(value1, tangent1, value2, tangent2, amount, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Performs a Catmull-Rom interpolation using the specified positions.
-    /// </summary>
-    /// <param name="value1">The first position in the interpolation.</param>
-    /// <param name="value2">The second position in the interpolation.</param>
-    /// <param name="value3">The third position in the interpolation.</param>
-    /// <param name="value4">The fourth position in the interpolation.</param>
-    /// <param name="amount">Weighting factor.</param>
-    /// <param name="result">When the method completes, contains the result of the Catmull-Rom interpolation.</param>
-    public static void CatmullRom(Vector2 value1, Vector2 value2, Vector2 value3, Vector2 value4, float amount, out Vector2 result)
-    {
-        float squared = amount * amount;
-        float cubed = amount * squared;
-
-        result.X = 0.5f * ((((2.0f * value2.X) + ((-value1.X + value3.X) * amount)) +
-        (((((2.0f * value1.X) - (5.0f * value2.X)) + (4.0f * value3.X)) - value4.X) * squared)) +
-        ((((-value1.X + (3.0f * value2.X)) - (3.0f * value3.X)) + value4.X) * cubed));
-
-        result.Y = 0.5f * ((((2.0f * value2.Y) + ((-value1.Y + value3.Y) * amount)) +
-            (((((2.0f * value1.Y) - (5.0f * value2.Y)) + (4.0f * value3.Y)) - value4.Y) * squared)) +
-            ((((-value1.Y + (3.0f * value2.Y)) - (3.0f * value3.Y)) + value4.Y) * cubed));
-    }
-
-    /// <summary>
-    /// Performs a Catmull-Rom interpolation using the specified positions.
-    /// </summary>
-    /// <param name="value1">The first position in the interpolation.</param>
-    /// <param name="value2">The second position in the interpolation.</param>
-    /// <param name="value3">The third position in the interpolation.</param>
-    /// <param name="value4">The fourth position in the interpolation.</param>
-    /// <param name="amount">Weighting factor.</param>
-    /// <returns>A vector that is the result of the Catmull-Rom interpolation.</returns>
-    public static Vector2 CatmullRom(Vector2 value1, Vector2 value2, Vector2 value3, Vector2 value4, float amount)
-    {
-        CatmullRom(value1, value2, value3, value4, amount, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Returns a vector containing the smallest components of the specified vectors.
-    /// </summary>
-    /// <param name="left">The first source vector.</param>
-    /// <param name="right">The second source vector.</param>
-    /// <param name="result">When the method completes, contains an new vector composed of the largest components of the source vectors.</param>
-    [Inline]
-    public static void Max(Vector2 left, Vector2 right, out Vector2 result)
-    {
-        result.X = (left.X > right.X) ? left.X : right.X;
-        result.Y = (left.Y > right.Y) ? left.Y : right.Y;
-    }
-
-    /// <summary>
-    /// Returns a vector containing the largest components of the specified vectors.
-    /// </summary>
-    /// <param name="left">The first source vector.</param>
-    /// <param name="right">The second source vector.</param>
-    /// <returns>A vector containing the largest components of the source vectors.</returns>
-    [Inline]
-    public static Vector2 Max(Vector2 left, Vector2 right)
-    {
-        Max(left, right, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Returns a vector containing the smallest components of the specified vectors.
-    /// </summary>
-    /// <param name="left">The first source vector.</param>
-    /// <param name="right">The second source vector.</param>
-    /// <param name="result">When the method completes, contains an new vector composed of the smallest components of the source vectors.</param>
-    [Inline]
-    public static void Min(Vector2 left, Vector2 right, out Vector2 result)
-    {
-        result.X = (left.X < right.X) ? left.X : right.X;
-        result.Y = (left.Y < right.Y) ? left.Y : right.Y;
-    }
-
-    /// <summary>
-    /// Returns a vector containing the smallest components of the specified vectors.
-    /// </summary>
-    /// <param name="left">The first source vector.</param>
-    /// <param name="right">The second source vector.</param>
-    /// <returns>A vector containing the smallest components of the source vectors.</returns>
-    [Inline]
-    public static Vector2 Min(Vector2 left, Vector2 right)
-    {
-        Min(left, right, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Returns the reflection of a vector off a surface that has the specified normal. 
-    /// </summary>
-    /// <param name="vector">The source vector.</param>
-    /// <param name="normal">Normal of the surface.</param>
-    /// <param name="result">When the method completes, contains the reflected vector.</param>
-    /// <remarks>Reflect only gives the direction of a reflection off a surface, it does not determine 
-    /// whether the original vector was close enough to the surface to hit it.</remarks>
-    public static void Reflect(Vector2 vector, Vector2 normal, out Vector2 result)
-    {
-        float dot = (vector.X * normal.X) + (vector.Y * normal.Y);
-
-        result.X = vector.X - ((2.0f * dot) * normal.X);
-        result.Y = vector.Y - ((2.0f * dot) * normal.Y);
-    }
-
-    /// <summary>
-    /// Returns the reflection of a vector off a surface that has the specified normal. 
-    /// </summary>
-    /// <param name="vector">The source vector.</param>
-    /// <param name="normal">Normal of the surface.</param>
-    /// <returns>The reflected vector.</returns>
-    /// <remarks>Reflect only gives the direction of a reflection off a surface, it does not determine 
-    /// whether the original vector was close enough to the surface to hit it.</remarks>
-    public static Vector2 Reflect(Vector2 vector, Vector2 normal)
-    {
-        Reflect(vector, normal, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Orthogonalizes a list of vectors.
-    /// </summary>
-    /// <param name="destination">The list of orthogonalized vectors.</param>
-    /// <param name="source">The list of vectors to orthogonalize.</param>
-    /// <remarks>
-    /// <para>Orthogonalization is the process of making all vectors orthogonal to each other. This
-    /// means that any given vector in the list will be orthogonal to any other given vector in the
-    /// list.</para>
-    /// <para>Because this method uses the modified Gram-Schmidt process, the resulting vectors
-    /// tend to be numerically unstable. The numeric stability decreases according to the vectors
-    /// position in the list so that the first vector is the most stable and the last vector is the
-    /// least stable.</para>
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> or <paramref name="destination"/> is <c>null</c>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="destination"/> is shorter in length than <paramref name="source"/>.</exception>
-    public static void Orthogonalize(Vector2[] destination, params Vector2[] source)
-    {
-        //Uses the modified Gram-Schmidt process.
-        //q1 = m1
-        //q2 = m2 - ((q1 ⋅ m2) / (q1 ⋅ q1)) * q1
-        //q3 = m3 - ((q1 ⋅ m3) / (q1 ⋅ q1)) * q1 - ((q2 ⋅ m3) / (q2 ⋅ q2)) * q2
-        //q4 = m4 - ((q1 ⋅ m4) / (q1 ⋅ q1)) * q1 - ((q2 ⋅ m4) / (q2 ⋅ q2)) * q2 - ((q3 ⋅ m4) / (q3 ⋅ q3)) * q3
-        //q5 = ...
-		
-		if (source == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(source)}");
-		if (destination == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(destination)}");
-        if (destination.Count< source.Count)
-            Runtime.FatalError(scope $"ArgumentOutOfRangeException - {nameof(destination)}: The destination array must be of same length or larger length than the source array.");
-
-        for (int32 i = 0; i < source.Count; ++i)
-        {
-            Vector2 newvector = source[i];
-
-            for (int32 r = 0; r < i; ++r)
-            {
-                newvector -= (Vector2.Dot(destination[r], newvector) / Vector2.Dot(destination[r], destination[r])) * destination[r];
-            }
-
-            destination[i] = newvector;
-        }
-    }
-
-    /// <summary>
-    /// Orthonormalizes a list of vectors.
-    /// </summary>
-    /// <param name="destination">The list of orthonormalized vectors.</param>
-    /// <param name="source">The list of vectors to orthonormalize.</param>
-    /// <remarks>
-    /// <para>Orthonormalization is the process of making all vectors orthogonal to each
-    /// other and making all vectors of unit length. This means that any given vector will
-    /// be orthogonal to any other given vector in the list.</para>
-    /// <para>Because this method uses the modified Gram-Schmidt process, the resulting vectors
-    /// tend to be numerically unstable. The numeric stability decreases according to the vectors
-    /// position in the list so that the first vector is the most stable and the last vector is the
-    /// least stable.</para>
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> or <paramref name="destination"/> is <c>null</c>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="destination"/> is shorter in length than <paramref name="source"/>.</exception>
-    public static void Orthonormalize(Vector2[] destination, params Vector2[] source)
-    {
-        //Uses the modified Gram-Schmidt process.
-        //Because we are making unit vectors, we can optimize the math for orthogonalization
-        //and simplify the projection operation to remove the division.
-        //q1 = m1 / |m1|
-        //q2 = (m2 - (q1 ⋅ m2) * q1) / |m2 - (q1 ⋅ m2) * q1|
-        //q3 = (m3 - (q1 ⋅ m3) * q1 - (q2 ⋅ m3) * q2) / |m3 - (q1 ⋅ m3) * q1 - (q2 ⋅ m3) * q2|
-        //q4 = (m4 - (q1 ⋅ m4) * q1 - (q2 ⋅ m4) * q2 - (q3 ⋅ m4) * q3) / |m4 - (q1 ⋅ m4) * q1 - (q2 ⋅ m4) * q2 - (q3 ⋅ m4) * q3|
-        //q5 = ...
-		
-		if (source == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(source)}");
-		if (destination == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(destination)}");
-        if (destination.Count< source.Count)
-            Runtime.FatalError(scope $"ArgumentOutOfRangeException - {nameof(destination)}: The destination array must be of same length or larger length than the source array.");
-
-        for (int32 i = 0; i < source.Count; ++i)
-        {
-            Vector2 newvector = source[i];
-
-            for (int32 r = 0; r < i; ++r)
-            {
-                newvector -= Vector2.Dot(destination[r], newvector) * destination[r];
-            }
-
-            newvector.Normalize();
-            destination[i] = newvector;
-        }
-    }
-
-    /// <summary>
-    /// Transforms a 2D vector by the given <see cref="Sedulous.Mathematics.Quaternion"/> rotation.
-    /// </summary>
-    /// <param name="vector">The vector to rotate.</param>
-    /// <param name="rotation">The <see cref="Sedulous.Mathematics.Quaternion"/> rotation to apply.</param>
-    /// <param name="result">When the method completes, contains the transformed <see cref="Sedulous.Mathematics.Vector4"/>.</param>
-    public static void Transform(Vector2 vector, Quaternion rotation, out Vector2 result)
-    {
-        float x = rotation.X + rotation.X;
-        float y = rotation.Y + rotation.Y;
-        float z = rotation.Z + rotation.Z;
-        float wz = rotation.W * z;
-        float xx = rotation.X * x;
-        float xy = rotation.X * y;
-        float yy = rotation.Y * y;
-        float zz = rotation.Z * z;
-
-        result = Vector2((vector.X * (1.0f - yy - zz)) + (vector.Y * (xy - wz)), (vector.X * (xy + wz)) + (vector.Y * (1.0f - xx - zz)));
-    }
-
-    /// <summary>
-    /// Transforms a 2D vector by the given <see cref="Sedulous.Mathematics.Quaternion"/> rotation.
-    /// </summary>
-    /// <param name="vector">The vector to rotate.</param>
-    /// <param name="rotation">The <see cref="Sedulous.Mathematics.Quaternion"/> rotation to apply.</param>
-    /// <returns>The transformed <see cref="Sedulous.Mathematics.Vector4"/>.</returns>
-    public static Vector2 Transform(Vector2 vector, Quaternion rotation)
-    {
-        Transform(vector, rotation, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Transforms an array of vectors by the given <see cref="Sedulous.Mathematics.Quaternion"/> rotation.
-    /// </summary>
-    /// <param name="source">The array of vectors to transform.</param>
-    /// <param name="rotation">The <see cref="Sedulous.Mathematics.Quaternion"/> rotation to apply.</param>
-    /// <param name="destination">The array for which the transformed vectors are stored.
-    /// This array may be the same array as <paramref name="source"/>.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> or <paramref name="destination"/> is <c>null</c>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="destination"/> is shorter in length than <paramref name="source"/>.</exception>
-    public static void Transform(Vector2[] source, Quaternion rotation, Vector2[] destination)
-    {
-        if (source == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(source)}");
-        if (destination == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(destination)}");
-        if (destination.Count< source.Count)
-            Runtime.FatalError(scope $"ArgumentOutOfRangeException - {nameof(destination)}: The destination array must be of same length or larger length than the source array.");
-
-        float x = rotation.X + rotation.X;
-        float y = rotation.Y + rotation.Y;
-        float z = rotation.Z + rotation.Z;
-        float wz = rotation.W * z;
-        float xx = rotation.X * x;
-        float xy = rotation.X * y;
-        float yy = rotation.Y * y;
-        float zz = rotation.Z * z;
-
-        float num1 = (1.0f - yy - zz);
-        float num2 = (xy - wz);
-        float num3 = (xy + wz);
-        float num4 = (1.0f - xx - zz);
-
-        for (int32 i = 0; i < source.Count; ++i)
-        {
-            destination[i] = Vector2(
-                (source[i].X * num1) + (source[i].Y * num2),
-                (source[i].X * num3) + (source[i].Y * num4));
-        }
-    }
-
-    /// <summary>
-    /// Transforms a 2D vector by the given <see cref="Sedulous.Mathematics.Matrix"/>.
-    /// </summary>
-    /// <param name="vector">The source vector.</param>
-    /// <param name="transform">The transformation <see cref="Sedulous.Mathematics.Matrix"/>.</param>
-    /// <param name="result">When the method completes, contains the transformed <see cref="Sedulous.Mathematics.Vector4"/>.</param>
-    public static void Transform(Vector2 vector, Matrix transform, out Vector4 result)
-    {
-        result = Vector4(
-            (vector.X * transform.M11) + (vector.Y * transform.M21) + transform.M41,
-            (vector.X * transform.M12) + (vector.Y * transform.M22) + transform.M42,
-            (vector.X * transform.M13) + (vector.Y * transform.M23) + transform.M43,
-            (vector.X * transform.M14) + (vector.Y * transform.M24) + transform.M44);
-    }
-
-    /// <summary>
-    /// Transforms a 2D vector by the given <see cref="Sedulous.Mathematics.Matrix"/>.
-    /// </summary>
-    /// <param name="vector">The source vector.</param>
-    /// <param name="transform">The transformation <see cref="Sedulous.Mathematics.Matrix"/>.</param>
-    /// <returns>The transformed <see cref="Sedulous.Mathematics.Vector4"/>.</returns>
-    public static Vector4 Transform(Vector2 vector, Matrix transform)
-    {
-        Transform(vector, transform, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Transforms an array of 2D vectors by the given <see cref="Sedulous.Mathematics.Matrix"/>.
-    /// </summary>
-    /// <param name="source">The array of vectors to transform.</param>
-    /// <param name="transform">The transformation <see cref="Sedulous.Mathematics.Matrix"/>.</param>
-    /// <param name="destination">The array for which the transformed vectors are stored.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> or <paramref name="destination"/> is <c>null</c>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="destination"/> is shorter in length than <paramref name="source"/>.</exception>
-    public static void Transform(Vector2[] source, Matrix transform, Vector4[] destination)
-    {
-        if (source == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(source)}");
-        if (destination == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(destination)}");
-        if (destination.Count< source.Count)
-            Runtime.FatalError(scope $"ArgumentOutOfRangeException - {nameof(destination)}: The destination array must be of same length or larger length than the source array.");
-
-        for (int32 i = 0; i < source.Count; ++i)
-        {
-            Transform(source[i], transform, out destination[i]);
-        }
-    }
-
-    /// <summary>
-    /// Performs a coordinate transformation using the given <see cref="Sedulous.Mathematics.Matrix"/>.
-    /// </summary>
-    /// <param name="coordinate">The coordinate vector to transform.</param>
-    /// <param name="transform">The transformation <see cref="Sedulous.Mathematics.Matrix"/>.</param>
-    /// <param name="result">When the method completes, contains the transformed coordinates.</param>
-    /// <remarks>
-    /// A coordinate transform performs the transformation with the assumption that the w component
-    /// is one. The four dimensional vector obtained from the transformation operation has each
-    /// component in the vector divided by the w component. This forces the w component to be one and
-    /// therefore makes the vector homogeneous. The homogeneous vector is often preferred when working
-    /// with coordinates as the w component can safely be ignored.
-    /// </remarks>
-    public static void TransformCoordinate(Vector2 coordinate, Matrix transform, out Vector2 result)
-    {
-        Vector4 vector = Vector4
-        {
-            X = (coordinate.X * transform.M11) + (coordinate.Y * transform.M21) + transform.M41,
-            Y = (coordinate.X * transform.M12) + (coordinate.Y * transform.M22) + transform.M42,
-            Z = (coordinate.X * transform.M13) + (coordinate.Y * transform.M23) + transform.M43,
-            W = 1f / ((coordinate.X * transform.M14) + (coordinate.Y * transform.M24) + transform.M44)
-        };
-
-        result = Vector2(vector.X * vector.W, vector.Y * vector.W);
-    }
-
-    /// <summary>
-    /// Performs a coordinate transformation using the given <see cref="Sedulous.Mathematics.Matrix"/>.
-    /// </summary>
-    /// <param name="coordinate">The coordinate vector to transform.</param>
-    /// <param name="transform">The transformation <see cref="Sedulous.Mathematics.Matrix"/>.</param>
-    /// <returns>The transformed coordinates.</returns>
-    /// <remarks>
-    /// A coordinate transform performs the transformation with the assumption that the w component
-    /// is one. The four dimensional vector obtained from the transformation operation has each
-    /// component in the vector divided by the w component. This forces the w component to be one and
-    /// therefore makes the vector homogeneous. The homogeneous vector is often preferred when working
-    /// with coordinates as the w component can safely be ignored.
-    /// </remarks>
-    public static Vector2 TransformCoordinate(Vector2 coordinate, Matrix transform)
-    {
-        TransformCoordinate(coordinate, transform, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Performs a coordinate transformation on an array of vectors using the given <see cref="Sedulous.Mathematics.Matrix"/>.
-    /// </summary>
-    /// <param name="source">The array of coordinate vectors to transform.</param>
-    /// <param name="transform">The transformation <see cref="Sedulous.Mathematics.Matrix"/>.</param>
-    /// <param name="destination">The array for which the transformed vectors are stored.
-    /// This array may be the same array as <paramref name="source"/>.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> or <paramref name="destination"/> is <c>null</c>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="destination"/> is shorter in length than <paramref name="source"/>.</exception>
-    /// <remarks>
-    /// A coordinate transform performs the transformation with the assumption that the w component
-    /// is one. The four dimensional vector obtained from the transformation operation has each
-    /// component in the vector divided by the w component. This forces the w component to be one and
-    /// therefore makes the vector homogeneous. The homogeneous vector is often preferred when working
-    /// with coordinates as the w component can safely be ignored.
-    /// </remarks>
-    public static void TransformCoordinate(Vector2[] source, Matrix transform, Vector2[] destination)
-    {
-        if (source == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(source)}");
-        if (destination == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(destination)}");
-        if (destination.Count< source.Count)
-            Runtime.FatalError(scope $"ArgumentOutOfRangeException - {nameof(destination)}: The destination array must be of same length or larger length than the source array.");
-
-        for (int32 i = 0; i < source.Count; ++i)
-        {
-            TransformCoordinate(source[i], transform, out destination[i]);
-        }
-    }
-
-    /// <summary>
-    /// Performs a normal transformation using the given <see cref="Sedulous.Mathematics.Matrix"/>.
-    /// </summary>
-    /// <param name="normal">The normal vector to transform.</param>
-    /// <param name="transform">The transformation <see cref="Sedulous.Mathematics.Matrix"/>.</param>
-    /// <param name="result">When the method completes, contains the transformed normal.</param>
-    /// <remarks>
-    /// A normal transform performs the transformation with the assumption that the w component
-    /// is zero. This causes the fourth row and fourth column of the matrix to be unused. The
-    /// end result is a vector that is not translated, but all other transformation properties
-    /// apply. This is often preferred for normal vectors as normals purely represent direction
-    /// rather than location because normal vectors should not be translated.
-    /// </remarks>
-    public static void TransformNormal(Vector2 normal, Matrix transform, out Vector2 result)
-    {
-        result = Vector2(
-            (normal.X * transform.M11) + (normal.Y * transform.M21),
-            (normal.X * transform.M12) + (normal.Y * transform.M22));
-    }
-
-    /// <summary>
-    /// Performs a normal transformation using the given <see cref="Sedulous.Mathematics.Matrix"/>.
-    /// </summary>
-    /// <param name="normal">The normal vector to transform.</param>
-    /// <param name="transform">The transformation <see cref="Sedulous.Mathematics.Matrix"/>.</param>
-    /// <returns>The transformed normal.</returns>
-    /// <remarks>
-    /// A normal transform performs the transformation with the assumption that the w component
-    /// is zero. This causes the fourth row and fourth column of the matrix to be unused. The
-    /// end result is a vector that is not translated, but all other transformation properties
-    /// apply. This is often preferred for normal vectors as normals purely represent direction
-    /// rather than location because normal vectors should not be translated.
-    /// </remarks>
-    public static Vector2 TransformNormal(Vector2 normal, Matrix transform)
-    {
-        TransformNormal(normal, transform, var result);
-        return result;
-    }
-
-    /// <summary>
-    /// Performs a normal transformation on an array of vectors using the given <see cref="Sedulous.Mathematics.Matrix"/>.
-    /// </summary>
-    /// <param name="source">The array of normal vectors to transform.</param>
-    /// <param name="transform">The transformation <see cref="Sedulous.Mathematics.Matrix"/>.</param>
-    /// <param name="destination">The array for which the transformed vectors are stored.
-    /// This array may be the same array as <paramref name="source"/>.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> or <paramref name="destination"/> is <c>null</c>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="destination"/> is shorter in length than <paramref name="source"/>.</exception>
-    /// <remarks>
-    /// A normal transform performs the transformation with the assumption that the w component
-    /// is zero. This causes the fourth row and fourth column of the matrix to be unused. The
-    /// end result is a vector that is not translated, but all other transformation properties
-    /// apply. This is often preferred for normal vectors as normals purely represent direction
-    /// rather than location because normal vectors should not be translated.
-    /// </remarks>
-    public static void TransformNormal(Vector2[] source, Matrix transform, Vector2[] destination)
-    {
-        if (source == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(source)}");
-        if (destination == null) Runtime.FatalError(scope $"ArgumentNullException - {nameof(destination)}");
-        if (destination.Count< source.Count)
-            Runtime.FatalError(scope $"ArgumentOutOfRangeException - {nameof(destination)}: The destination array must be of same length or larger length than the source array.");
-
-        for (int32 i = 0; i < source.Count; ++i)
-        {
-            TransformNormal(source[i], transform, out destination[i]);
-        }
-    }
-
-    /// <summary>
-    /// Adds two vectors.
-    /// </summary>
-    /// <param name="left">The first vector to add.</param>
-    /// <param name="right">The second vector to add.</param>
-    /// <returns>The sum of the two vectors.</returns>
-    [Inline]
-    public static Vector2 operator +(Vector2 left, Vector2 right)
-    {
-        return Vector2(left.X + right.X, left.Y + right.Y);
-    }
-
-    /// <summary>
-    /// Assert a vector (return it unchanged).
-    /// </summary>
-    /// <param name="value">The vector to assert (unchanged).</param>
-    /// <returns>The asserted (unchanged) vector.</returns>
-    [Inline]
-    public static Vector2 operator +(Vector2 value)
-    {
-        return value;
-    }
-
-    /// <summary>
-    /// Subtracts two vectors.
-    /// </summary>
-    /// <param name="left">The first vector to subtract.</param>
-    /// <param name="right">The second vector to subtract.</param>
-    /// <returns>The difference of the two vectors.</returns>
-    [Inline]
-    public static Vector2 operator -(Vector2 left, Vector2 right)
-    {
-        return Vector2(left.X - right.X, left.Y - right.Y);
-    }
-
-    /// <summary>
-    /// Reverses the direction of a given vector.
-    /// </summary>
-    /// <param name="value">The vector to negate.</param>
-    /// <returns>A vector facing in the opposite direction.</returns>
-    [Inline]
-    public static Vector2 operator -(Vector2 value)
-    {
-        return Vector2(-value.X, -value.Y);
-    }
-
-    /// <summary>
-    /// Modulates a vector with another by performing component-wise multiplication.
-    /// </summary>
-    /// <param name="left">The first vector to multiply.</param>
-    /// <param name="right">The second vector to multiply.</param>
-    /// <returns>The multiplication of the two vectors.</returns>
-    [Inline]
-    public static Vector2 operator *(Vector2 left, Vector2 right)
-    {
-        return Vector2(left.X * right.X, left.Y * right.Y);
-    }
-
-    /// <summary>
-    /// Scales a vector by the given value.
-    /// </summary>
-    /// <param name="value">The vector to scale.</param>
-    /// <param name="scale">The amount by which to scale the vector.</param>
-    /// <returns>The scaled vector.</returns>
-    [Inline]
-    public static Vector2 operator *(float scale, Vector2 value)
-    {
-        return Vector2(value.X * scale, value.Y * scale);
-    }
-
-    /// <summary>
-    /// Scales a vector by the given value.
-    /// </summary>
-    /// <param name="value">The vector to scale.</param>
-    /// <param name="scale">The amount by which to scale the vector.</param>
-    /// <returns>The scaled vector.</returns>
-    [Inline]
-    public static Vector2 operator *(Vector2 value, float scale)
-    {
-        return Vector2(value.X * scale, value.Y * scale);
-    }
-
-    /// <summary>
-    /// Scales a vector by the given value.
-    /// </summary>
-    /// <param name="value">The vector to scale.</param>
-    /// <param name="scale">The amount by which to scale the vector.</param>
-    /// <returns>The scaled vector.</returns>
-    [Inline]
-    public static Vector2 operator /(Vector2 value, float scale)
-    {
-        return Vector2(value.X / scale, value.Y / scale);
-    }
-
-    /// <summary>
-    /// Divides a numerator by a vector.
-    /// </summary>
-    /// <param name="numerator">The numerator.</param>
-    /// <param name="value">The value.</param>
-    /// <returns>The scaled vector.</returns>
-    [Inline]
-    public static Vector2 operator /(float numerator, Vector2 value)
-    {
-        return Vector2(numerator / value.X, numerator / value.Y);
-    }
-
-    /// <summary>
-    /// Divides a vector by the given vector, component-wise.
-    /// </summary>
-    /// <param name="value">The vector to scale.</param>
-    /// <param name="by">The by.</param>
-    /// <returns>The scaled vector.</returns>
-    [Inline]
-    public static Vector2 operator /(Vector2 value, Vector2 by)
-    {
-        return Vector2(value.X / by.X, value.Y / by.Y);
-    }
-
-    /// <summary>
-    /// Tests for equality between two objects.
-    /// </summary>
-    /// <remarks> Comparison is not strict, a difference of <see cref="MathUtil.ZeroTolerance"/> will return as equal. </remarks>
-    /// <param name="left">The first value to compare.</param>
-    /// <param name="right">The second value to compare.</param>
-    /// <returns><c>true</c> if <paramref name="left"/> has the same value as <paramref name="right"/>; otherwise, <c>false</c>.</returns>
-    public static bool operator ==(Vector2 left, Vector2 right)
-    {
-        return left.Equals(right);
-    }
-
-    /// <summary>
-    /// Tests for inequality between two objects.
-    /// </summary>
-    /// <remarks> Comparison is not strict, a difference of <see cref="MathUtil.ZeroTolerance"/> will return as equal. </remarks>
-    /// <param name="left">The first value to compare.</param>
-    /// <param name="right">The second value to compare.</param>
-    /// <returns><c>true</c> if <paramref name="left"/> has a different value than <paramref name="right"/>; otherwise, <c>false</c>.</returns>
-    public static bool operator !=(Vector2 left, Vector2 right)
-    {
-        return !left.Equals(right);
-    }
-
-    /// <summary>
-    /// Performs an explicit conversion from <see cref="Sedulous.Mathematics.Vector2"/> to <see cref="Sedulous.Mathematics.Vector3"/>.
-    /// </summary>
-    /// <param name="value">The value.</param>
-    /// <returns>The result of the conversion.</returns>
-    public static explicit operator Vector3(Vector2 value)
-    {
-        return Vector3(value, 0.0f);
-    }
-
-    /// <summary>
-    /// Performs an explicit conversion from <see cref="Sedulous.Mathematics.Vector2"/> to <see cref="Sedulous.Mathematics.Vector4"/>.
-    /// </summary>
-    /// <param name="value">The value.</param>
-    /// <returns>The result of the conversion.</returns>
-    public static explicit operator Vector4(Vector2 value)
-    {
-        return Vector4(value, 0.0f, 0.0f);
-    }
-    
-    /// <summary>
-    /// Returns a <see cref="string"/> that represents this instance.
-    /// </summary>
-    /// <returns>
-    /// A <see cref="string"/> that represents this instance.
-    /// </returns>
-    public override void ToString(String str) => str.Append( scope $"{{X:{X} Y:{Y}}}");
-
-    /// <summary>
-    /// Returns a hash code for this instance.
-    /// </summary>
-    /// <returns>
-    /// A hash code for this instance, suitable for use in hashing algorithms and data structures like a hash table. 
-    /// </returns>
-	public int GetHashCode()
-	{
-	    unchecked
-	    {
-	        var hash = 17;
-	        hash = hash * 23 + X.GetHashCode();
-	        hash = hash * 23 + Y.GetHashCode();
-	        return hash;
-	    }
-	}
-
-    /// <summary>
-    /// Determines whether the specified <see cref="Vector2"/> is exactly equal to this instance.
-    /// </summary>
-    /// <param name="other">The <see cref="Vector2"/> to compare with this instance.</param>
-    /// <returns>
-    /// <c>true</c> if the specified <see cref="Vector2"/> is exactly equal to this instance; otherwise, <c>false</c>.
-    /// </returns>
-    public bool EqualsStrict(Vector2 other)
-    {
-        return other.X == this.X && other.Y == this.Y;
-    }
-
-    /// <summary>
-    /// Determines whether the specified <see cref="Sedulous.Mathematics.Vector2"/> is within <see cref="MathUtil.ZeroTolerance"/> for equality to this instance.
-    /// </summary>
-    /// <param name="other">The <see cref="Sedulous.Mathematics.Vector2"/> to compare with this instance.</param>
-    /// <returns>
-    /// <c>true</c> if the specified <see cref="Sedulous.Mathematics.Vector2"/> is equal or almost equal to this instance; otherwise, <c>false</c>.
-    /// </returns>
-    public bool Equals(Vector2 other)
-    {
-        return Math.Abs(other.X - X) < MathUtil.ZeroTolerance &&
-            Math.Abs(other.Y - Y) < MathUtil.ZeroTolerance;
-    }
-
-    /// <summary>
-    /// Deconstructs the vector's components into named variables.
-    /// </summary>
-    /// <param name="x">The X component</param>
-    /// <param name="y">The Y component</param>
-    public void Deconstruct(out float x, out float y)
-    {
-        x = X;
-        y = Y;
-    }
+    public float Y;
 }

@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using System.Collections;
-using Sedulous.Foundation.Logging.Abstractions;
+using Sedulous.Logging.Abstractions;
 using static System.Platform;
 namespace Sedulous.Jobs;
 

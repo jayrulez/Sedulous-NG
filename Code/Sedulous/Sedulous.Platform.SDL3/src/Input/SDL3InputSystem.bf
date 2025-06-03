@@ -1,5 +1,5 @@
 using System;
-using Sedulous.Foundation.Utilities;
+using Sedulous.Utilities;
 using Sedulous.Foundation;
 using System.IO;
 using Sedulous.Platform;

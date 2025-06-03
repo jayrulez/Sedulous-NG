@@ -1,8 +1,8 @@
 using System;
 using Sedulous.Platform.Core;
 using Sedulous.Mathematics;
-using Sedulous.Foundation.Logging.Debug;
-using Sedulous.Foundation.Logging.Abstractions;
+using Sedulous.Logging.Debug;
+using Sedulous.Logging.Abstractions;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Renderer.SDL;
 using Sedulous.Engine.Audio.OpenAL;
@@ -55,7 +55,7 @@ class SandboxApplication : Application
 
 		// Create light
 		var lightEntity = scene.CreateEntity("Light");
-		lightEntity.Transform.Rotation = Quaternion.RotationYawPitchRoll(0, Math.DegreesToRadians(-45), 0);
+		lightEntity.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(0, Math.DegreesToRadians(-45), 0);
 		var light = lightEntity.AddComponent<Light>();
 		light.Type = .Directional;
 		light.Color = Vector3(1, 0.95f, 0.8f);
@@ -92,7 +92,7 @@ class SandboxApplication : Application
 
 			for (int32 v = 0; v < mesh.Vertices.VertexCount; v++)
 			{
-				mesh.SetColor(v, Color(renderer.Color).ToPackedRGBA());
+				mesh.SetColor(v, renderer.Color.PackedValue);
 			}
 			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
 		}

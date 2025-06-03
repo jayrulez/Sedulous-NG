@@ -37,6 +37,5 @@ class RigidBodyModule : SceneModule
         // Integrate physics
         entity.Transform.Position = rigidBody.Position;
         entity.Transform.Rotation = rigidBody.Rotation;
-        entity.Transform.MarkDirty();
     }
 }

@@ -5,11 +5,9 @@ namespace Sedulous.SceneGraph;
 class TransformChangedMessage : Message
 {
     public Entity Entity { get; private set; }
-    public Matrix NewWorldMatrix { get; private set; }
 
-    public this(Entity entity, Matrix newWorldMatrix)
+    public this(Entity entity)
     {
         Entity = entity;
-        NewWorldMatrix = newWorldMatrix;
     }
 }

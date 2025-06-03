@@ -47,7 +47,6 @@ public class AppSceneModule : SceneModule
 			if(entity.HasComponent<MeshRenderer>())
 			{
 				entity.Transform.Rotation = Quaternion.CreateFromRotationMatrix(Matrix.CreateRotationY((float)time.TotalTime.TotalMilliseconds * 0.001f));
-				entity.Transform.MarkDirty();
 			}
 		}
 	}
@@ -124,7 +123,6 @@ class SandboxApplication : Application
 		var cameraEntity = scene.CreateEntity("Camera");
 		cameraEntity.Transform.Position = Vector3(0, 0, -8);
 		cameraEntity.Transform.LookAt(Vector3.Zero); // Look at origin
-		cameraEntity.Transform.MarkDirty();
 		var camera = cameraEntity.AddComponent<Camera>();
 		camera.FieldOfView = 75.0f;
 
@@ -150,7 +148,6 @@ class SandboxApplication : Application
 			var geometry = scene.CreateEntity(scope $"Geometry{i}");
 			geometry.Transform.Position = Vector3(i * 2 - 4, 0, 0);
 			geometry.Transform.Scale = Vector3(1, 1, 1);
-			geometry.Transform.MarkDirty();
 			geometry.AddComponent<RotateComponent>();
 			var renderer = geometry.AddComponent<MeshRenderer>();
 			renderer.Color = .(
@@ -183,9 +180,8 @@ class SandboxApplication : Application
 		}
 		
 		var plane = scene.CreateEntity("Plane");
-		plane.Transform.Position = Vector3(0, -1, 0);
+		plane.Transform.Position = Vector3(0, -0.5f, 0);
 		plane.Transform.Scale = Vector3(1, 1, 1);
-		plane.Transform.MarkDirty();
 		var renderer = plane.AddComponent<MeshRenderer>();
 		renderer.Color = Color.Green;
 		//renderer.UseLighting = true;
@@ -196,67 +192,6 @@ class SandboxApplication : Application
 			mesh.SetColor(v, renderer.Color.PackedValue);
 		}
 		renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
-
-		/*{
-			// Create debug objects to verify coordinate system
-			// Create a red cube at +X (should be on the right)
-			var rightCube = scene.CreateEntity("RightCube");
-			rightCube.Transform.Position = Vector3(3, 0, 0);  // +X direction
-			rightCube.Transform.Scale = Vector3(0.5f, 0.5f, 0.5f);
-			var rightRenderer = rightCube.AddComponent<MeshRenderer>();
-			rightRenderer.Color = Color(1.0f, 0.0f, 0.0f, 1.0f); // Red
-			var rightMesh = Mesh.CreateCube();
-			for (int32 v = 0; v < rightMesh.Vertices.VertexCount; v++)
-			{
-			    rightMesh.SetColor(v, rightRenderer.Color.PackedValue);
-			}
-			rightRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(rightMesh, true));
-
-			// Create a green cube at -X (should be on the left)
-			var leftCube = scene.CreateEntity("LeftCube");
-			leftCube.Transform.Position = Vector3(-3, 0, 0);  // -X direction
-			leftCube.Transform.Scale = Vector3(0.5f, 0.5f, 0.5f);
-			var leftRenderer = leftCube.AddComponent<MeshRenderer>();
-			leftRenderer.Color = Color(0.0f, 1.0f, 0.0f, 1.0f); // Green
-			var leftMesh = Mesh.CreateCube();
-			for (int32 v = 0; v < leftMesh.Vertices.VertexCount; v++)
-			{
-			    leftMesh.SetColor(v, leftRenderer.Color.PackedValue);
-			}
-			leftRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(leftMesh, true));
-
-			// Create a blue cube at +Z (should be backward/away from camera in right-handed system)
-			var backCube = scene.CreateEntity("BackCube");
-			backCube.Transform.Position = Vector3(0, 0, 3);  // +Z direction
-			backCube.Transform.Scale = Vector3(0.5f, 0.5f, 0.5f);
-			var backRenderer = backCube.AddComponent<MeshRenderer>();
-			backRenderer.Color = Color(0.0f, 0.0f, 1.0f, 1.0f); // Blue
-			var backMesh = Mesh.CreateCube();
-			for (int32 v = 0; v < backMesh.Vertices.VertexCount; v++)
-			{
-			    backMesh.SetColor(v, backRenderer.Color.PackedValue);
-			}
-			backRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(backMesh, true));
-
-			// Create a yellow cube at -Z (should be forward/toward camera in right-handed system)
-			var frontCube = scene.CreateEntity("FrontCube");
-			frontCube.Transform.Position = Vector3(0, 0, -3);  // -Z direction
-			frontCube.Transform.Scale = Vector3(0.5f, 0.5f, 0.5f);
-			var frontRenderer = frontCube.AddComponent<MeshRenderer>();
-			frontRenderer.Color = Color(1.0f, 1.0f, 0.0f, 1.0f); // Yellow
-			var frontMesh = Mesh.CreateCube();
-			for (int32 v = 0; v < frontMesh.Vertices.VertexCount; v++)
-			{
-			    frontMesh.SetColor(v, frontRenderer.Color.PackedValue);
-			}
-			frontRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(frontMesh, true));
-
-			engine.Logger.LogInformation("Debug cubes created:");
-			engine.Logger.LogInformation("- Red cube at +X (3,0,0) - should be on RIGHT");
-			engine.Logger.LogInformation("- Green cube at -X (-3,0,0) - should be on LEFT");
-			engine.Logger.LogInformation("- Blue cube at +Z (0,0,3) - should be BEHIND center");
-			engine.Logger.LogInformation("- Yellow cube at -Z (0,0,-3) - should be in FRONT of center");
-		}*/
 
 		base.OnEngineInitialized(engine);
 	}
@@ -443,7 +378,6 @@ class SandboxApplication : Application
 			
 			// Update position and mark dirty
 			transform.Position = position;
-			transform.MarkDirty();
 		}
 	}
 }

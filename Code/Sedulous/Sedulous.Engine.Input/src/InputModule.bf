@@ -119,7 +119,6 @@ class InputModule : SceneModule
             {
                 movement = Vector3.Normalize(movement) * moveSpeed * (float)time.ElapsedTime.TotalSeconds;
                 transform.Position += movement;
-                transform.MarkDirty();
             }
         }
     }

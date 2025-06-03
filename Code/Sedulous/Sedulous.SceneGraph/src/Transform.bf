@@ -5,9 +5,51 @@ using internal Sedulous.SceneGraph;
 class Transform
 {
 	public Entity Entity { get; internal set; }
-    public Vector3 Position { get; set; } = .Zero;
-    public Quaternion Rotation { get; set; } = .Identity;
-    public Vector3 Scale { get; set; } = .One;
+	
+	// Private backing fields
+	private Vector3 mPosition = .Zero;
+	private Quaternion mRotation = .Identity;
+	private Vector3 mScale = .One;
+	
+	// Properties with dirty tracking
+	public Vector3 Position 
+	{ 
+		get => mPosition;
+		set
+		{
+			if (mPosition != value)
+			{
+				mPosition = value;
+				MarkDirty();
+			}
+		}
+	}
+	
+	public Quaternion Rotation 
+	{ 
+		get => mRotation;
+		set
+		{
+			if (mRotation != value)
+			{
+				mRotation = value;
+				MarkDirty();
+			}
+		}
+	}
+	
+	public Vector3 Scale 
+	{ 
+		get => mScale;
+		set
+		{
+			if (mScale != value)
+			{
+				mScale = value;
+				MarkDirty();
+			}
+		}
+	}
     
     // World space cached values
     private Matrix mWorldMatrix = .Identity;
@@ -19,7 +61,7 @@ class Transform
         get
         {
             // This depends on your coordinate system
-            // If Vector3.Forward is (0,0,1), this might need to be negated
+            // If Vector3.Forward is (0,0,-1), this might need to be negated
             return Vector3.Transform(Vector3.Forward, Rotation);
         }
     }
@@ -75,7 +117,7 @@ class Transform
 	    
 	    // Convert to quaternion
 	    Rotation = Quaternion.CreateFromRotationMatrix(rotMatrix);
-	    MarkDirty();
+	    // No need to call MarkDirty() here - setting Rotation property already does it
 	}
 	
 	// Overload that uses default up vector
@@ -86,19 +128,19 @@ class Transform
     
     private void UpdateWorldMatrix()
     {
-        mWorldMatrix = Matrix.CreateScale(Scale) * 
-                      Matrix.CreateFromQuaternion(Rotation) * 
-                      Matrix.CreateTranslation(Position);
+        mWorldMatrix = Matrix.CreateScale(mScale) * 
+                      Matrix.CreateFromQuaternion(mRotation) * 
+                      Matrix.CreateTranslation(mPosition);
     }
     
-    public void MarkDirty()
+    private void MarkDirty()
     {
         if (!mWorldMatrixDirty)
         {
             mWorldMatrixDirty = true;
             
-            // Publish transform change message
-            Entity.Scene.SceneGraph.MessageBus.Publish(new TransformChangedMessage(Entity, WorldMatrix));
+            // Publish transform change message - listeners can access transform via Entity.Transform
+            Entity.Scene.SceneGraph.MessageBus.Publish(new TransformChangedMessage(Entity));
         }
     }
 }

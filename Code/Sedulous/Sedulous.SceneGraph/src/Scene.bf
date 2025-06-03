@@ -23,7 +23,6 @@ class Scene
 
 	public ~this()
 	{
-
 		for(var entity in mEntities)
 		{
 			//DestroyEntity(entity);
@@ -93,6 +92,19 @@ class Scene
         return null;
     }
     
+    // Get root entities (entities without parents)
+    public void GetRootEntities(List<Entity> rootEntities)
+    {
+        rootEntities.Clear();
+        for (var entity in mEntities)
+        {
+            if (entity.Parent == null)
+            {
+                rootEntities.Add(entity);
+            }
+        }
+    }
+    
     // Module management
     public void AddModule(SceneModule module)
     {
@@ -153,11 +165,82 @@ class Scene
             module.ComponentRemoved(entity, component);
         }
     }
-    
+
+	private void UpdateTransforms()
+    {
+        // List to collect entities with changed transforms
+        var changedEntities = scope List<Entity>();
+        
+        // If you don't have hierarchies, simple update is fine
+        bool hasHierarchies = false;
+        for (var entity in mEntities)
+        {
+            if (entity.Parent != null || entity.Children.Length > 0)
+            {
+                hasHierarchies = true;
+                break;
+            }
+        }
+        
+        if (!hasHierarchies)
+        {
+            // Simple case: no hierarchies, just update all transforms
+            for (var entity in mEntities)
+            {
+                entity.Transform.UpdateTransform();
+                
+                // Collect entities that changed
+                if (entity.Transform.WasTransformChanged())
+                {
+                    changedEntities.Add(entity);
+                }
+            }
+        }
+        else
+        {
+            // Complex case: update in parent-to-child order
+            var rootEntities = scope List<Entity>();
+            GetRootEntities(rootEntities);
+            
+            for (var root in rootEntities)
+            {
+                UpdateTransformHierarchy(root, changedEntities);
+            }
+        }
+        
+        // Send messages for all changed transforms
+        for (var entity in changedEntities)
+        {
+            SceneGraph.MessageBus.Publish(new TransformChangedMessage(entity));
+            entity.Transform.ResetChangedFlag();
+        }
+    }
+
+	private void UpdateTransformHierarchy(Entity entity, List<Entity> changedEntities)
+	{
+	    // Update this entity's transform
+	    entity.Transform.UpdateTransform();
+	    
+	    // Collect if changed
+	    if (entity.Transform.WasTransformChanged())
+	    {
+	        changedEntities.Add(entity);
+	    }
+	    
+	    // Then update all children
+	    for (var child in entity.Children)
+	    {
+	        UpdateTransformHierarchy(child, changedEntities);
+	    }
+	}
+
     // Update system
     internal void Update(Time time)
     {
-        // Update modules in order
+		// Phase 1: Update all transforms
+		UpdateTransforms();
+
+        // Phase 2: Update modules in order
         for (var module in mSceneModules)
         {
             module.Update(time);

@@ -55,12 +55,12 @@ class Application : IEngineHost
 	{
 		EngineInitializer engineInitializer = new .();
 
-		OnEngineInitializing(engineInitializer);
-
 		if (initializingCallback != null)
 		{
 			initializingCallback(engineInitializer);
 		}
+
+		OnEngineInitializing(engineInitializer);
 
 		if (mEngine.Initialize(engineInitializer) case .Err)
 		{
@@ -68,12 +68,12 @@ class Application : IEngineHost
 			return;
 		}
 
-		OnEngineInitialized(mEngine);
-
 		if (initializedCallback != null)
 		{
 			initializedCallback(mEngine);
 		}
+
+		OnEngineInitialized(mEngine);
 
 		mWindowSystem.StartMainLoop();
 		while (mWindowSystem.IsRunning)
@@ -82,12 +82,12 @@ class Application : IEngineHost
 		}
 		mWindowSystem.StopMainLoop();
 
-		OnEngineShuttingDown(mEngine);
-
 		if (shuttingDownCallback != null)
 		{
 			shuttingDownCallback(mEngine);
 		}
+
+		OnEngineShuttingDown(mEngine);
 
 		mEngine.Shutdown();
 		OnEngineShutDown(mEngine);

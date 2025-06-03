@@ -75,6 +75,8 @@ class SandboxApplication : Application
 	// Camera rotation tracking
 	private float mCameraYaw = 0.0f;
 	private float mCameraPitch = 0.0f;
+	private bool mFirstMouseMove = true;
+	private Vector2 mLastMousePos = .Zero;
 
 	private AppSubsystem mAppSubsystem;
 
@@ -125,6 +127,14 @@ class SandboxApplication : Application
 		cameraEntity.Transform.MarkDirty();
 		var camera = cameraEntity.AddComponent<Camera>();
 		camera.FieldOfView = 75.0f;
+
+		{
+			// Since camera starts looking at origin from (0, 5, -8)
+			// Calculate initial yaw and pitch
+			var lookDir = Vector3.Normalize(Vector3.Zero - cameraEntity.Transform.Position);
+			mCameraYaw = Math.Atan2(-lookDir.X, -lookDir.Z);
+			mCameraPitch = Math.Asin(lookDir.Y);
+		}
 
 		// Create light
 		var lightEntity = scene.CreateEntity("Light");
@@ -279,7 +289,15 @@ class SandboxApplication : Application
 			
 			// Movement speed
 			float moveSpeed = 5.0f * (float)info.Time.ElapsedTime.TotalSeconds;
-			float rotateSpeed = 2.0f * (float)info.Time.ElapsedTime.TotalSeconds;
+			float mouseSensitivity = 0.002f; // Much lower value for smoother control
+			float panSpeed = moveSpeed * 2.0f; // Panning is usually faster
+			
+			// Speed multiplier with shift
+			if(keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
+			{
+				moveSpeed *= 3.0f;
+				panSpeed *= 3.0f;
+			}
 			
 			var transform = cameraEntity.Transform;
 			var position = transform.Position;
@@ -287,87 +305,140 @@ class SandboxApplication : Application
 			// Get camera direction vectors
 			var forward = transform.Forward;
 			var right = transform.Right;
+			var up = transform.Up;
 			
 			// WASD movement (relative to camera orientation)
 			if(keyboard.IsKeyDown(.W))
 			{
-				// Move forward
 				position += forward * moveSpeed;
 			}
 			if(keyboard.IsKeyDown(.S))
 			{
-				// Move backward
 				position -= forward * moveSpeed;
 			}
 			if(keyboard.IsKeyDown(.A))
 			{
-				// Move left
 				position -= right * moveSpeed;
 			}
 			if(keyboard.IsKeyDown(.D))
 			{
-				// Move right
 				position += right * moveSpeed;
 			}
 			
 			// Q/E for up/down movement
 			if(keyboard.IsKeyDown(.Q))
 			{
-				// Move down
 				position.Y -= moveSpeed;
 			}
 			if(keyboard.IsKeyDown(.E))
 			{
-				// Move up
 				position.Y += moveSpeed;
 			}
 			
-			// Mouse look (if right mouse button is held)
-			if(mouse.IsButtonDown(.Right))
+			// Orbit around origin (Alt + Left mouse button)
+			if(mouse.IsButtonDown(.Left) && keyboard.IsKeyDown(.LeftAlt))
 			{
-				// Get mouse delta
 				var mouseDelta = mouse.PositionDelta;
 				
-				// Calculate rotation angles
-				float yaw = -mouseDelta.X * rotateSpeed * 0.5f;   // Horizontal rotation
-				float pitch = -mouseDelta.Y * rotateSpeed * 0.5f; // Vertical rotation
+				// Calculate the orbit rotation angle based on horizontal mouse movement
+				float orbitSpeed = mouseSensitivity * 2.0f;
+				float orbitAngle = -mouseDelta.X * orbitSpeed;
 				
-				// Get current rotation as Euler angles
-				// This is a simplified approach - for production code you'd want to track euler angles separately
-				var currentRotation = transform.Rotation;
+				// Create rotation around world Y axis
+				var orbitRotation = Quaternion.CreateFromAxisAngle(Vector3.Up, orbitAngle);
 				
-				// Apply yaw (Y-axis rotation)
-				var yawRotation = Quaternion.CreateFromAxisAngle(Vector3.Up, yaw);
+				// Transform camera position around origin
+				var toOrigin = position - Vector3.Zero; // Vector from origin to camera
+				var rotatedPosition = Vector3.Transform(toOrigin, orbitRotation);
+				position = rotatedPosition;
 				
-				// Apply pitch (X-axis rotation) - but use the camera's local right axis
-				var pitchRotation = Quaternion.CreateFromAxisAngle(right, pitch);
+				// Also rotate the camera to keep looking at origin
+				mCameraYaw += orbitAngle;
+				var yawRotation = Quaternion.CreateFromAxisAngle(Vector3.Up, mCameraYaw);
+				var pitchRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, mCameraPitch);
+				transform.Rotation = yawRotation * pitchRotation;
+			}
+			// Mouse look (right mouse button)
+			else if(mouse.IsButtonDown(.Right))
+			{
+				var currentMousePos = mouse.Position;
 				
-				// Combine rotations: first yaw (global), then pitch (local)
-				transform.Rotation = yawRotation * currentRotation * pitchRotation;
+				if(mFirstMouseMove)
+				{
+					mLastMousePos = currentMousePos;
+					mFirstMouseMove = false;
+				}
+				
+				// Calculate delta manually for more control
+				var mouseDelta = currentMousePos - mLastMousePos;
+				mLastMousePos = currentMousePos;
+				
+				// Update rotation angles
+				mCameraYaw += mouseDelta.X * mouseSensitivity;
+				mCameraPitch += mouseDelta.Y * mouseSensitivity;
+				
+				// Clamp pitch to prevent camera flipping
+				mCameraPitch = Math.Clamp(mCameraPitch, -Math.PI_f * 0.49f, Math.PI_f * 0.49f);
+				
+				// Build rotation from yaw and pitch
+				var yawRotation = Quaternion.CreateFromAxisAngle(Vector3.Up, mCameraYaw);
+				var pitchRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, mCameraPitch);
+				
+				// Apply rotations: first yaw (global Y), then pitch (local X)
+				transform.Rotation = yawRotation * pitchRotation;
+			}
+			else
+			{
+				mFirstMouseMove = true;
 			}
 			
-			// Alternative: Arrow keys for camera rotation
+			// Mouse panning (middle mouse button)
+			if(mouse.IsButtonDown(.Middle))
+			{
+				var mouseDelta = mouse.PositionDelta;
+				
+				// Pan horizontally and vertically relative to camera orientation
+				position += right * mouseDelta.X * panSpeed * 0.01f;  // Removed negative sign
+				position += up * mouseDelta.Y * panSpeed * 0.01f;
+			}
+			
+			// Mouse wheel zoom
+			var wheelDelta = mouse.WheelDeltaY;
+			if(Math.Abs(wheelDelta) > 0.001f)
+			{
+				// Move forward/backward based on wheel
+				position += forward * wheelDelta * moveSpeed * 2.0f;
+			}
+			
+			// Arrow keys for camera rotation (optional, can be removed if only using mouse)
+			float keyRotateSpeed = 2.0f * (float)info.Time.ElapsedTime.TotalSeconds;
+			
 			if(keyboard.IsKeyDown(.Left))
 			{
-				// Rotate left
-				transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.Up, rotateSpeed) * transform.Rotation;
+				mCameraYaw += keyRotateSpeed;
 			}
 			if(keyboard.IsKeyDown(.Right))
 			{
-				// Rotate right
-				transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.Up, -rotateSpeed) * transform.Rotation;
+				mCameraYaw -= keyRotateSpeed;
 			}
 			if(keyboard.IsKeyDown(.Up))
 			{
-				// Rotate up
-				var r = transform.Right;
-				transform.Rotation = transform.Rotation * Quaternion.CreateFromAxisAngle(r, rotateSpeed);
+				mCameraPitch += keyRotateSpeed;
+				mCameraPitch = Math.Min(mCameraPitch, Math.PI_f * 0.49f);
 			}
 			if(keyboard.IsKeyDown(.Down))
 			{
-				// Rotate down
-				var r = transform.Right;
-				transform.Rotation = transform.Rotation * Quaternion.CreateFromAxisAngle(r, -rotateSpeed);
+				mCameraPitch -= keyRotateSpeed;
+				mCameraPitch = Math.Max(mCameraPitch, -Math.PI_f * 0.49f);
+			}
+			
+			// Apply arrow key rotations if any were pressed
+			if(keyboard.IsKeyDown(.Left) || keyboard.IsKeyDown(.Right) || 
+			   keyboard.IsKeyDown(.Up) || keyboard.IsKeyDown(.Down))
+			{
+				var yawRotation = Quaternion.CreateFromAxisAngle(Vector3.Up, mCameraYaw);
+				var pitchRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, mCameraPitch);
+				transform.Rotation = yawRotation * pitchRotation;
 			}
 			
 			// Update position and mark dirty

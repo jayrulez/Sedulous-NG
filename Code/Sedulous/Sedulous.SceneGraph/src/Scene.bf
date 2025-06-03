@@ -1,5 +1,6 @@
 using System.Collections;
 using System;
+using Sedulous.Utilities;
 namespace Sedulous.SceneGraph;
 
 using internal Sedulous.SceneGraph;
@@ -154,12 +155,12 @@ class Scene
     }
     
     // Update system
-    internal void Update(TimeSpan deltaTime)
+    internal void Update(Time time)
     {
         // Update modules in order
         for (var module in mSceneModules)
         {
-            module.Update(deltaTime);
+            module.Update(time);
         }
     }
 }

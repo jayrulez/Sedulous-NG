@@ -50,7 +50,7 @@ class InputSubsystem : Subsystem
     private void OnUpdate(IEngine.UpdateInfo info)
     {
         // Update action manager
-        mActionManager.Update(info.Time.ElapsedTime);
+        mActionManager.Update(info.Time);
     }
 
     public KeyboardDevice GetKeyboard() => mInputSystem.GetKeyboard();

@@ -1,5 +1,6 @@
 using Sedulous.Platform.Core.Input;
 using System;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Input;
 
 class MouseButtonAction : InputAction
@@ -15,5 +16,5 @@ class MouseButtonAction : InputAction
 
     public override bool IsPressed() => mMouse.IsButtonPressed(mButton);
     public override bool IsHeld() => mMouse.IsButtonDown(mButton);
-    public override void Update(TimeSpan deltaTime) { }
+    public override void Update(Time time) { }
 }

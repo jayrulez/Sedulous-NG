@@ -1,5 +1,6 @@
 using Sedulous.Platform.Core.Input;
 using System;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Input;
 
 class GamePadAxisAction : InputAction
@@ -24,5 +25,5 @@ class GamePadAxisAction : InputAction
         return Math.Abs(value) > mDeadzone ? value : 0.0f;
     }
 
-    public override void Update(TimeSpan deltaTime) { }
+    public override void Update(Time time) { }
 }

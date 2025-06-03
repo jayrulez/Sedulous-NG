@@ -1,5 +1,6 @@
 using Sedulous.SceneGraph;
 using System;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Physics;
 
 class CollisionModule : SceneModule
@@ -18,7 +19,7 @@ class CollisionModule : SceneModule
         RegisterComponentInterest<Collider>();
     }
     
-    protected override void OnUpdate(TimeSpan deltaTime)
+    protected override void OnUpdate(Time time)
     {
         // Perform collision detection
         PerformCollisionDetection();

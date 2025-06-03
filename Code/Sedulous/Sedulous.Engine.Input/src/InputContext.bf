@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Input;
 
 class InputContext
@@ -26,17 +27,17 @@ class InputContext
         mBindings.Add(InputBinding(actionName, callback, this));
     }
 
-    public void Update(TimeSpan deltaTime)
+    public void Update(Time time)
     {
         for (var action in mActions.Values)
         {
-            action.Update(deltaTime);
+            action.Update(time);
         }
 
         // Process bindings
         for (var binding in ref mBindings)
         {
-            binding.Update(deltaTime);
+            binding.Update(time);
         }
     }
 

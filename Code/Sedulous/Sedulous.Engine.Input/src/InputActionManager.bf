@@ -1,5 +1,6 @@
 using System.Collections;
 using System;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Input;
 
 class InputActionManager
@@ -45,12 +46,12 @@ class InputActionManager
 		}
 	}
 
-	public void Update(TimeSpan deltaTime)
+	public void Update(Time time)
 	{
 		// Update all actions in current contexts
 		for (var context in mContextStack)
 		{
-			context.Update(deltaTime);
+			context.Update(time);
 		}
 	}
 

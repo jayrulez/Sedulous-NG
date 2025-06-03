@@ -1,6 +1,7 @@
 using System.Collections;
 using System;
 using Sedulous.Messaging;
+using Sedulous.Utilities;
 namespace Sedulous.SceneGraph;
 
 using internal Sedulous.SceneGraph;
@@ -20,11 +21,11 @@ class SceneGraphSystem
 		mMessageBus = messageBus;
 	}
 
-	internal void Update(TimeSpan deltaTime)
+	internal void Update(Time time)
 	{
 		for (var scene in mActiveScenes)
 		{
-			scene.Update(deltaTime);
+			scene.Update(time);
 		}
 	}
 

@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Resources;
 using Sedulous.SceneGraph;
+using Sedulous.Utilities;
 
 namespace Sedulous.Engine.Renderer.SDL;
 
@@ -78,7 +79,7 @@ class RenderModule : SceneModule
 			entity.HasComponent<Light>();
 	}
 
-	protected override void OnUpdate(TimeSpan deltaTime)
+	protected override void OnUpdate(Time time)
 	{
 		// Find active camera and lights
 		UpdateActiveCameraAndLights();
@@ -130,7 +131,7 @@ class RenderModule : SceneModule
 			}
 
 			mViewMatrix =  mActiveCamera.ViewMatrix;
-			mViewMatrix = Matrix.Invert(mViewMatrix);
+			//mViewMatrix = Matrix.Invert(mViewMatrix);
 			mProjectionMatrix = mActiveCamera.ProjectionMatrix;
 		}
 		else
@@ -287,13 +288,13 @@ class RenderModule : SceneModule
 			{
 				// Prepare vertex uniforms
 				Matrix normalMatrix = command.WorldMatrix;
-				//normalMatrix = Matrix.Invert(normalMatrix);
+				normalMatrix = Matrix.Invert(normalMatrix);
 				normalMatrix = Matrix.Transpose(normalMatrix);
 
 				var vertexUniforms = LitVertexUniforms()
 					{
 						MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
-						ModelMatrix = mViewMatrix * command.WorldMatrix,
+						ModelMatrix = command.WorldMatrix,
 						NormalMatrix = normalMatrix // Already transposed
 					};
 

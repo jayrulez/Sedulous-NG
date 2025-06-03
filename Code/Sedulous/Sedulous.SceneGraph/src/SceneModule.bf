@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using Sedulous.Utilities;
 namespace Sedulous.SceneGraph;
 
 abstract class SceneModule
@@ -75,11 +76,11 @@ abstract class SceneModule
 	}
 
 	// Update
-	internal void Update(TimeSpan deltaTime)
+	internal void Update(Time time)
 	{
-		OnUpdate(deltaTime);
+		OnUpdate(time);
 	}
-	protected virtual void OnUpdate(TimeSpan deltaTime) { }
+	protected virtual void OnUpdate(Time time) { }
 
 	// Override these for entity tracking
 	protected virtual void OnEntityAddedToTracking(Entity entity) { }

@@ -207,38 +207,44 @@ public class Mesh
 	{
 		let mesh = new Mesh();
 		mesh.SetupCommonVertexFormat();
-
+		
 		// 24 vertices (4 per face, no sharing due to different normals)
 		mesh.Vertices.Resize(24);
 		mesh.Indices.Resize(36);
-
+		
 		float h = size * 0.5f;
-
+		
 		// Positions and normals for each face
-		Vector3[24] positions = .( // Front face
-			.(-h, -h, h), .(h, -h, h), .(h, h, h), .(-h, h, h), // Back face
-			.(h, -h, -h), .(-h, -h, -h), .(-h, h, -h), .(h, h, -h), // Top face
-			.(-h, h, h), .(h, h, h), .(h, h, -h), .(-h, h, -h), // Bottom face
-			.(-h, -h, -h), .(h, -h, -h), .(h, -h, h), .(-h, -h, h), // Right face
-			.(h, -h, h), .(h, -h, -h), .(h, h, -h), .(h, h, h), // Left face
+		Vector3[24] positions = .( 
+			// Front face
+			.(-h, -h, h), .(h, -h, h), .(h, h, h), .(-h, h, h), 
+			// Back face
+			.(h, -h, -h), .(-h, -h, -h), .(-h, h, -h), .(h, h, -h), 
+			// Top face
+			.(-h, h, h), .(h, h, h), .(h, h, -h), .(-h, h, -h), 
+			// Bottom face
+			.(-h, -h, -h), .(h, -h, -h), .(h, -h, h), .(-h, -h, h), 
+			// Right face
+			.(h, -h, h), .(h, -h, -h), .(h, h, -h), .(h, h, h), 
+			// Left face
 			.(-h, -h, -h), .(-h, -h, h), .(-h, h, h), .(-h, h, -h)
-			);
-
+		);
+		
 		Vector3[6] normals = .(
-			.(0, 0, 1), // Front
-			.(0, 0, -1), // Back
-			.(0, 1, 0), // Top
-			.(0, -1, 0), // Bottom
-			.(1, 0, 0), // Right
-			.(-1, 0, 0) // Left
-			);
-
+			.(0, 0, 1),   // Front
+			.(0, 0, -1),  // Back
+			.(0, 1, 0),   // Top
+			.(0, -1, 0),  // Bottom
+			.(1, 0, 0),   // Right
+			.(-1, 0, 0)   // Left
+		);
+		
 		// Set vertices
 		for (int32 i = 0; i < 24; i++)
 		{
 			mesh.SetPosition(i, positions[i]);
 			mesh.SetNormal(i, normals[i / 4]);
-
+			
 			// Simple UV mapping
 			int32 faceVertex = i % 4;
 			switch (faceVertex)
@@ -249,22 +255,25 @@ public class Mesh
 			case 3: mesh.SetUV(i, .(0, 0));
 			}
 		}
-
-		// Set indices
+		
+		// Set indices with REVERSED winding order
 		int32 idx = 0;
 		for (int32 face = 0; face < 6; face++)
 		{
 			int32 baseVertex = face * 4;
+			
+			// Reversed winding: 0,2,1 instead of 0,1,2
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
+			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 1));
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
+			
+			// Reversed winding: 0,3,2 instead of 0,2,3
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 3));
+			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
 		}
-
+		
 		mesh.AddSubMesh(SubMesh(0, 36));
-
 		return mesh;
 	}
 
@@ -273,13 +282,13 @@ public class Mesh
 	{
 		let mesh = new Mesh();
 		mesh.SetupCommonVertexFormat();
-
+		
 		int32 vertexCount = (rings + 1) * (segments + 1);
 		int32 indexCount = rings * segments * 6;
-
+		
 		mesh.Vertices.Resize(vertexCount);
 		mesh.Indices.Resize(indexCount);
-
+		
 		// Generate vertices
 		int32 v = 0;
 		for (int32 y = 0; y <= rings; y++)
@@ -287,25 +296,25 @@ public class Mesh
 			float ringAngle = Math.PI_f * y / rings;
 			float ringRadius = Math.Sin(ringAngle);
 			float ringY = Math.Cos(ringAngle);
-
+			
 			for (int32 x = 0; x <= segments; x++)
 			{
 				float segmentAngle = 2.0f * Math.PI_f * x / segments;
-
+				
 				Vector3 pos = .(
 					Math.Cos(segmentAngle) * ringRadius * radius,
 					ringY * radius,
 					Math.Sin(segmentAngle) * ringRadius * radius
-					);
-
+				);
+				
 				mesh.SetPosition(v, pos);
 				mesh.SetNormal(v, .(pos.X / radius, pos.Y / radius, pos.Z / radius));
 				mesh.SetUV(v, .((float)x / segments, (float)y / rings));
 				v++;
 			}
 		}
-
-		// Generate indices
+		
+		// Generate indices with REVERSED winding order
 		int32 idx = 0;
 		for (int32 y = 0; y < rings; y++)
 		{
@@ -315,136 +324,144 @@ public class Mesh
 				int32 b = a + 1;
 				int32 c = a + segments + 1;
 				int32 d = c + 1;
-
+				
+				// First triangle (reversed: a,b,c -> a,c,b)
 				mesh.Indices.SetIndex(idx++, (uint32)a);
-				mesh.Indices.SetIndex(idx++, (uint32)c);
-				mesh.Indices.SetIndex(idx++, (uint32)b);
 				mesh.Indices.SetIndex(idx++, (uint32)b);
 				mesh.Indices.SetIndex(idx++, (uint32)c);
+				
+				// Second triangle (reversed: b,c,d -> b,d,c)
+				mesh.Indices.SetIndex(idx++, (uint32)b);
 				mesh.Indices.SetIndex(idx++, (uint32)d);
+				mesh.Indices.SetIndex(idx++, (uint32)c);
 			}
 		}
-
+		
 		mesh.AddSubMesh(SubMesh(0, indexCount));
-
 		return mesh;
 	}
 
 	// Create a cylinder mesh
 	public static Mesh CreateCylinder(float radius = 0.5f, float height = 1.0f, int32 segments = 32)
 	{
-		let mesh = new Mesh();
-		mesh.SetupCommonVertexFormat();
-
-		// Vertices: top center + top ring + bottom ring + bottom center + sides
-		int32 vertexCount = 2 + segments * 4; // centers + 2 rings * 2 (for caps and sides)
-		int32 indexCount = segments * 12; // top + bottom + sides
-
-		mesh.Vertices.Resize(vertexCount);
-		mesh.Indices.Resize(indexCount);
-
-		float halfHeight = height * 0.5f;
-		int32 v = 0;
-
-		// Top center
-		mesh.SetPosition(v, .(0, halfHeight, 0));
-		mesh.SetNormal(v, .(0, 1, 0));
-		mesh.SetUV(v, .(0.5f, 0.5f));
-		v++;
-
-		// Top ring (for cap)
-		for (int32 i = 0; i < segments; i++)
-		{
-			float angle = 2.0f * Math.PI_f * i / segments;
-			float x = Math.Cos(angle) * radius;
-			float z = Math.Sin(angle) * radius;
-
-			mesh.SetPosition(v, .(x, halfHeight, z));
-			mesh.SetNormal(v, .(0, 1, 0));
-			mesh.SetUV(v, .(x / radius * 0.5f + 0.5f, z / radius * 0.5f + 0.5f));
-			v++;
-		}
-
-		// Bottom center
-		mesh.SetPosition(v, .(0, -halfHeight, 0));
-		mesh.SetNormal(v, .(0, -1, 0));
-		mesh.SetUV(v, .(0.5f, 0.5f));
-		v++;
-
-		// Bottom ring (for cap)
-		for (int32 i = 0; i < segments; i++)
-		{
-			float angle = 2.0f * Math.PI_f * i / segments;
-			float x = Math.Cos(angle) * radius;
-			float z = Math.Sin(angle) * radius;
-
-			mesh.SetPosition(v, .(x, -halfHeight, z));
-			mesh.SetNormal(v, .(0, -1, 0));
-			mesh.SetUV(v, .(x / radius * 0.5f + 0.5f, z / radius * 0.5f + 0.5f));
-			v++;
-		}
-
-		// Side vertices (duplicated for proper normals and UVs)
-		int32 sideStart = v;
-		for (int32 i = 0; i <= segments; i++)
-		{
-			float angle = 2.0f * Math.PI_f * i / segments;
-			float x = Math.Cos(angle) * radius;
-			float z = Math.Sin(angle) * radius;
-			Vector3 normal = .(x / radius, 0, z / radius);
-
-			// Top vertex
-			mesh.SetPosition(v, .(x, halfHeight, z));
-			mesh.SetNormal(v, normal);
-			mesh.SetUV(v, .((float)i / segments, 0));
-			v++;
-
-			// Bottom vertex
-			mesh.SetPosition(v, .(x, -halfHeight, z));
-			mesh.SetNormal(v, normal);
-			mesh.SetUV(v, .((float)i / segments, 1));
-			v++;
-		}
-
-		// Generate indices
-		int32 idx = 0;
-
-		// Top cap
-		for (int32 i = 0; i < segments; i++)
-		{
-			mesh.Indices.SetIndex(idx++, 0); // center
-			mesh.Indices.SetIndex(idx++, (uint32)(1 + (uint32)i));
-			mesh.Indices.SetIndex(idx++, (uint32)(1 + ((uint32)i + 1) % (uint32)segments));
-		}
-
-		// Bottom cap
-		int32 bottomCenterIdx = 1 + segments;
-		for (int32 i = 0; i < segments; i++)
-		{
-			mesh.Indices.SetIndex(idx++, (uint32)bottomCenterIdx); // center
-			mesh.Indices.SetIndex(idx++, (uint32)(bottomCenterIdx + 1 + (i + 1) % segments));
-			mesh.Indices.SetIndex(idx++, (uint32)(bottomCenterIdx + 1 + i));
-		}
-
-		// Sides
-		for (int32 i = 0; i < segments; i++)
-		{
-			int32 topLeft = sideStart + i * 2;
-			int32 bottomLeft = topLeft + 1;
-			int32 topRight = topLeft + 2;
-			int32 bottomRight = topRight + 1;
-
-			mesh.Indices.SetIndex(idx++, (uint32)topLeft);
-			mesh.Indices.SetIndex(idx++, (uint32)bottomLeft);
-			mesh.Indices.SetIndex(idx++, (uint32)topRight);
-			mesh.Indices.SetIndex(idx++, (uint32)topRight);
-			mesh.Indices.SetIndex(idx++, (uint32)bottomLeft);
-			mesh.Indices.SetIndex(idx++, (uint32)bottomRight);
-		}
-
-		mesh.AddSubMesh(SubMesh(0, indexCount));
-
-		return mesh;
+	    let mesh = new Mesh();
+	    mesh.SetupCommonVertexFormat();
+	    
+	    // Vertices: top center + top ring + bottom center + bottom ring + side vertices
+	    // Side vertices need to be duplicated for proper normals
+	    int32 vertexCount = 1 + segments + 1 + segments + (segments + 1) * 2;
+	    int32 indexCount = segments * 3 * 2 + segments * 6; // top cap + bottom cap + sides
+	    
+	    mesh.Vertices.Resize(vertexCount);
+	    mesh.Indices.Resize(indexCount);
+	    
+	    float halfHeight = height * 0.5f;
+	    int32 v = 0;
+	    
+	    // Top center
+	    mesh.SetPosition(v, .(0, halfHeight, 0));
+	    mesh.SetNormal(v, .(0, 1, 0));
+	    mesh.SetUV(v, .(0.5f, 0.5f));
+	    int32 topCenterIdx = v;
+	    v++;
+	    
+	    // Top ring (for cap)
+	    int32 topRingStart = v;
+	    for (int32 i = 0; i < segments; i++)
+	    {
+	        float angle = 2.0f * Math.PI_f * i / segments;
+	        float x = Math.Cos(angle) * radius;
+	        float z = Math.Sin(angle) * radius;
+	        
+	        mesh.SetPosition(v, .(x, halfHeight, z));
+	        mesh.SetNormal(v, .(0, 1, 0));
+	        mesh.SetUV(v, .(x / radius * 0.5f + 0.5f, z / radius * 0.5f + 0.5f));
+	        v++;
+	    }
+	    
+	    // Bottom center
+	    mesh.SetPosition(v, .(0, -halfHeight, 0));
+	    mesh.SetNormal(v, .(0, -1, 0));
+	    mesh.SetUV(v, .(0.5f, 0.5f));
+	    int32 bottomCenterIdx = v;
+	    v++;
+	    
+	    // Bottom ring (for cap)
+	    int32 bottomRingStart = v;
+	    for (int32 i = 0; i < segments; i++)
+	    {
+	        float angle = 2.0f * Math.PI_f * i / segments;
+	        float x = Math.Cos(angle) * radius;
+	        float z = Math.Sin(angle) * radius;
+	        
+	        mesh.SetPosition(v, .(x, -halfHeight, z));
+	        mesh.SetNormal(v, .(0, -1, 0));
+	        mesh.SetUV(v, .(x / radius * 0.5f + 0.5f, z / radius * 0.5f + 0.5f));
+	        v++;
+	    }
+	    
+	    // Side vertices (duplicated for proper normals and UVs)
+	    int32 sideStart = v;
+	    for (int32 i = 0; i <= segments; i++)
+	    {
+	        float angle = 2.0f * Math.PI_f * i / segments;
+	        float x = Math.Cos(angle) * radius;
+	        float z = Math.Sin(angle) * radius;
+	        Vector3 normal = Vector3.Normalize(.(x, 0, z));
+	        
+	        // Top vertex for side
+	        mesh.SetPosition(v, .(x, halfHeight, z));
+	        mesh.SetNormal(v, normal);
+	        mesh.SetUV(v, .((float)i / segments, 0));
+	        v++;
+	        
+	        // Bottom vertex for side
+	        mesh.SetPosition(v, .(x, -halfHeight, z));
+	        mesh.SetNormal(v, normal);
+	        mesh.SetUV(v, .((float)i / segments, 1));
+	        v++;
+	    }
+	    
+	    // Generate indices
+	    int32 idx = 0;
+	    
+	    // Top cap (counter-clockwise when viewed from above)
+	    for (int32 i = 0; i < segments; i++)
+	    {
+	        mesh.Indices.SetIndex(idx++, (uint32)topCenterIdx);
+	        mesh.Indices.SetIndex(idx++, (uint32)(topRingStart + i));
+	        mesh.Indices.SetIndex(idx++, (uint32)(topRingStart + (i + 1) % segments));
+	    }
+	    
+	    // Bottom cap (clockwise when viewed from above, counter-clockwise from below)
+	    for (int32 i = 0; i < segments; i++)
+	    {
+	        mesh.Indices.SetIndex(idx++, (uint32)bottomCenterIdx);
+	        mesh.Indices.SetIndex(idx++, (uint32)(bottomRingStart + (i + 1) % segments));
+	        mesh.Indices.SetIndex(idx++, (uint32)(bottomRingStart + i));
+	    }
+	    
+	    // Sides
+	    for (int32 i = 0; i < segments; i++)
+	    {
+	        int32 topLeft = sideStart + i * 2;
+	        int32 bottomLeft = topLeft + 1;
+	        int32 topRight = topLeft + 2;
+	        int32 bottomRight = topRight + 1;
+	        
+	        // First triangle
+	        mesh.Indices.SetIndex(idx++, (uint32)topLeft);
+	        mesh.Indices.SetIndex(idx++, (uint32)bottomLeft);
+	        mesh.Indices.SetIndex(idx++, (uint32)topRight);
+	        
+	        // Second triangle
+	        mesh.Indices.SetIndex(idx++, (uint32)topRight);
+	        mesh.Indices.SetIndex(idx++, (uint32)bottomLeft);
+	        mesh.Indices.SetIndex(idx++, (uint32)bottomRight);
+	    }
+	    
+	    mesh.AddSubMesh(SubMesh(0, indexCount));
+	    return mesh;
 	}
 
 	// Create a cone mesh
@@ -452,83 +469,82 @@ public class Mesh
 	{
 		let mesh = new Mesh();
 		mesh.SetupCommonVertexFormat();
-
+		
 		int32 vertexCount = 1 + segments * 2 + 1; // tip + base ring + base center
 		int32 indexCount = segments * 6; // sides + base
-
+		
 		mesh.Vertices.Resize(vertexCount);
 		mesh.Indices.Resize(indexCount);
-
+		
 		float halfHeight = height * 0.5f;
 		int32 v = 0;
-
+		
 		// Tip vertex
 		mesh.SetPosition(v, .(0, halfHeight, 0));
 		mesh.SetNormal(v, .(0, 1, 0)); // Simplified normal
 		mesh.SetUV(v, .(0.5f, 0));
 		v++;
-
+		
 		// Base ring vertices (for sides)
 		for (int32 i = 0; i < segments; i++)
 		{
 			float angle = 2.0f * Math.PI_f * i / segments;
 			float x = Math.Cos(angle) * radius;
 			float z = Math.Sin(angle) * radius;
-
+			
 			// Calculate proper normal for cone surface
 			Vector3 normal = .(x, radius, z);
 			float len = Math.Sqrt(normal.X * normal.X + normal.Y * normal.Y + normal.Z * normal.Z);
 			normal.X /= len;
 			normal.Y /= len;
 			normal.Z /= len;
-
+			
 			mesh.SetPosition(v, .(x, -halfHeight, z));
 			mesh.SetNormal(v, normal);
 			mesh.SetUV(v, .((float)i / segments, 1));
 			v++;
 		}
-
+		
 		// Base center
 		mesh.SetPosition(v, .(0, -halfHeight, 0));
 		mesh.SetNormal(v, .(0, -1, 0));
 		mesh.SetUV(v, .(0.5f, 0.5f));
 		int32 baseCenterIdx = v;
 		v++;
-
+		
 		// Base ring vertices (for bottom cap)
 		for (int32 i = 0; i < segments; i++)
 		{
 			float angle = 2.0f * Math.PI_f * i / segments;
 			float x = Math.Cos(angle) * radius;
 			float z = Math.Sin(angle) * radius;
-
+			
 			mesh.SetPosition(v, .(x, -halfHeight, z));
 			mesh.SetNormal(v, .(0, -1, 0));
 			mesh.SetUV(v, .(x / radius * 0.5f + 0.5f, z / radius * 0.5f + 0.5f));
 			v++;
 		}
-
-		// Generate indices
+		
+		// Generate indices with REVERSED winding order
 		int32 idx = 0;
-
-		// Cone sides
+		
+		// Cone sides (reversed)
 		for (int32 i = 0; i < segments; i++)
 		{
 			mesh.Indices.SetIndex(idx++, 0); // tip
-			mesh.Indices.SetIndex(idx++, (uint32)(1 + ((uint32)i + 1) % (uint32)segments));
 			mesh.Indices.SetIndex(idx++, (uint32)(1 + (uint32)i));
+			mesh.Indices.SetIndex(idx++, (uint32)(1 + ((uint32)i + 1) % (uint32)segments));
 		}
-
-		// Base
+		
+		// Base (reversed)
 		for (int32 i = 0; i < segments; i++)
 		{
 			mesh.Indices.SetIndex(idx++, (uint32)baseCenterIdx);
-			mesh.Indices.SetIndex(idx++, (uint32)(baseCenterIdx + 1 + i));
 			mesh.Indices.SetIndex(idx++, (uint32)(baseCenterIdx + 1 + (i + 1) % segments));
+			mesh.Indices.SetIndex(idx++, (uint32)(baseCenterIdx + 1 + i));
 		}
-
+		
 		mesh.AddSubMesh(SubMesh(0, indexCount));
-
 		return mesh;
 	}
 
@@ -609,18 +625,18 @@ public class Mesh
 	{
 		let mesh = new Mesh();
 		mesh.SetupCommonVertexFormat();
-
+		
 		int32 vertexCount = (widthSegments + 1) * (depthSegments + 1);
 		int32 indexCount = widthSegments * depthSegments * 6;
-
+		
 		mesh.Vertices.Resize(vertexCount);
 		mesh.Indices.Resize(indexCount);
-
+		
 		float halfWidth = width * 0.5f;
 		float halfDepth = depth * 0.5f;
 		float segmentWidth = width / widthSegments;
 		float segmentDepth = depth / depthSegments;
-
+		
 		// Generate vertices
 		int32 v = 0;
 		for (int32 z = 0; z <= depthSegments; z++)
@@ -629,15 +645,15 @@ public class Mesh
 			{
 				float xPos = -halfWidth + x * segmentWidth;
 				float zPos = -halfDepth + z * segmentDepth;
-
+				
 				mesh.SetPosition(v, .(xPos, 0, zPos));
 				mesh.SetNormal(v, .(0, 1, 0));
 				mesh.SetUV(v, .((float)x / widthSegments, (float)z / depthSegments));
 				v++;
 			}
 		}
-
-		// Generate indices
+		
+		// Generate indices with REVERSED winding order
 		int32 idx = 0;
 		for (int32 z = 0; z < depthSegments; z++)
 		{
@@ -647,18 +663,20 @@ public class Mesh
 				int32 b = a + 1;
 				int32 c = a + widthSegments + 1;
 				int32 d = c + 1;
-
+				
+				// First triangle (reversed: a,c,b -> a,b,c)
 				mesh.Indices.SetIndex(idx++, (uint32)a);
-				mesh.Indices.SetIndex(idx++, (uint32)c);
-				mesh.Indices.SetIndex(idx++, (uint32)b);
 				mesh.Indices.SetIndex(idx++, (uint32)b);
 				mesh.Indices.SetIndex(idx++, (uint32)c);
+				
+				// Second triangle (reversed: b,c,d -> b,d,c)
+				mesh.Indices.SetIndex(idx++, (uint32)b);
 				mesh.Indices.SetIndex(idx++, (uint32)d);
+				mesh.Indices.SetIndex(idx++, (uint32)c);
 			}
 		}
-
+		
 		mesh.AddSubMesh(SubMesh(0, indexCount));
-
 		return mesh;
 	}
 

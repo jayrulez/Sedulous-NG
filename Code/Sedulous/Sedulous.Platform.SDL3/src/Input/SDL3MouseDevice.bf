@@ -98,6 +98,12 @@ public sealed class SDL3MouseDevice : MouseDevice
 		buttonStateClicks       = 0;
 		buttonStateDoubleClicks = 0;
 
+		// Reset deltas at the start of each frame
+		deltaX = 0;
+		deltaY = 0;
+		wheelDeltaX = 0;
+		wheelDeltaY = 0;
+
 		for (int i = 0; i < states.Count; i++)
 		{
 			states[i].Reset();
@@ -231,6 +237,15 @@ public sealed class SDL3MouseDevice : MouseDevice
 	public override float Y => y;
 
 	/// <inheritdoc/>
+	public override Vector2 PositionDelta => Vector2(deltaX, deltaY);
+
+	/// <inheritdoc/>
+	public override float DeltaX => deltaX;
+
+	/// <inheritdoc/>
+	public override float DeltaY => deltaY;
+
+	/// <inheritdoc/>
 	public override float WheelDeltaX => wheelDeltaX;
 
 	/// <inheritdoc/>
@@ -309,6 +324,10 @@ public sealed class SDL3MouseDevice : MouseDevice
 	{
 		if ( /*!InputSystem.EmulateMouseWithTouchInput &&*/evt.which == SDL_TOUCH_MOUSEID)
 			return;
+
+		// Accumulate deltas (in case of multiple motion events per frame)
+		deltaX += evt.xrel;
+		deltaY += evt.yrel;
 
 		if (relativeMode)
 		{
@@ -428,6 +447,8 @@ public sealed class SDL3MouseDevice : MouseDevice
 	// Property values.
 	private float x;
 	private float y;
+	private float deltaX;
+	private float deltaY;
 	private float wheelDeltaX;
 	private float wheelDeltaY;
 	private bool isRegistered;

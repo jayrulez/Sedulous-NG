@@ -1,4 +1,5 @@
 using System;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Input;
 
 struct InputBinding : IDisposable
@@ -18,7 +19,7 @@ struct InputBinding : IDisposable
         WasActive = false;
     }
 
-    public void Update(TimeSpan deltaTime) mut
+    public void Update(Time time) mut
     {
         if (Context != null && Callback != null)
         {

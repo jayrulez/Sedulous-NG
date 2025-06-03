@@ -2,6 +2,7 @@ using Sedulous.SceneGraph;
 using System;
 using System.Collections;
 using Sedulous.Mathematics;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Input;
 
 using internal Sedulous.Engine.Input;
@@ -23,12 +24,12 @@ class InputModule : SceneModule
         RegisterComponentInterest<InputComponent>();
     }
 
-    protected override void OnUpdate(TimeSpan deltaTime)
+    protected override void OnUpdate(Time time)
     {
         // Update scene-specific input contexts
         for (var context in mSceneContexts)
         {
-            context.Update(deltaTime);
+            context.Update(time);
         }
 
         // Update input components
@@ -37,12 +38,12 @@ class InputModule : SceneModule
             var inputComponent = entity.GetComponent<InputComponent>();
             if (inputComponent != null)
             {
-                UpdateInputComponent(entity, inputComponent, deltaTime);
+                UpdateInputComponent(entity, inputComponent, time);
             }
         }
     }
 
-    private void UpdateInputComponent(Entity entity, InputComponent input, TimeSpan deltaTime)
+    private void UpdateInputComponent(Entity entity, InputComponent input, Time time)
     {
         // Handle input for this entity
         if (input.ReceivesInput)
@@ -76,23 +77,23 @@ class InputModule : SceneModule
                 }
                 
                 // Process any entity-specific input behaviors
-                ProcessEntityInputBehaviors(entity, input, deltaTime);
+                ProcessEntityInputBehaviors(entity, input, time);
             }
         }
     }
 
-    private void ProcessEntityInputBehaviors(Entity entity, InputComponent input, TimeSpan deltaTime)
+    private void ProcessEntityInputBehaviors(Entity entity, InputComponent input, Time time)
     {
         // Handle common input behaviors based on other components
         
         // Movement input for entities with transform
         if (input.EnableMovement && entity.Transform != null)
         {
-            HandleMovementInput(entity, input, deltaTime);
+            HandleMovementInput(entity, input, time);
         }
     }
 
-    private void HandleMovementInput(Entity entity, InputComponent input, TimeSpan deltaTime)
+    private void HandleMovementInput(Entity entity, InputComponent input, Time time)
     {
         var moveSpeed = input.MovementSpeed;
         var transform = entity.Transform;
@@ -116,7 +117,7 @@ class InputModule : SceneModule
             // Normalize and apply speed
             if (movement.LengthSquared() > 0.01f)
             {
-                movement = Vector3.Normalize(movement) * moveSpeed * (float)deltaTime.TotalSeconds;
+                movement = Vector3.Normalize(movement) * moveSpeed * (float)time.ElapsedTime.TotalSeconds;
                 transform.Position += movement;
                 transform.MarkDirty();
             }

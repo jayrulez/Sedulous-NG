@@ -117,50 +117,47 @@ namespace Sedulous.Platform.Core.Input
         /// <summary>
         /// Gets the window that currently contains the mouse cursor.
         /// </summary>
-        public abstract Window Window
-        {
-            get;
-        }
+        public abstract Window Window { get; }
 
         /// <summary>
         /// Gets the mouse's current position.
         /// </summary>
-        public abstract Vector2 Position
-        {
-            get;
-        }
+        public abstract Vector2 Position { get; }
 
         /// <summary>
         /// Gets the x-coordinate of the mouse's current position.
         /// </summary>
-        public abstract float X
-        {
-            get;
-        }
+        public abstract float X { get; }
 
         /// <summary>
         /// Gets the y-coordinate of the mouse's current position.
         /// </summary>
-        public abstract float Y
-        {
-            get;
-        }
+        public abstract float Y { get; }
+
+		/// <summary>
+		/// Gets the mouse's position delta since the last frame.
+		/// </summary>
+		public abstract Vector2 PositionDelta { get; }
+
+		/// <summary>
+		/// Gets the x-coordinate delta of the mouse's position since the last frame.
+		/// </summary>
+		public abstract float DeltaX { get; }
+
+		/// <summary>
+		/// Gets the y-coordinate delta of the mouse's position since the last frame.
+		/// </summary>
+		public abstract float DeltaY { get; }
 
         /// <summary>
         /// Gets the mouse's horizontal scroll wheel delta in the last frame.
         /// </summary>
-        public abstract float WheelDeltaX
-        {
-            get;
-        }
+        public abstract float WheelDeltaX { get; }
 
         /// <summary>
         /// Gets the mouse's vertical scroll wheel delta in the last frame.
         /// </summary>
-        public abstract float WheelDeltaY
-        {
-            get;
-        }
+        public abstract float WheelDeltaY { get; }
 
         /// <summary>
         /// Gets a value indicating whether one of the Control modifier keys is currently down.

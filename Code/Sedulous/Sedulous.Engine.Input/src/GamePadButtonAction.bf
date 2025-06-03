@@ -1,5 +1,6 @@
 using Sedulous.Platform.Core.Input;
 using System;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Input;
 
 class GamePadButtonAction : InputAction
@@ -15,5 +16,5 @@ class GamePadButtonAction : InputAction
 
     public override bool IsPressed() => mGamePad.IsButtonPressed(mButton);
     public override bool IsHeld() => mGamePad.IsButtonDown(mButton);
-    public override void Update(TimeSpan deltaTime) { }
+    public override void Update(Time time) { }
 }

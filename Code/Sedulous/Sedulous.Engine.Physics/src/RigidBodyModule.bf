@@ -1,5 +1,6 @@
 using Sedulous.SceneGraph;
 using System;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Physics;
 
 class RigidBodyModule : SceneModule
@@ -18,7 +19,7 @@ class RigidBodyModule : SceneModule
         RegisterComponentInterest<RigidBody>();
     }
     
-    protected override void OnUpdate(TimeSpan deltaTime)
+    protected override void OnUpdate(Time time)
     {
         // Update rigid body simulation
         for (var entity in TrackedEntities)
@@ -26,12 +27,12 @@ class RigidBodyModule : SceneModule
             var rigidBody = entity.GetComponent<RigidBody>();
             if (rigidBody != null)
             {
-                UpdateRigidBody(entity, rigidBody, deltaTime);
+                UpdateRigidBody(entity, rigidBody, time);
             }
         }
     }
     
-    private void UpdateRigidBody(Entity entity, RigidBody rigidBody, TimeSpan deltaTime)
+    private void UpdateRigidBody(Entity entity, RigidBody rigidBody, Time time)
     {
         // Integrate physics
         entity.Transform.Position = rigidBody.Position;

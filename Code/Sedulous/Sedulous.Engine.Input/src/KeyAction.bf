@@ -1,5 +1,6 @@
 using Sedulous.Platform.Core.Input;
 using System;
+using Sedulous.Utilities;
 namespace Sedulous.Engine.Input;
 
 class KeyAction : InputAction
@@ -15,5 +16,5 @@ class KeyAction : InputAction
 
     public override bool IsPressed() => mKeyboard.IsKeyPressed(mKey);
     public override bool IsHeld() => mKeyboard.IsKeyDown(mKey);
-    public override void Update(TimeSpan deltaTime) { }
+    public override void Update(Time time) { }
 }

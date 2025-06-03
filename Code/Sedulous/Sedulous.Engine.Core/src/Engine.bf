@@ -206,8 +206,6 @@ sealed class Engine : IEngine
 		mLogger.LogInformation("Engine uninitialized.");
 	}
 
-	private readonly TimeTracker mSceneGraphUpdateTimeTracker = new .() ~ delete _;
-
 	public void Update(int64 elapsedTicks)
 	{
 		#region Update methods
@@ -323,11 +321,12 @@ sealed class Engine : IEngine
 
 		// Variable-Update
 		{
-			mSceneGraphSystem.Update(mSceneGraphUpdateTimeTracker.Increment(TimeSpan(elapsedTicks)));
+			var updateTime = mUpdateTimeTracker.Increment(TimeSpan(elapsedTicks));
+			mSceneGraphSystem.Update(updateTime);
 			RunUpdateFunctions(.VariableUpdate, .()
 				{
 					Engine = this,
-					Time = mUpdateTimeTracker.Increment(TimeSpan(elapsedTicks))
+					Time = updateTime
 				});
 		}
 

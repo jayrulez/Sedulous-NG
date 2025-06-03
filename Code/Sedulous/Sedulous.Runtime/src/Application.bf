@@ -47,6 +47,7 @@ class Application : IEngineHost
 	protected virtual void OnEngineInitializing(EngineInitializer initializer){}
 	protected virtual void OnEngineInitialized(Engine engine){}
 	protected virtual void OnEngineShuttingDown(Engine engine){}
+	protected virtual void OnEngineShutDown(Engine engine){}
 
 	public void Run(EngineInitializingCallback initializingCallback = null,
 		EngineInitializedCallback initializedCallback = null,
@@ -89,6 +90,7 @@ class Application : IEngineHost
 		}
 
 		mEngine.Shutdown();
+		OnEngineShutDown(mEngine);
 		delete engineInitializer;
 	}
 }

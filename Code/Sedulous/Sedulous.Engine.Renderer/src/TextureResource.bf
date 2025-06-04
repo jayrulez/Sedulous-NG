@@ -1,28 +1,13 @@
 using System;
 using Sedulous.Resources;
-using Sedulous.Utilities;
+using Sedulous.Imaging;
+using Sedulous.Mathematics;
+
 namespace Sedulous.Engine.Renderer;
 
 class TextureResource : Resource
 {
-    public enum TextureFormat
-    {
-        R8,
-        RG8,
-        RGB8,
-        RGBA8,
-        R16F,
-        RG16F,
-        RGB16F,
-        RGBA16F,
-        R32F,
-        RG32F,
-        RGB32F,
-        RGBA32F,
-        Depth24Stencil8
-    }
-
-    public enum TextureFilter
+    public enum Filter
     {
         Nearest,
         Linear,
@@ -32,7 +17,7 @@ class TextureResource : Resource
         LinearMipmapLinear
     }
 
-    public enum TextureWrap
+    public enum WrapMode
     {
         Repeat,
         ClampToEdge,
@@ -40,97 +25,145 @@ class TextureResource : Resource
         MirroredRepeat
     }
 
-    private uint8[] mData;
-    private uint32 mWidth;
-    private uint32 mHeight;
-    private TextureFormat mFormat;
-    private uint32 mMipLevels;
-
-    public uint32 Width => mWidth;
-    public uint32 Height => mHeight;
-    public TextureFormat Format => mFormat;
-    public uint32 MipLevels => mMipLevels;
-    public Span<uint8> Data => mData;
-
-    public TextureFilter MinFilter { get; set; } = .Linear;
-    public TextureFilter MagFilter { get; set; } = .Linear;
-    public TextureWrap WrapU { get; set; } = .Repeat;
-    public TextureWrap WrapV { get; set; } = .Repeat;
-
-    public this(uint32 width, uint32 height, TextureFormat format, uint8[] data = null)
+    private Image mImage;
+    private bool mOwnsImage;
+    
+    // Texture-specific settings
+    public Filter MinFilter { get; set; } = .Linear;
+    public Filter MagFilter { get; set; } = .Linear;
+    public WrapMode WrapU { get; set; } = .Repeat;
+    public WrapMode WrapV { get; set; } = .Repeat;
+    public WrapMode WrapW { get; set; } = .Repeat;  // For 3D textures in future
+    
+    // Mipmap settings
+    public bool GenerateMipmaps { get; set; } = false;
+    public uint32 MipLevels { get; private set; } = 1;
+    
+    // Anisotropic filtering
+    public float Anisotropy { get; set; } = 1.0f;
+    
+    // Border color for ClampToBorder mode
+    public Color BorderColor { get; set; } = .Black;
+    
+    // Access to underlying image
+    public Image Image => mImage;
+    
+    public this(Image image, bool ownsImage = false)
     {
         Id = Guid.Create();
-        mWidth = width;
-        mHeight = height;
-        mFormat = format;
-        mMipLevels = 1;
-
-        var bytesPerPixel = GetBytesPerPixel(format);
-        var dataSize = width * height * bytesPerPixel;
-
-        if (data != null && data.Count >= dataSize)
+        mImage = image;
+        mOwnsImage = ownsImage;
+        
+        // Calculate max possible mip levels if mipmaps are requested
+        if (GenerateMipmaps && image != null)
         {
-            mData = new uint8[dataSize];
-            data[0..<dataSize].CopyTo(mData);
-        }
-        else
-        {
-            mData = new uint8[dataSize];
-            // Initialize to default values based on format
-            InitializeDefaultData();
+            MipLevels = CalculateMaxMipLevels(image.Width, image.Height);
         }
     }
-
+    
     public ~this()
     {
-        delete mData;
-    }
-
-    private void InitializeDefaultData()
-    {
-        switch (mFormat)
+        if (mOwnsImage && mImage != null)
         {
-        case .RGBA8:
-            // Initialize to white (255, 255, 255, 255)
-            for (int i = 0; i < mData.Count; i += 4)
-            {
-                mData[i] = 255;     // R
-                mData[i + 1] = 255; // G
-                mData[i + 2] = 255; // B
-                mData[i + 3] = 255; // A
-            }
-        case .RGB8:
-            // Initialize to white (255, 255, 255)
-            for (int i = 0; i < mData.Count; i += 3)
-            {
-                mData[i] = 255;     // R
-                mData[i + 1] = 255; // G
-                mData[i + 2] = 255; // B
-            }
-        default:
-            // Initialize to zero for other formats
-            Internal.MemSet(mData.Ptr, 0, mData.Count);
+            delete mImage;
         }
     }
-
-    private static uint32 GetBytesPerPixel(TextureFormat format)
+    
+    // Calculate maximum number of mip levels for given dimensions
+    private static uint32 CalculateMaxMipLevels(uint32 width, uint32 height)
     {
-        switch (format)
+        uint32 maxDimension = Math.Max(width, height);
+        uint32 levels = 1;
+        
+        while (maxDimension > 1)
         {
-        case .R8: return 1;
-        case .RG8: return 2;
-        case .RGB8: return 3;
-        case .RGBA8: return 4;
-        case .R16F: return 2;
-        case .RG16F: return 4;
-        case .RGB16F: return 6;
-        case .RGBA16F: return 8;
-        case .R32F: return 4;
-        case .RG32F: return 8;
-        case .RGB32F: return 12;
-        case .RGBA32F: return 16;
-        case .Depth24Stencil8: return 4;
-        default: return 4;
+            maxDimension >>= 1;
+            levels++;
         }
+        
+        return levels;
+    }
+    
+    // Factory method: Create from file (placeholder for future)
+    public static Result<TextureResource> LoadFromFile(StringView path)
+    {
+        // TODO: Implement when image loading is added
+        return .Err;
+    }
+    
+    // Factory method: Create default white texture
+    public static TextureResource CreateWhite(uint32 size = 4)
+    {
+        var image = Image.CreateSolidColor(size, size, .White);
+        return new TextureResource(image, true);
+    }
+    
+    // Factory method: Create default black texture
+    public static TextureResource CreateBlack(uint32 size = 4)
+    {
+        var image = Image.CreateSolidColor(size, size, .Black);
+        return new TextureResource(image, true);
+    }
+    
+    // Factory method: Create default normal map (flat normal pointing up)
+    public static TextureResource CreateDefaultNormal(uint32 size = 4)
+    {
+        // Normal maps store normals as (R=X, G=Y, B=Z) mapped from [-1,1] to [0,255]
+        // Default normal is (0, 0, 1) which maps to (128, 128, 255)
+        var image = Image.CreateSolidColor(size, size, .(128, 128, 255, 255));
+        return new TextureResource(image, true);
+    }
+    
+    // Factory method: Create checkerboard texture
+    public static TextureResource CreateCheckerboard(uint32 size = 256, uint32 checkSize = 32)
+    {
+        var image = Image.CreateCheckerboard(size, .White, .Black, checkSize);
+        return new TextureResource(image, true);
+    }
+    
+    // Factory method: Create gradient texture
+    public static TextureResource CreateGradient(uint32 width, uint32 height, Color topColor, Color bottomColor)
+    {
+        var image = Image.CreateGradient(width, height, topColor, bottomColor);
+        return new TextureResource(image, true);
+    }
+    
+    // Update texture settings for common use cases
+    public void SetupForUI()
+    {
+        MinFilter = .Linear;
+        MagFilter = .Linear;
+        WrapU = .ClampToEdge;
+        WrapV = .ClampToEdge;
+        GenerateMipmaps = false;
+    }
+    
+    public void SetupForSprite()
+    {
+        MinFilter = .Nearest;
+        MagFilter = .Nearest;
+        WrapU = .ClampToEdge;
+        WrapV = .ClampToEdge;
+        GenerateMipmaps = false;
+    }
+    
+    public void SetupFor3D()
+    {
+        MinFilter = .LinearMipmapLinear;
+        MagFilter = .Linear;
+        WrapU = .Repeat;
+        WrapV = .Repeat;
+        GenerateMipmaps = true;
+        Anisotropy = 16.0f;
+    }
+    
+    public void SetupForSkybox()
+    {
+        MinFilter = .Linear;
+        MagFilter = .Linear;
+        WrapU = .ClampToEdge;
+        WrapV = .ClampToEdge;
+        WrapW = .ClampToEdge;
+        GenerateMipmaps = false;
     }
 }

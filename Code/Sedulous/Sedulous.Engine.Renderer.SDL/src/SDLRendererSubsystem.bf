@@ -43,7 +43,7 @@ struct LitFragmentUniforms
 	// Total: 64 bytes (multiple of 16)
 }
 
-/*[CRepr, Packed]
+[CRepr, Packed]
 struct UnlitVertexUniforms
 {
 	public Matrix MVPMatrix; // 64 bytes (4x float4)
@@ -56,7 +56,7 @@ struct UnlitFragmentUniforms
 {
 	public Vector4 MaterialColor; // 16 bytes
 	// Total: 16 bytes (multiple of 16)
-}*/
+}
 
 [CRepr, Packed]
 struct SpriteVertexUniforms
@@ -93,12 +93,12 @@ class SDLRendererSubsystem : Subsystem
 
 	// Pipelines
 	private SDL_GPUGraphicsPipeline* mLitPipeline;
-	//private SDL_GPUGraphicsPipeline* mUnlitPipeline;
+	private SDL_GPUGraphicsPipeline* mUnlitPipeline;
 	private SDL_GPUGraphicsPipeline* mSpritePipeline;
 	private SDL_GPUShader* mLitVertexShader;
 	private SDL_GPUShader* mLitFragmentShader;
-	//private SDL_GPUShader* mUnlitVertexShader;
-	//private SDL_GPUShader* mUnlitFragmentShader;
+	private SDL_GPUShader* mUnlitVertexShader;
+	private SDL_GPUShader* mUnlitFragmentShader;
 	private SDL_GPUShader* mSpriteVertexShader;
 	private SDL_GPUShader* mSpriteFragmentShader;
 
@@ -154,12 +154,12 @@ class SDLRendererSubsystem : Subsystem
 	{
 		// Cleanup
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mLitPipeline);
-		//SDL_ReleaseGPUGraphicsPipeline(mDevice, mUnlitPipeline);
+		SDL_ReleaseGPUGraphicsPipeline(mDevice, mUnlitPipeline);
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mSpritePipeline);
 		SDL_ReleaseGPUShader(mDevice, mLitVertexShader);
 		SDL_ReleaseGPUShader(mDevice, mLitFragmentShader);
-		//SDL_ReleaseGPUShader(mDevice, mUnlitVertexShader);
-		//SDL_ReleaseGPUShader(mDevice, mUnlitFragmentShader);
+		SDL_ReleaseGPUShader(mDevice, mUnlitVertexShader);
+		SDL_ReleaseGPUShader(mDevice, mUnlitFragmentShader);
 		SDL_ReleaseGPUShader(mDevice, mSpriteVertexShader);
 		SDL_ReleaseGPUShader(mDevice, mSpriteFragmentShader);
 
@@ -317,7 +317,7 @@ class SDLRendererSubsystem : Subsystem
 		""";
 
 		// Unlit vertex shader - uniforms in space1
-		/*String unlitVertexShaderSource = """
+		String unlitVertexShaderSource = """
 		cbuffer UniformBlock : register(b0, space1)
 		{
 			float4x4 MVPMatrix;
@@ -326,17 +326,17 @@ class SDLRendererSubsystem : Subsystem
 
 		struct VSInput
 		{
-			float3 Position : POSITION0;
-			float3 Normal : NORMAL0;
-			float2 TexCoord : TEXCOORD0;
-			uint Color : COLOR0;
+			float3 Position : TEXCOORD0;
+			float3 Normal : TEXCOORD1;
+			float2 TexCoord : TEXCOORD2;
+			uint Color : TEXCOORD3;
 		};
 
 		struct VSOutput
 		{
+			float4 Position : SV_Position;
 			float2 TexCoord : TEXCOORD0;
 			float4 Color : TEXCOORD1;
-			float4 Position : SV_Position;
 		};
 
 		float4 UnpackColor(uint packedColor)
@@ -352,37 +352,39 @@ class SDLRendererSubsystem : Subsystem
 		VSOutput main(VSInput input)
 		{
 			VSOutput output;
-			
-			// Use MVP matrix directly (MVPMatrix contains the full MVP)
 			output.Position = mul(MVPMatrix, float4(input.Position, 1.0));
-			
 			output.TexCoord = input.TexCoord;
 			output.Color = UnpackColor(input.Color);
-			
 			return output;
 		}
-		""";*/
+		""";
 
-		// Unlit fragment shader - uniforms in space3
-		/*String unlitFragmentShaderSource = """
+		// Unlit fragment shader - uniforms in space3, textures in space2
+		String unlitFragmentShaderSource = """
 		cbuffer UniformBlock : register(b0, space3)
 		{
-			float4 MaterialColor : packoffset(c0);
+			float4 MaterialColor;
 		};
+		
+		Texture2D MainTexture : register(t0, space2);
+		SamplerState MainSampler : register(s0, space2);
 
 		struct PSInput
 		{
+			float4 Position : SV_Position;
 			float2 TexCoord : TEXCOORD0;
 			float4 Color : TEXCOORD1;
-			float4 Position : SV_Position;
 		};
 
 		float4 main(PSInput input) : SV_Target
 		{
-			// Combine material color with vertex color
-			return MaterialColor * input.Color;
+			// Sample texture if available, otherwise use white
+			float4 texColor = MainTexture.Sample(MainSampler, input.TexCoord);
+			
+			// Combine material color, vertex color, and texture
+			return MaterialColor * input.Color * texColor;
 		}
-		""";*/
+		""";
 
 		// Sprite vertex shader - uniforms in space1
 		String spriteVertexShaderSource = """
@@ -465,15 +467,15 @@ class SDLRendererSubsystem : Subsystem
 		// Compile all shaders
 		var litVsCode = scope List<uint8>();
 		var litPsCode = scope List<uint8>();
-		//var unlitVsCode = scope List<uint8>();
-		//var unlitPsCode = scope List<uint8>();
+		var unlitVsCode = scope List<uint8>();
+		var unlitPsCode = scope List<uint8>();
 		var spriteVsCode = scope List<uint8>();
 		var spritePsCode = scope List<uint8>();
 
 		CompileShaderFromSource(litVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", litVsCode);
 		CompileShaderFromSource(litFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", litPsCode);
-		//CompileShaderFromSource(unlitVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", unlitVsCode);
-		//CompileShaderFromSource(unlitFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", unlitPsCode);
+		CompileShaderFromSource(unlitVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", unlitVsCode);
+		CompileShaderFromSource(unlitFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", unlitPsCode);
 		CompileShaderFromSource(spriteVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", spriteVsCode);
 		CompileShaderFromSource(spriteFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", spritePsCode);
 
@@ -506,7 +508,7 @@ class SDLRendererSubsystem : Subsystem
 			};
 		mLitFragmentShader = SDL_CreateGPUShader(mDevice, &litPsDesc);
 
-		/*var unlitVsDesc = SDL_GPUShaderCreateInfo()
+		var unlitVsDesc = SDL_GPUShaderCreateInfo()
 		{
 			code = unlitVsCode.Ptr,
 			code_size = (uint32)unlitVsCode.Count,
@@ -518,21 +520,21 @@ class SDLRendererSubsystem : Subsystem
 			num_storage_buffers = 0,
 			num_storage_textures = 0
 		};
-		mUnlitVertexShader = SDL_CreateGPUShader(mDevice, &unlitVsDesc);*/
+		mUnlitVertexShader = SDL_CreateGPUShader(mDevice, &unlitVsDesc);
 
-		/*var unlitPsDesc = SDL_GPUShaderCreateInfo()
+		var unlitPsDesc = SDL_GPUShaderCreateInfo()
 		{
 			code = unlitPsCode.Ptr,
 			code_size = (uint32)unlitPsCode.Count,
 			entrypoint = "main",
 			format = ShaderFormat,
 			stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
-			num_samplers = 0,
+			num_samplers = 1,  // We have 1 texture sampler
 			num_uniform_buffers = 1,  // We have 1 uniform buffer
 			num_storage_buffers = 0,
 			num_storage_textures = 0
 		};
-		mUnlitFragmentShader = SDL_CreateGPUShader(mDevice, &unlitPsDesc);*/
+		mUnlitFragmentShader = SDL_CreateGPUShader(mDevice, &unlitPsDesc);
 
 		// Create sprite shaders
 		var spriteVsDesc = SDL_GPUShaderCreateInfo()
@@ -611,18 +613,6 @@ class SDLRendererSubsystem : Subsystem
 			{
 				format = swapchainFormat,
 				blend_state = blendState
-					/*.{
-						src_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
-						dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ZERO,
-						color_blend_op = .SDL_GPU_BLENDOP_ADD,
-						src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
-						dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ZERO,
-						alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
-						color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
-							.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
-						enable_blend = false,
-						enable_color_write_mask = false
-					}*/
 			};
 
 		var targetInfo = SDL_GPUGraphicsPipelineTargetInfo()
@@ -664,15 +654,6 @@ class SDLRendererSubsystem : Subsystem
 				vertex_input_state = vertexInputState,
 				primitive_type = .SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
 				rasterizer_state = rasterState,
-					/*.{
-						cull_mode = .SDL_GPU_CULLMODE_BACK,
-						front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
-						fill_mode = .SDL_GPU_FILLMODE_FILL,
-						enable_depth_bias = false,
-						depth_bias_constant_factor = 0.0f,
-						depth_bias_clamp = 0.0f,
-						depth_bias_slope_factor = 0.0f
-					},*/
 				multisample_state = .
 					{
 						sample_count = .SDL_GPU_SAMPLECOUNT_1,
@@ -680,21 +661,21 @@ class SDLRendererSubsystem : Subsystem
 						enable_mask = false
 					},
 				depth_stencil_state = depthStencilState,
-					/*.{
-						compare_op = .SDL_GPU_COMPAREOP_LESS,
-						back_stencil_state = . { },
-						front_stencil_state = . { },
-						compare_mask = 0,
-						write_mask = 0,
-						enable_depth_test = true,
-						enable_depth_write = true,
-						enable_stencil_test = false
-					},*/
 				target_info = targetInfo,
 				props = 0
 			};
 
 		mLitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+
+		// Create unlit pipeline
+		// Reset to default states for unlit
+		pipelineDesc.vertex_shader = mUnlitVertexShader;
+		pipelineDesc.fragment_shader = mUnlitFragmentShader;
+		pipelineDesc.rasterizer_state = rasterState;
+		pipelineDesc.depth_stencil_state = depthStencilState;
+		pipelineDesc.target_info = targetInfo;
+		
+		mUnlitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
 
 		// Create sprite pipeline
 		// Sprite pipeline uses alpha blending and no depth write
@@ -727,15 +708,6 @@ class SDLRendererSubsystem : Subsystem
 		pipelineDesc.target_info = targetInfo;
 
 		mSpritePipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
-
-		// Create unlit pipeline
-		/*pipelineDesc.vertex_shader = mUnlitVertexShader;
-		pipelineDesc.fragment_shader = mUnlitFragmentShader;
-		pipelineDesc.depth_stencil_state.enable_depth_test = false;
-		pipelineDesc.depth_stencil_state.enable_depth_write = false;
-		pipelineDesc.rasterizer_state.cull_mode = .SDL_GPU_CULLMODE_NONE;
-
-		mUnlitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);*/
 	}
 
 	private void OnUpdate(IEngine.UpdateInfo info)
@@ -753,8 +725,7 @@ class SDLRendererSubsystem : Subsystem
 
 	public SDL_GPUGraphicsPipeline* GetPipeline(bool lit)
 	{
-		return mLitPipeline;
-		//return lit ? mLitPipeline : mUnlitPipeline;
+		return lit ? mLitPipeline : mUnlitPipeline;
 	}
 
 	public SDL_GPUGraphicsPipeline* GetSpritePipeline()

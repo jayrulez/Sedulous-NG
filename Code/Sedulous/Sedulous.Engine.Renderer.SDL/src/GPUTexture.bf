@@ -4,7 +4,7 @@ using Sedulous.Imaging;
 
 namespace Sedulous.Engine.Renderer.SDL;
 
-class GPUTexture
+class GPUTexture : GPUResource
 {
     public SDL_GPUTexture* Texture;
     public SDL_GPUSampler* Sampler;

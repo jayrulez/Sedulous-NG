@@ -6,7 +6,7 @@ using Sedulous.Resources;
 
 namespace Sedulous.Engine.Renderer.SDL;
 
-class GPUMaterial
+class GPUMaterial : GPUResource
 {
     private SDL_GPUDevice* mDevice;
     private Material mMaterial;
@@ -14,7 +14,7 @@ class GPUMaterial
     // Cached GPU resources
     private SDL_GPUBuffer* mUniformBuffer;
     private uint32 mUniformBufferSize;
-    private List<GPUTexture> mGPUTextures = new .() ~ delete _;
+    private List<GPUResourceHandle<GPUTexture>> mGPUTextures = new .() ~ delete _;
     
     // Pipeline state derived from material
     public Material.BlendMode BlendMode => mMaterial.Blending;
@@ -23,7 +23,7 @@ class GPUMaterial
     public bool DepthTest => mMaterial.DepthTest;
     public StringView ShaderName => mMaterial.ShaderName;
     
-    public this(SDL_GPUDevice* device, Material material, Dictionary<TextureResource, GPUTexture> textureCache)
+    public this(SDL_GPUDevice* device, Material material, Dictionary<TextureResource, GPUResourceHandle<GPUTexture>> textureCache)
     {
         mDevice = device;
         mMaterial = material;
@@ -106,7 +106,7 @@ class GPUMaterial
         }
     }
     
-    private void CacheTextures(Dictionary<TextureResource, GPUTexture> textureCache)
+    private void CacheTextures(Dictionary<TextureResource, GPUResourceHandle<GPUTexture>> textureCache)
     {
         var textureList = scope List<ResourceHandle<TextureResource>>();
         mMaterial.GetTextureResources(textureList);
@@ -127,15 +127,23 @@ class GPUMaterial
     {
         // Bind all textures for this material
         // The exact binding depends on the shader layout
-        for (int i = 0; i < mGPUTextures.Count; i++)
+        if (mGPUTextures.Count > 0)
         {
-            var gpuTexture = mGPUTextures[i];
-            var binding = SDL_GPUTextureSamplerBinding()
+            for (int i = 0; i < mGPUTextures.Count; i++)
             {
-                texture = gpuTexture.Texture,
-                sampler = gpuTexture.Sampler
-            };
-            SDL_BindGPUFragmentSamplers(renderPass, (uint32)i, &binding, 1);
+                var gpuTexture = mGPUTextures[i];
+                var binding = SDL_GPUTextureSamplerBinding()
+                {
+                    texture = gpuTexture.Resource.Texture,
+                    sampler = gpuTexture.Resource.Sampler
+                };
+                SDL_BindGPUFragmentSamplers(renderPass, (uint32)i, &binding, 1);
+            }
+        }
+        else
+        {
+            // No textures in material - this case is handled by RenderObject
+            // which will bind default textures
         }
     }
     

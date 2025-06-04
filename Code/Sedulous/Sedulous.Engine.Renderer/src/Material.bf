@@ -2,8 +2,6 @@ using System;
 using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Resources;
-using Sedulous.Mathematics;
-using Sedulous.Resources;
 
 namespace Sedulous.Engine.Renderer;
 
@@ -98,6 +96,8 @@ public class UnlitMaterial : Material
     public override void FillUniformData(Span<uint8> buffer)
     {
         // Fill with color data
+        var colorVec = Color.ToVector4();
+        Internal.MemCpy(buffer.Ptr, &colorVec, sizeof(Vector4));
     }
     
     public override void GetTextureResources(List<ResourceHandle<TextureResource>> textures)

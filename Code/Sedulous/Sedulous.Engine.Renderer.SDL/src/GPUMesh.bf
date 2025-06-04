@@ -3,7 +3,7 @@ using System;
 using Sedulous.Geometry;
 namespace Sedulous.Engine.Renderer.SDL;
 
-class GPUMesh
+class GPUMesh : GPUResource
 {
 	public SDL_GPUBuffer* VertexBuffer;
 	public SDL_GPUBuffer* IndexBuffer;

@@ -224,8 +224,16 @@ class SandboxApplication : Application
 		plane.Transform.Position = Vector3(0, -0.5f, 0);
 		plane.Transform.Scale = Vector3(1, 1, 1);
 		var renderer = plane.AddComponent<MeshRenderer>();
-		renderer.Color = Color.Green;
-		//renderer.UseLighting = true;
+		renderer.Color = Color.Red;
+
+		// Shiny red material
+		var shinyMat = new PhongMaterial();
+		shinyMat.DiffuseColor = Color(1.0f, 0.2f, 0.2f, 1.0f);
+		shinyMat.SpecularColor = Color(1.0f, 1.0f, 1.0f, 1.0f);
+		shinyMat.Shininess = 128.0f;
+		shinyMat.AmbientColor = Color(0.1f, 0.02f, 0.02f, 1.0f);
+
+		renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(shinyMat, true), true);
 		Mesh mesh = Mesh.CreatePlane();
 
 		for (int32 v = 0; v < mesh.Vertices.VertexCount; v++)

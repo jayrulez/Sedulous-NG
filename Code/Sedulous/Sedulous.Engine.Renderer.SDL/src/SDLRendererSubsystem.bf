@@ -14,15 +14,6 @@ namespace Sedulous.Engine.Renderer.SDL;
 
 using internal Sedulous.Engine.Renderer.SDL;
 
-// Render data structures
-struct RenderCommand
-{
-	public Entity Entity;
-	public Matrix WorldMatrix;
-	public MeshRenderer Renderer;
-	public float DistanceToCamera;
-}
-
 // Uniform buffer structures must match shader exactly and follow HLSL alignment rules
 [CRepr, Packed]
 struct LitVertexUniforms
@@ -38,9 +29,11 @@ struct LitFragmentUniforms
 {
 	public Vector4 LightDirAndIntensity; // 16 bytes - xyz = direction, w = intensity
 	public Vector4 LightColorPad; // 16 bytes - xyz = color, w = padding
-	public Vector4 MaterialColor; // 16 bytes
+	public Vector4 MaterialColor; // 16 bytes - diffuse color
 	public Vector4 CameraPosAndPad; // 16 bytes - xyz = position, w = padding
-	// Total: 64 bytes (multiple of 16)
+	public Vector4 SpecularColorShininess; // 16 bytes - xyz = specular color, w = shininess
+	public Vector4 AmbientColor; // 16 bytes - ambient color
+	// Total: 96 bytes (multiple of 16)
 }
 
 [CRepr, Packed]
@@ -102,6 +95,11 @@ class SDLRendererSubsystem : Subsystem
 	private SDL_GPUShader* mSpriteVertexShader;
 	private SDL_GPUShader* mSpriteFragmentShader;
 
+	// Default textures
+	private GPUResourceHandle<GPUTexture> mDefaultWhiteTexture ~ _.Release();
+	private GPUResourceHandle<GPUTexture> mDefaultBlackTexture ~ _.Release();
+	private GPUResourceHandle<GPUTexture> mDefaultNormalTexture ~ _.Release();
+
 	public uint32 Width => mPrimaryWindow.Width;
 	public uint32 Height => mPrimaryWindow.Height;
 
@@ -146,6 +144,7 @@ class SDLRendererSubsystem : Subsystem
 		// Create basic resources
 		CreateShaders();
 		CreatePipelines();
+		CreateDefaultTextures();
 
 		return base.OnInitializing(engine);
 	}
@@ -263,15 +262,20 @@ class SDLRendererSubsystem : Subsystem
 			}
 		""";
 
-		// Lit fragment shader - uniforms in space3
+		// Lit fragment shader - uniforms in space3, textures in space2
 		String litFragmentShaderSource = """
 		cbuffer UniformBlock : register(b0, space3)
 		{
 		    float4 LightDirAndIntensity;  // xyz = direction, w = intensity
 		    float4 LightColorPad;         // xyz = color, w = padding
-		    float4 MaterialColor;
+		    float4 MaterialColor;         // diffuse color
 		    float4 CameraPosAndPad;       // xyz = position, w = padding
+		    float4 SpecularColorShininess; // xyz = specular color, w = shininess
+		    float4 AmbientColor;          // ambient color
 		};
+		
+		Texture2D DiffuseTexture : register(t0, space2);
+		SamplerState DiffuseSampler : register(s0, space2);
 		
 		struct PSInput
 		{
@@ -289,8 +293,13 @@ class SDLRendererSubsystem : Subsystem
 		    float lightIntensity = LightDirAndIntensity.w;
 		    float3 lightColor = LightColorPad.xyz;
 		    
-		    // Extract camera position
+		    // Extract material parameters
 		    float3 cameraPos = CameraPosAndPad.xyz;
+		    float3 specularColor = SpecularColorShininess.xyz;
+		    float shininess = SpecularColorShininess.w;
+		    
+		    // Sample diffuse texture
+		    float4 diffuseTexColor = DiffuseTexture.Sample(DiffuseSampler, input.TexCoord);
 		    
 		    // Normalize the normal
 		    float3 normal = normalize(input.Normal);
@@ -303,16 +312,14 @@ class SDLRendererSubsystem : Subsystem
 		    float3 viewDir = normalize(cameraPos - input.WorldPos);
 		    float3 halfVector = normalize(viewDir - lightDir);
 		    float NdotH = max(dot(normal, halfVector), 0.0);
-		    float specular = pow(NdotH, 32.0) * lightIntensity;
+		    float specularIntensity = pow(NdotH, shininess);
+		    float3 specular = specularIntensity * specularColor * lightColor * lightIntensity;
 		    
-		    // Ambient lighting
-		    float3 ambient = float3(0.2, 0.2, 0.2);
+		    // Combine lighting with material color and texture
+		    float3 materialColor = MaterialColor.rgb * input.Color.rgb * diffuseTexColor.rgb;
+		    float3 finalColor = AmbientColor.rgb * materialColor + diffuse * materialColor + specular;
 		    
-		    // Combine lighting with material color
-		    float3 materialColor = MaterialColor.rgb * input.Color.rgb;
-		    float3 finalColor = (ambient + diffuse) * materialColor + specular * lightColor;
-		    
-		    return float4(finalColor, MaterialColor.a * input.Color.a);
+		    return float4(finalColor, MaterialColor.a * input.Color.a * diffuseTexColor.a);
 		}
 		""";
 
@@ -501,7 +508,7 @@ class SDLRendererSubsystem : Subsystem
 				entrypoint = "main",
 				format = ShaderFormat,
 				stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
-				num_samplers = 0,
+				num_samplers = 1, // We have 1 texture sampler
 				num_uniform_buffers = 1, // We have 1 uniform buffer
 				num_storage_buffers = 0,
 				num_storage_textures = 0
@@ -774,4 +781,32 @@ class SDLRendererSubsystem : Subsystem
 			return;
 		}
 	}
+
+	private void CreateDefaultTextures()
+	{
+		// Create 1x1 white texture
+		{
+			var whiteImage = scope Sedulous.Imaging.Image(1, 1, .RGBA8);
+			whiteImage.SetPixel(0, 0, .White);
+			mDefaultWhiteTexture = GPUResourceHandle<GPUTexture>(new GPUTexture(mDevice, whiteImage));
+		}
+
+		// Create 1x1 black texture
+		{
+			var blackImage = scope Sedulous.Imaging.Image(1, 1, .RGBA8);
+			blackImage.SetPixel(0, 0, .Black);
+			mDefaultBlackTexture = GPUResourceHandle<GPUTexture>(new GPUTexture(mDevice, blackImage));
+		}
+
+		// Create 1x1 default normal texture (pointing up)
+		{
+			var normalImage = scope Sedulous.Imaging.Image(1, 1, .RGBA8);
+			normalImage.SetPixel(0, 0, Color(128, 128, 255, 255)); // Normal pointing up
+			mDefaultNormalTexture = GPUResourceHandle<GPUTexture>(new GPUTexture(mDevice, normalImage));
+		}
+	}
+
+	public GPUResourceHandle<GPUTexture> GetDefaultWhiteTexture() => mDefaultWhiteTexture;
+	public GPUResourceHandle<GPUTexture> GetDefaultBlackTexture() => mDefaultBlackTexture;
+	public GPUResourceHandle<GPUTexture> GetDefaultNormalTexture() => mDefaultNormalTexture;
 }

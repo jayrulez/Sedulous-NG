@@ -164,7 +164,7 @@ class RenderModule : SceneModule
 		SortSpriteCommands();
 
 		// Render the frame
-		RenderFrame();
+		// RenderFrame();
 	}
 
 	private void UpdateActiveCameraAndLights()
@@ -290,7 +290,7 @@ class RenderModule : SceneModule
 			});
 	}
 
-	private void RenderFrame()
+	internal void RenderFrame()
 	{
 		var commandBuffer = SDL_AcquireGPUCommandBuffer(mRenderer.mDevice);
 		if (commandBuffer == null)

@@ -46,10 +46,12 @@ public class AppSceneModule : SceneModule
 		RegisterComponentInterest<RotateComponent>();
 		RegisterComponentInterest<ControllerComponent>();
 	}
+
 	protected override bool ShouldTrackEntity(Entity entity)
 	{
 		return entity.HasComponent<RotateComponent>() || entity.HasComponent<ControllerComponent>();
 	}
+
 	protected override void OnUpdate(Time time)
 	{
 		for (var entity in TrackedEntities)
@@ -239,14 +241,11 @@ class SandboxApplication : Application
 			spriteEntity.AddComponent<ControllerComponent>();
 
 			var spriteRenderer = spriteEntity.AddComponent<SpriteRenderer>();
-			spriteRenderer.Texture = engine.ResourceSystem.AddResource(
-				TextureResource.CreateCheckerboard(256, 32)
-				);
-			spriteRenderer.Color = Color(1.0f, 1f, 1f, 1.0f);
+			spriteRenderer.Texture = engine.ResourceSystem.AddResource(TextureResource.CreateCheckerboard(256, 32));
+			spriteRenderer.Color = .White;
 			spriteRenderer.Size = Vector2(2, 2); // 2x2 world units
 			spriteRenderer.Billboard = .AxisAligned;
 		}
-
 
 		base.OnEngineInitialized(engine);
 	}

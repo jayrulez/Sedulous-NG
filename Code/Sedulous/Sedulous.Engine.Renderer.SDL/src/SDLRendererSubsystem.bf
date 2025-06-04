@@ -12,6 +12,8 @@ using Sedulous.Geometry;
 
 namespace Sedulous.Engine.Renderer.SDL;
 
+using internal Sedulous.Engine.Renderer.SDL;
+
 // Render data structures
 struct RenderCommand
 {
@@ -730,7 +732,7 @@ class SDLRendererSubsystem : Subsystem
 
 	private void OnRender(IEngine.UpdateInfo info)
 	{
-		// Rendering is now handled by the RenderModule
+		mRenderModule.RenderFrame();
 	}
 
 	public SDL_GPUGraphicsPipeline* GetPipeline(bool lit)

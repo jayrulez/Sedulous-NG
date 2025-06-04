@@ -4,3 +4,6 @@ Dependencies = {corlib = "*", "Sedulous.Engine.Audio.OpenAL" = "*", "Sedulous.En
 [Project]
 Name = "Sandbox"
 StartupObject = "Sandbox.Program"
+
+[Configs.Debug.Win64]
+BeefLibType = "Static"

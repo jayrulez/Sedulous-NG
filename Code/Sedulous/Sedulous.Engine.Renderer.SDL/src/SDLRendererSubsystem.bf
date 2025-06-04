@@ -87,6 +87,7 @@ class SDLRendererSubsystem : Subsystem
 
 	private readonly MeshResourceManager mMeshResourceManager = new .() ~ delete _;
 	private readonly TextureResourceManager mTextureResourceManager = new .() ~ delete _;
+	private readonly MaterialResourceManager mMaterialResourceManager = new .() ~ delete _;
 
 	private List<RenderModule> mRenderModules = new .() ~ delete _;
 
@@ -127,6 +128,7 @@ class SDLRendererSubsystem : Subsystem
 
 		engine.ResourceSystem.AddResourceManager(mMeshResourceManager);
 		engine.ResourceSystem.AddResourceManager(mTextureResourceManager);
+		engine.ResourceSystem.AddResourceManager(mMaterialResourceManager);
 
 		// Initialize SDL GPU device
 		mDevice = SDL_CreateGPUDevice(
@@ -166,6 +168,7 @@ class SDLRendererSubsystem : Subsystem
 
 		engine.ResourceSystem.RemoveResourceManager(mMeshResourceManager);
 		engine.ResourceSystem.RemoveResourceManager(mTextureResourceManager);
+		engine.ResourceSystem.RemoveResourceManager(mMaterialResourceManager);
 
 		if (mUpdateFunctionRegistration.HasValue)
 		{

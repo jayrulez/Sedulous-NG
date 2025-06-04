@@ -9,8 +9,8 @@ class MeshRenderer : Component
     public override ComponentTypeId TypeId => sTypeId;
 	
 	public ResourceHandle<MeshResource> Mesh { get; set; } ~ _.Release();
-	public ResourceHandle<MaterialResource> Material { get; set; }
+	public ResourceHandle<MaterialResource> Material { get; set; } ~ _.Release();
 
-    //public bool UseLighting = true;
-    public Color Color = .White;
+    // Fallback color if no material is set
+	public Color Color = .White;
 }

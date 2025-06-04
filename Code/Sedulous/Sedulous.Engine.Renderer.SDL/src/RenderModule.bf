@@ -411,7 +411,7 @@ class RenderModule : SceneModule
 		var depthTarget = SDL_GPUDepthStencilTargetInfo()
 			{
 				texture = mDepthTexture,
-				load_op = .SDL_GPU_LOADOP_LOAD,
+				load_op = .SDL_GPU_LOADOP_DONT_CARE,  // Don't load when cycling
 				store_op = .SDL_GPU_STOREOP_DONT_CARE,
 				stencil_load_op = .SDL_GPU_LOADOP_DONT_CARE,
 				stencil_store_op = .SDL_GPU_STOREOP_DONT_CARE,
@@ -511,9 +511,6 @@ class RenderModule : SceneModule
 		if (gpuTexture == null)
 			return;
 
-		// TODO: Get sprite pipeline from renderer when implemented
-		// For now, we'll need to add GetSpritePipeline() to SDLRendererSubsystem
-		/*
 		var pipeline = mRenderer.GetSpritePipeline();
 		SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
 		
@@ -526,8 +523,13 @@ class RenderModule : SceneModule
 		SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBinding, 1);
 		SDL_BindGPUIndexBuffer(renderPass, scope .() { buffer = mSpriteQuadMesh.IndexBuffer, offset = 0 }, .SDL_GPU_INDEXELEMENTSIZE_32BIT);
 		
-		// TODO: Bind texture and sampler
-		// This will depend on how your sprite shader is set up
+		// Bind texture and sampler
+		var textureSamplerBinding = SDL_GPUTextureSamplerBinding()
+		{
+		    texture = gpuTexture.Texture,
+		    sampler = gpuTexture.Sampler
+		};
+		SDL_BindGPUFragmentSamplers(renderPass, 0, &textureSamplerBinding, 1);
 		
 		// Calculate sprite transform
 		var spriteSize = command.Renderer.GetRenderSize();
@@ -539,19 +541,105 @@ class RenderModule : SceneModule
 		var worldMatrix = pivotOffset * scale * command.Transform.WorldMatrix;
 		
 		// Handle billboarding
-		if (command.Renderer.Billboard != .None)
+		if (command.Renderer.Billboard != .None && mActiveCamera != null)
 		{
-			// TODO: Implement billboarding transforms
+		    var position = command.Transform.Position;
+		    var cameraPos = mActiveCameraTransform.Position;
+		    
+		    switch (command.Renderer.Billboard)
+		    {
+		    case .Full:
+		        // Full billboard: extract camera's right and up vectors from view matrix
+				// The view matrix transforms from world to camera space, so we need its inverse
+				var cameraWorldMatrix = Matrix.Invert(mViewMatrix);
+
+				// Extract camera's right and up vectors (first two rows of camera world matrix)
+				var right = Vector3(cameraWorldMatrix.M11, cameraWorldMatrix.M12, cameraWorldMatrix.M13);
+				var up = Vector3(cameraWorldMatrix.M21, cameraWorldMatrix.M22, cameraWorldMatrix.M23);
+
+				// Build billboard matrix that faces camera
+				var billboardMatrix = Matrix(
+				    right.X * spriteSize.X, right.Y * spriteSize.X, right.Z * spriteSize.X, 0,
+				    up.X * spriteSize.Y, up.Y * spriteSize.Y, up.Z * spriteSize.Y, 0,
+				    0, 0, 0, 0,  // No forward vector needed for billboard
+				    position.X, position.Y, position.Z, 1
+				);
+
+				// Apply pivot offset in billboard space
+				var pivotOffsetWorld = right * (-pivot.X * spriteSize.X) + up * (-pivot.Y * spriteSize.Y);
+				billboardMatrix.M41 += pivotOffsetWorld.X;
+				billboardMatrix.M42 += pivotOffsetWorld.Y;
+				billboardMatrix.M43 += pivotOffsetWorld.Z;
+
+				worldMatrix = billboardMatrix;
+		        
+		    case .AxisAligned:
+		        // Y-axis aligned billboard: only rotate around Y to face camera
+				// Keep the sprite upright while rotating to face camera horizontally
+				var toCameraXZ = Vector3(cameraPos.X - position.X, 0, cameraPos.Z - position.Z);
+				if (toCameraXZ.LengthSquared() > 0.0001f)
+				{
+				    // Get camera's right vector projected onto XZ plane
+				    var cameraWorldMatrix = Matrix.Invert(mViewMatrix);
+				    var cameraRight = Vector3(cameraWorldMatrix.M11, 0, cameraWorldMatrix.M13);
+				    
+				    // Normalize and ensure we have a valid right vector
+				    if (cameraRight.LengthSquared() > 0.0001f)
+				    {
+				        cameraRight = Vector3.Normalize(cameraRight);
+				    }
+				    else
+				    {
+				        // Fallback if camera is looking straight up/down
+				        toCameraXZ = Vector3.Normalize(toCameraXZ);
+				        cameraRight = Vector3.Cross(Vector3.Up, toCameraXZ);
+				    }
+				    
+				    // Build the billboard matrix
+				    var billboardMatrix = Matrix(
+				        cameraRight.X * spriteSize.X, 0, cameraRight.Z * spriteSize.X, 0,
+				        0, spriteSize.Y, 0, 0,  // Keep Y-up
+				        0, 0, 0, 0,
+				        position.X, position.Y, position.Z, 1
+				    );
+				    
+				    // Apply pivot offset
+				    var pivotOffsetWorld = cameraRight * (-pivot.X * spriteSize.X) + Vector3.Up * (-pivot.Y * spriteSize.Y);
+				    billboardMatrix.M41 += pivotOffsetWorld.X;
+				    billboardMatrix.M42 += pivotOffsetWorld.Y;
+				    billboardMatrix.M43 += pivotOffsetWorld.Z;
+				    
+				    worldMatrix = billboardMatrix;
+				}
+		        
+		    default:
+		        break;
+		    }
 		}
 		
-		// Push sprite uniforms
-		// TODO: Create sprite-specific uniform structure
+		// Calculate UV offset and scale from source rect
+		Vector2 uvMin, uvMax;
+		command.Renderer.GetUVs(out uvMin, out uvMax);
+
+		var uvOffset = uvMin;
+		var uvScale = uvMax - uvMin;
+
+		// Push vertex uniforms
+		var vertexUniforms = SpriteVertexUniforms()
+		{
+		    MVPMatrix = worldMatrix * mViewMatrix * mProjectionMatrix,
+		    UVOffsetScale = Vector4(uvOffset.X, uvOffset.Y, uvScale.X, uvScale.Y)
+		};
+		SDL_PushGPUVertexUniformData(commandBuffer, 0, &vertexUniforms, sizeof(SpriteVertexUniforms));
+
+		// Push fragment uniforms
+		var fragmentUniforms = SpriteFragmentUniforms()
+		{
+		    TintColor = command.Renderer.Color.ToVector4()
+		};
+		SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragmentUniforms, sizeof(SpriteFragmentUniforms));
 		
 		// Draw
 		SDL_DrawGPUIndexedPrimitives(renderPass, 6, 1, 0, 0, 0);
-		*/
-
-		// For now, log that sprite rendering is not yet implemented
-		SDL_Log("Sprite rendering pipeline not yet implemented");
 	}
 }

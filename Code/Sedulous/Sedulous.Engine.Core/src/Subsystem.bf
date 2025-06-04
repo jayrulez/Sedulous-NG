@@ -10,6 +10,8 @@ abstract class Subsystem
     private bool mInitialized = false;
     private List<IEngine.RegisteredUpdateFunctionInfo> mUpdateRegistrations = new .() ~ delete _;
 
+	public IEngine Engine => mEngine;
+
     public abstract StringView Name { get; }
 
 	private delegate void SceneCreatedHandler(SceneCreatedMessage message);
@@ -117,6 +119,4 @@ abstract class Subsystem
     {
         mEngine.JobSystem.AddJob(work, ownsJobDelegate, name);
     }
-
-    protected IEngine Engine => mEngine;
 }

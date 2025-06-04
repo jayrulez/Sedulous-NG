@@ -56,6 +56,21 @@ struct UnlitFragmentUniforms
 	// Total: 16 bytes (multiple of 16)
 }*/
 
+[CRepr, Packed]
+struct SpriteVertexUniforms
+{
+	public Matrix MVPMatrix; // 64 bytes (4x float4)
+	public Vector4 UVOffsetScale; // 16 bytes - xy = offset, zw = scale
+	// Total: 80 bytes (multiple of 16)
+}
+
+[CRepr, Packed]
+struct SpriteFragmentUniforms
+{
+	public Vector4 TintColor; // 16 bytes - rgba tint color
+	// Total: 16 bytes (multiple of 16)
+}
+
 class SDLRendererSubsystem : Subsystem
 {
 	public override StringView Name => "SDLRenderer";
@@ -74,10 +89,13 @@ class SDLRendererSubsystem : Subsystem
 	// Pipelines
 	private SDL_GPUGraphicsPipeline* mLitPipeline;
 	//private SDL_GPUGraphicsPipeline* mUnlitPipeline;
+	private SDL_GPUGraphicsPipeline* mSpritePipeline;
 	private SDL_GPUShader* mLitVertexShader;
 	private SDL_GPUShader* mLitFragmentShader;
 	//private SDL_GPUShader* mUnlitVertexShader;
 	//private SDL_GPUShader* mUnlitFragmentShader;
+	private SDL_GPUShader* mSpriteVertexShader;
+	private SDL_GPUShader* mSpriteFragmentShader;
 
 	public uint32 Width => mPrimaryWindow.Width;
 	public uint32 Height => mPrimaryWindow.Height;
@@ -131,10 +149,13 @@ class SDLRendererSubsystem : Subsystem
 		// Cleanup
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mLitPipeline);
 		//SDL_ReleaseGPUGraphicsPipeline(mDevice, mUnlitPipeline);
+		SDL_ReleaseGPUGraphicsPipeline(mDevice, mSpritePipeline);
 		SDL_ReleaseGPUShader(mDevice, mLitVertexShader);
 		SDL_ReleaseGPUShader(mDevice, mLitFragmentShader);
 		//SDL_ReleaseGPUShader(mDevice, mUnlitVertexShader);
 		//SDL_ReleaseGPUShader(mDevice, mUnlitFragmentShader);
+		SDL_ReleaseGPUShader(mDevice, mSpriteVertexShader);
+		SDL_ReleaseGPUShader(mDevice, mSpriteFragmentShader);
 
 		SDL_ReleaseWindowFromGPUDevice(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
 		SDL_DestroyGPUDevice(mDevice);
@@ -348,16 +369,98 @@ class SDLRendererSubsystem : Subsystem
 		}
 		""";*/
 
+		// Sprite vertex shader - uniforms in space1
+		String spriteVertexShaderSource = """
+			cbuffer UBO : register(b0, space1)
+			{
+			    float4x4 MVPMatrix;
+			    float4 UVOffsetScale; // xy = offset, zw = scale
+			};
+
+			struct VSInput
+			{
+			    float3 Position : TEXCOORD0;
+			    float3 Normal : TEXCOORD1;
+			    float2 TexCoord : TEXCOORD2;
+			    uint Color : TEXCOORD3;
+			};
+
+			struct VSOutput
+			{
+			    float4 Position : SV_POSITION;
+			    float2 TexCoord : TEXCOORD0;
+			    float4 Color : TEXCOORD1;
+			};
+
+			float4 UnpackColor(uint packedColor)
+			{
+			   float4 color;
+			   color.r = float((packedColor >> 0) & 0xFF) / 255.0;
+			   color.g = float((packedColor >> 8) & 0xFF) / 255.0;
+			   color.b = float((packedColor >> 16) & 0xFF) / 255.0;
+			   color.a = float((packedColor >> 24) & 0xFF) / 255.0;
+			   return color;
+			}
+
+			VSOutput main(VSInput input)
+			{
+			    VSOutput output;
+			    output.Position = mul(MVPMatrix, float4(input.Position, 1.0));
+			    
+			    // Apply UV offset and scale for sprite sheet support
+			    output.TexCoord = input.TexCoord * UVOffsetScale.zw + UVOffsetScale.xy;
+			    
+			    output.Color = UnpackColor(input.Color);
+			    return output;
+			}
+		""";
+
+		// Sprite fragment shader - uniforms in space3, textures in space2
+		String spriteFragmentShaderSource = """
+			cbuffer UniformBlock : register(b0, space3)
+			{
+			    float4 TintColor;
+			};
+			
+			Texture2D SpriteTexture : register(t0, space2);
+			SamplerState SpriteSampler : register(s0, space2);
+			
+			struct PSInput
+			{
+			    float4 Position : SV_Position;
+			    float2 TexCoord : TEXCOORD0;
+			    float4 Color : TEXCOORD1;
+			};
+			
+			float4 main(PSInput input) : SV_Target
+			{
+			    float4 texColor = SpriteTexture.Sample(SpriteSampler, input.TexCoord);
+			    
+			    // Combine texture color with vertex color and tint
+			    float4 finalColor = texColor * input.Color * TintColor;
+			    
+			    // Alpha test for pixel-perfect sprites
+			    if (finalColor.a < 0.01)
+			        discard;
+			        
+			    return finalColor;
+			}
+		""";
+
 		// Compile all shaders
 		var litVsCode = scope List<uint8>();
 		var litPsCode = scope List<uint8>();
 		//var unlitVsCode = scope List<uint8>();
 		//var unlitPsCode = scope List<uint8>();
+		var spriteVsCode = scope List<uint8>();
+		var spritePsCode = scope List<uint8>();
 
 		CompileShaderFromSource(litVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", litVsCode);
 		CompileShaderFromSource(litFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", litPsCode);
 		//CompileShaderFromSource(unlitVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", unlitVsCode);
 		//CompileShaderFromSource(unlitFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", unlitPsCode);
+		CompileShaderFromSource(spriteVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", spriteVsCode);
+		CompileShaderFromSource(spriteFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", spritePsCode);
 
 		// Create shader objects
 		var litVsDesc = SDL_GPUShaderCreateInfo()
@@ -415,6 +518,35 @@ class SDLRendererSubsystem : Subsystem
 			num_storage_textures = 0
 		};
 		mUnlitFragmentShader = SDL_CreateGPUShader(mDevice, &unlitPsDesc);*/
+
+		// Create sprite shaders
+		var spriteVsDesc = SDL_GPUShaderCreateInfo()
+			{
+				code = spriteVsCode.Ptr,
+				code_size = (uint32)spriteVsCode.Count,
+				entrypoint = "main",
+				format = ShaderFormat,
+				stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+				num_samplers = 0,
+				num_uniform_buffers = 1, // We have 1 uniform buffer
+				num_storage_buffers = 0,
+				num_storage_textures = 0
+			};
+		mSpriteVertexShader = SDL_CreateGPUShader(mDevice, &spriteVsDesc);
+
+		var spritePsDesc = SDL_GPUShaderCreateInfo()
+			{
+				code = spritePsCode.Ptr,
+				code_size = (uint32)spritePsCode.Count,
+				entrypoint = "main",
+				format = ShaderFormat,
+				stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
+				num_samplers = 1, // We have 1 sampler for the sprite texture
+				num_uniform_buffers = 1, // We have 1 uniform buffer
+				num_storage_buffers = 0,
+				num_storage_textures = 0
+			};
+		mSpriteFragmentShader = SDL_CreateGPUShader(mDevice, &spritePsDesc);
 	}
 
 	private void CreatePipelines()
@@ -549,6 +681,38 @@ class SDLRendererSubsystem : Subsystem
 
 		mLitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
 
+		// Create sprite pipeline
+		// Sprite pipeline uses alpha blending and no depth write
+		colorTargetDesc.blend_state = SDL_GPUColorTargetBlendState()
+		{
+			src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+			dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+			color_blend_op = .SDL_GPU_BLENDOP_ADD,
+			src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
+			dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+			alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
+			color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
+				.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
+			enable_blend = true,
+			enable_color_write_mask = false
+		};
+
+		targetInfo.color_target_descriptions = &colorTargetDesc;
+
+		// Sprites test depth but don't write to it
+		depthStencilState.enable_depth_write = false;
+
+		// No backface culling for sprites (they might be flipped)
+		rasterState.cull_mode = .SDL_GPU_CULLMODE_NONE;
+
+		pipelineDesc.vertex_shader = mSpriteVertexShader;
+		pipelineDesc.fragment_shader = mSpriteFragmentShader;
+		pipelineDesc.rasterizer_state = rasterState;
+		pipelineDesc.depth_stencil_state = depthStencilState;
+		pipelineDesc.target_info = targetInfo;
+
+		mSpritePipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+
 		// Create unlit pipeline
 		/*pipelineDesc.vertex_shader = mUnlitVertexShader;
 		pipelineDesc.fragment_shader = mUnlitFragmentShader;
@@ -573,6 +737,11 @@ class SDLRendererSubsystem : Subsystem
 	{
 		return mLitPipeline;
 		//return lit ? mLitPipeline : mUnlitPipeline;
+	}
+
+	public SDL_GPUGraphicsPipeline* GetSpritePipeline()
+	{
+		return mSpritePipeline;
 	}
 
 	private void CompileShaderFromSource(String source, SDL_ShaderCross_ShaderStage stage,

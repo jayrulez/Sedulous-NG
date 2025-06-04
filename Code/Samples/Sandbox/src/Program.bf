@@ -21,32 +21,71 @@ namespace Sandbox;
 
 public class RotateComponent : Component
 {
-    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Self>();
-    public override ComponentTypeId TypeId => sTypeId;
+	private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Self>();
+	public override ComponentTypeId TypeId => sTypeId;
+}
+
+public class ControllerComponent : Component
+{
+	private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Self>();
+	public override ComponentTypeId TypeId => sTypeId;
+
+	public float MoveSpeed { get; set; } = 5.0f; // Units per second
 }
 
 public class AppSceneModule : SceneModule
 {
 	public override StringView Name => nameof(AppSceneModule);
-	
-
+	private readonly AppSubsystem mSubsystem;
+	public this(AppSubsystem subsystem)
+	{
+		mSubsystem = subsystem;
+	}
 	protected override void RegisterComponentInterests()
 	{
 		RegisterComponentInterest<RotateComponent>();
+		RegisterComponentInterest<ControllerComponent>();
 	}
-
 	protected override bool ShouldTrackEntity(Entity entity)
 	{
-		return entity.HasComponent<RotateComponent>();
+		return entity.HasComponent<RotateComponent>() || entity.HasComponent<ControllerComponent>();
 	}
-
 	protected override void OnUpdate(Time time)
 	{
-		for(var entity in TrackedEntities)
+		for (var entity in TrackedEntities)
 		{
-			if(entity.HasComponent<MeshRenderer>())
+			if (entity.HasComponent<RotateComponent>() && entity.HasComponent<MeshRenderer>())
 			{
 				entity.Transform.Rotation = Quaternion.CreateFromRotationMatrix(Matrix.CreateRotationY((float)time.TotalTime.TotalMilliseconds * 0.001f));
+			}
+			if (entity.HasComponent<ControllerComponent>())
+			{
+				if (((Engine)mSubsystem.Engine).GetSubsystem<InputSubsystem>() case .Ok(var input))
+				{
+					var kb = input.GetKeyboard();
+					var controller = entity.GetComponent<ControllerComponent>();
+					var moveSpeed = controller.MoveSpeed * (float)time.ElapsedTime.TotalSeconds;
+					var position = entity.Transform.Position;
+
+					if (kb.IsKeyDown(.KeypadD4))
+					{
+						position.X -= moveSpeed;
+					}
+					if (kb.IsKeyDown(.KeypadD6))
+					{
+						position.X += moveSpeed;
+					}
+					if (kb.IsKeyDown(.KeypadD8))
+					{
+						position.Y += moveSpeed;
+					}
+					if (kb.IsKeyDown(.KeypadD2))
+					{
+						position.Y -= moveSpeed;
+					}
+
+					entity.Transform.Position = position;
+				}
 			}
 		}
 	}
@@ -58,11 +97,12 @@ class AppSubsystem : Subsystem
 
 	private AppSceneModule mModule;
 
-	protected override void CreateSceneModules(Scene scene, List<SceneModule> modules) {
-
-		modules.Add(mModule = new AppSceneModule());
+	protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
+	{
+		modules.Add(mModule = new AppSceneModule(this));
 	}
-	protected override void DestroySceneModules(Scene scene) {
+	protected override void DestroySceneModules(Scene scene)
+	{
 		delete mModule;
 	}
 }
@@ -125,7 +165,6 @@ class SandboxApplication : Application
 		cameraEntity.Transform.LookAt(Vector3.Zero); // Look at origin
 		var camera = cameraEntity.AddComponent<Camera>();
 		camera.FieldOfView = 75.0f;
-
 		{
 			// Since camera starts looking at origin from (0, 5, -8)
 			// Calculate initial yaw and pitch
@@ -178,7 +217,7 @@ class SandboxApplication : Application
 			}
 			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
 		}
-		
+
 		var plane = scene.CreateEntity("Plane");
 		plane.Transform.Position = Vector3(0, -0.5f, 0);
 		plane.Transform.Scale = Vector3(1, 1, 1);
@@ -192,6 +231,22 @@ class SandboxApplication : Application
 			mesh.SetColor(v, renderer.Color.PackedValue);
 		}
 		renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
+		{
+			// Create a sprite entity
+			var spriteEntity = scene.CreateEntity("TestSprite");
+			spriteEntity.Transform.Position = Vector3(-6, 6, 0);
+
+			spriteEntity.AddComponent<ControllerComponent>();
+
+			var spriteRenderer = spriteEntity.AddComponent<SpriteRenderer>();
+			spriteRenderer.Texture = engine.ResourceSystem.AddResource(
+				TextureResource.CreateCheckerboard(256, 32)
+				);
+			spriteRenderer.Color = Color(1.0f, 1f, 1f, 1.0f);
+			spriteRenderer.Size = Vector2(2, 2); // 2x2 world units
+			spriteRenderer.Billboard = .AxisAligned;
+		}
+
 
 		base.OnEngineInitialized(engine);
 	}
@@ -213,80 +268,80 @@ class SandboxApplication : Application
 	private void OnUpdate(IEngine.UpdateInfo info)
 	{
 		var scene = info.Engine.SceneGraphSystem.ActiveScenes[0];
-		
+
 		// Camera movement
 		var cameraEntity = scene.FindEntity("Camera");
-		if(cameraEntity != null)
+		if (cameraEntity != null)
 		{
 			var inputSubsystem = ((Engine)info.Engine).GetSubsystem<InputSubsystem>().Value;
 			var keyboard = inputSubsystem.GetKeyboard();
 			var mouse = inputSubsystem.GetMouse();
-			
+
 			// Movement speed
 			float moveSpeed = 5.0f * (float)info.Time.ElapsedTime.TotalSeconds;
 			float mouseSensitivity = 0.002f; // Much lower value for smoother control
 			float panSpeed = moveSpeed * 2.0f; // Panning is usually faster
 			
 			// Speed multiplier with shift
-			if(keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
+			if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
 			{
 				moveSpeed *= 3.0f;
 				panSpeed *= 3.0f;
 			}
-			
+
 			var transform = cameraEntity.Transform;
 			var position = transform.Position;
-			
+
 			// Get camera direction vectors
 			var forward = transform.Forward;
 			var right = transform.Right;
 			var up = transform.Up;
-			
+
 			// WASD movement (relative to camera orientation)
-			if(keyboard.IsKeyDown(.W))
+			if (keyboard.IsKeyDown(.W))
 			{
 				position += forward * moveSpeed;
 			}
-			if(keyboard.IsKeyDown(.S))
+			if (keyboard.IsKeyDown(.S))
 			{
 				position -= forward * moveSpeed;
 			}
-			if(keyboard.IsKeyDown(.A))
+			if (keyboard.IsKeyDown(.A))
 			{
 				position -= right * moveSpeed;
 			}
-			if(keyboard.IsKeyDown(.D))
+			if (keyboard.IsKeyDown(.D))
 			{
 				position += right * moveSpeed;
 			}
-			
+
 			// Q/E for up/down movement
-			if(keyboard.IsKeyDown(.Q))
+			if (keyboard.IsKeyDown(.Q))
 			{
 				position.Y -= moveSpeed;
 			}
-			if(keyboard.IsKeyDown(.E))
+			if (keyboard.IsKeyDown(.E))
 			{
 				position.Y += moveSpeed;
 			}
-			
+
 			// Orbit around origin (Alt + Left mouse button)
-			if(mouse.IsButtonDown(.Left) && keyboard.IsKeyDown(.LeftAlt))
+			if (mouse.IsButtonDown(.Left) && keyboard.IsKeyDown(.LeftAlt))
 			{
 				var mouseDelta = mouse.PositionDelta;
-				
+
 				// Calculate the orbit rotation angle based on horizontal mouse movement
 				float orbitSpeed = mouseSensitivity * 2.0f;
 				float orbitAngle = -mouseDelta.X * orbitSpeed;
-				
+
 				// Create rotation around world Y axis
 				var orbitRotation = Quaternion.CreateFromAxisAngle(Vector3.Up, orbitAngle);
-				
+
 				// Transform camera position around origin
 				var toOrigin = position - Vector3.Zero; // Vector from origin to camera
 				var rotatedPosition = Vector3.Transform(toOrigin, orbitRotation);
 				position = rotatedPosition;
-				
+
 				// Also rotate the camera to keep looking at origin
 				mCameraYaw += orbitAngle;
 				var yawRotation = Quaternion.CreateFromAxisAngle(Vector3.Up, mCameraYaw);
@@ -294,31 +349,31 @@ class SandboxApplication : Application
 				transform.Rotation = yawRotation * pitchRotation;
 			}
 			// Mouse look (right mouse button)
-			else if(mouse.IsButtonDown(.Right))
+			else if (mouse.IsButtonDown(.Right))
 			{
 				var currentMousePos = mouse.Position;
-				
-				if(mFirstMouseMove)
+
+				if (mFirstMouseMove)
 				{
 					mLastMousePos = currentMousePos;
 					mFirstMouseMove = false;
 				}
-				
+
 				// Calculate delta manually for more control
 				var mouseDelta = currentMousePos - mLastMousePos;
 				mLastMousePos = currentMousePos;
-				
+
 				// Update rotation angles
 				mCameraYaw += mouseDelta.X * mouseSensitivity;
 				mCameraPitch += mouseDelta.Y * mouseSensitivity;
-				
+
 				// Clamp pitch to prevent camera flipping
 				mCameraPitch = Math.Clamp(mCameraPitch, -Math.PI_f * 0.49f, Math.PI_f * 0.49f);
-				
+
 				// Build rotation from yaw and pitch
 				var yawRotation = Quaternion.CreateFromAxisAngle(Vector3.Up, mCameraYaw);
 				var pitchRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, mCameraPitch);
-				
+
 				// Apply rotations: first yaw (global Y), then pitch (local X)
 				transform.Rotation = yawRotation * pitchRotation;
 			}
@@ -326,56 +381,56 @@ class SandboxApplication : Application
 			{
 				mFirstMouseMove = true;
 			}
-			
+
 			// Mouse panning (middle mouse button)
-			if(mouse.IsButtonDown(.Middle))
+			if (mouse.IsButtonDown(.Middle))
 			{
 				var mouseDelta = mouse.PositionDelta;
-				
+
 				// Pan horizontally and vertically relative to camera orientation
-				position += right * mouseDelta.X * panSpeed * 0.01f;  // Removed negative sign
+				position += right * mouseDelta.X * panSpeed * 0.01f; // Removed negative sign
 				position += up * mouseDelta.Y * panSpeed * 0.01f;
 			}
-			
+
 			// Mouse wheel zoom
 			var wheelDelta = mouse.WheelDeltaY;
-			if(Math.Abs(wheelDelta) > 0.001f)
+			if (Math.Abs(wheelDelta) > 0.001f)
 			{
 				// Move forward/backward based on wheel
 				position += forward * wheelDelta * moveSpeed * 2.0f;
 			}
-			
+
 			// Arrow keys for camera rotation (optional, can be removed if only using mouse)
 			float keyRotateSpeed = 2.0f * (float)info.Time.ElapsedTime.TotalSeconds;
-			
-			if(keyboard.IsKeyDown(.Left))
+
+			if (keyboard.IsKeyDown(.Left))
 			{
 				mCameraYaw += keyRotateSpeed;
 			}
-			if(keyboard.IsKeyDown(.Right))
+			if (keyboard.IsKeyDown(.Right))
 			{
 				mCameraYaw -= keyRotateSpeed;
 			}
-			if(keyboard.IsKeyDown(.Up))
+			if (keyboard.IsKeyDown(.Up))
 			{
 				mCameraPitch += keyRotateSpeed;
 				mCameraPitch = Math.Min(mCameraPitch, Math.PI_f * 0.49f);
 			}
-			if(keyboard.IsKeyDown(.Down))
+			if (keyboard.IsKeyDown(.Down))
 			{
 				mCameraPitch -= keyRotateSpeed;
 				mCameraPitch = Math.Max(mCameraPitch, -Math.PI_f * 0.49f);
 			}
-			
+
 			// Apply arrow key rotations if any were pressed
-			if(keyboard.IsKeyDown(.Left) || keyboard.IsKeyDown(.Right) || 
-			   keyboard.IsKeyDown(.Up) || keyboard.IsKeyDown(.Down))
+			if (keyboard.IsKeyDown(.Left) || keyboard.IsKeyDown(.Right) ||
+				keyboard.IsKeyDown(.Up) || keyboard.IsKeyDown(.Down))
 			{
 				var yawRotation = Quaternion.CreateFromAxisAngle(Vector3.Up, mCameraYaw);
 				var pitchRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, mCameraPitch);
 				transform.Rotation = yawRotation * pitchRotation;
 			}
-			
+
 			// Update position and mark dirty
 			transform.Position = position;
 		}

@@ -88,6 +88,8 @@ class SDLRendererSubsystem : Subsystem
 	private readonly MeshResourceManager mMeshResourceManager = new .() ~ delete _;
 	private readonly TextureResourceManager mTextureResourceManager = new .() ~ delete _;
 
+	private List<RenderModule> mRenderModules = new .() ~ delete _;
+
 	// Pipelines
 	private SDL_GPUGraphicsPipeline* mLitPipeline;
 	//private SDL_GPUGraphicsPipeline* mUnlitPipeline;
@@ -184,15 +186,23 @@ class SDLRendererSubsystem : Subsystem
 		base.OnUnitializing(engine);
 	}
 
-	private RenderModule mRenderModule = null;
 	protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
 	{
-		modules.Add(mRenderModule = new RenderModule(this));
+		var renderModule = new RenderModule(this);
+		modules.Add(renderModule);
+		mRenderModules.Add(renderModule);
 	}
 
 	protected override void DestroySceneModules(Scene scene)
 	{
-		delete mRenderModule;
+		for (int i = mRenderModules.Count - 1; i >= 0; i--)
+		{
+			if (mRenderModules[i].Scene == scene)
+			{
+				delete mRenderModules[i];
+				mRenderModules.RemoveAt(i);
+			}
+		}
 	}
 
 	private void CreateShaders()
@@ -209,7 +219,7 @@ class SDLRendererSubsystem : Subsystem
 			    float4x4 ModelMatrix;
 			    float4x4 NormalMatrix;
 			};
-
+		
 			struct VSInput
 			{
 			    float3 Position : TEXCOORD0;
@@ -217,7 +227,7 @@ class SDLRendererSubsystem : Subsystem
 			    float2 TexCoord : TEXCOORD2;
 			    uint Color : TEXCOORD3;
 			};
-
+		
 			struct VSOutput
 			{
 			    float4 Position : SV_POSITION;
@@ -226,7 +236,7 @@ class SDLRendererSubsystem : Subsystem
 			    float3 Normal : TEXCOORD2;
 			    float3 WorldPos : TEXCOORD3;
 			};
-
+		
 			float4 UnpackColor(uint packedColor)
 			{
 			   float4 color;
@@ -236,8 +246,8 @@ class SDLRendererSubsystem : Subsystem
 			   color.a = float((packedColor >> 24) & 0xFF) / 255.0;
 			   return color;
 			}
-
-
+		
+		
 			VSOutput main(VSInput input)
 			{
 			    VSOutput output;
@@ -378,7 +388,7 @@ class SDLRendererSubsystem : Subsystem
 			    float4x4 MVPMatrix;
 			    float4 UVOffsetScale; // xy = offset, zw = scale
 			};
-
+		
 			struct VSInput
 			{
 			    float3 Position : TEXCOORD0;
@@ -386,14 +396,14 @@ class SDLRendererSubsystem : Subsystem
 			    float2 TexCoord : TEXCOORD2;
 			    uint Color : TEXCOORD3;
 			};
-
+		
 			struct VSOutput
 			{
 			    float4 Position : SV_POSITION;
 			    float2 TexCoord : TEXCOORD0;
 			    float4 Color : TEXCOORD1;
 			};
-
+		
 			float4 UnpackColor(uint packedColor)
 			{
 			   float4 color;
@@ -403,7 +413,7 @@ class SDLRendererSubsystem : Subsystem
 			   color.a = float((packedColor >> 24) & 0xFF) / 255.0;
 			   return color;
 			}
-
+		
 			VSOutput main(VSInput input)
 			{
 			    VSOutput output;
@@ -581,18 +591,18 @@ class SDLRendererSubsystem : Subsystem
 			};
 
 		SDL_GPUColorTargetBlendState blendState = .()
-		{
-			src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-			dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-			color_blend_op = .SDL_GPU_BLENDOP_ADD,
-			src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
-			dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-			alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
-			color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
-				.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
-			enable_blend = true,
-			enable_color_write_mask = false
-		};
+			{
+				src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+				dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				color_blend_op = .SDL_GPU_BLENDOP_ADD,
+				src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
+				dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
+				color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
+					.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
+				enable_blend = true,
+				enable_color_write_mask = false
+			};
 
 		var colorTargetDesc = SDL_GPUColorTargetDescription()
 			{
@@ -621,28 +631,28 @@ class SDLRendererSubsystem : Subsystem
 			};
 
 		SDL_GPURasterizerState rasterState = .()
-		{
-			fill_mode = .SDL_GPU_FILLMODE_FILL,
-			cull_mode = .SDL_GPU_CULLMODE_BACK,
-			front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
-			depth_bias_constant_factor = 0,
-			depth_bias_clamp = 0,
-			depth_bias_slope_factor = 0,
-			enable_depth_bias = false,
-			enable_depth_clip = true
-		};
+			{
+				fill_mode = .SDL_GPU_FILLMODE_FILL,
+				cull_mode = .SDL_GPU_CULLMODE_BACK,
+				front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+				depth_bias_constant_factor = 0,
+				depth_bias_clamp = 0,
+				depth_bias_slope_factor = 0,
+				enable_depth_bias = false,
+				enable_depth_clip = true
+			};
 
 		SDL_GPUDepthStencilState depthStencilState = .()
-		{
-			compare_op = .SDL_GPU_COMPAREOP_LESS,
-			back_stencil_state = .(),
-			front_stencil_state = .(),
-			compare_mask = 0,
-			write_mask = 0,
-			enable_depth_test = true,
-			enable_depth_write = true,
-			enable_stencil_test = false
-		};
+			{
+				compare_op = .SDL_GPU_COMPAREOP_LESS,
+				back_stencil_state = .(),
+				front_stencil_state = .(),
+				compare_mask = 0,
+				write_mask = 0,
+				enable_depth_test = true,
+				enable_depth_write = true,
+				enable_stencil_test = false
+			};
 
 		var pipelineDesc = SDL_GPUGraphicsPipelineCreateInfo()
 			{
@@ -686,18 +696,18 @@ class SDLRendererSubsystem : Subsystem
 		// Create sprite pipeline
 		// Sprite pipeline uses alpha blending and no depth write
 		colorTargetDesc.blend_state = SDL_GPUColorTargetBlendState()
-		{
-			src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-			dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-			color_blend_op = .SDL_GPU_BLENDOP_ADD,
-			src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
-			dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-			alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
-			color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
-				.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
-			enable_blend = true,
-			enable_color_write_mask = false
-		};
+			{
+				src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+				dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				color_blend_op = .SDL_GPU_BLENDOP_ADD,
+				src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
+				dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+				alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
+				color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
+					.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
+				enable_blend = true,
+				enable_color_write_mask = false
+			};
 
 		targetInfo.color_target_descriptions = &colorTargetDesc;
 
@@ -732,7 +742,10 @@ class SDLRendererSubsystem : Subsystem
 
 	private void OnRender(IEngine.UpdateInfo info)
 	{
-		mRenderModule.RenderFrame();
+		for (var module in mRenderModules)
+		{
+			module.RenderFrame();
+		}
 	}
 
 	public SDL_GPUGraphicsPipeline* GetPipeline(bool lit)

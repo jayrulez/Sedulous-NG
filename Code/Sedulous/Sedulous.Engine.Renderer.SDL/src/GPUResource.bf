@@ -1,10 +1,15 @@
 using System.Diagnostics;
 using System.Threading;
+using System;
 namespace Sedulous.Engine.Renderer.SDL;
 
 abstract class GPUResource : IGPUResource
 {
 	private int mRefCount = 0;
+
+	private String mName = new .() ~ delete _;
+
+	public StringView Name => mName;
 
 	public ~this()
 	{
@@ -17,6 +22,11 @@ abstract class GPUResource : IGPUResource
 		{
 			return mRefCount;
 		}
+	}
+
+	public this(StringView name)
+	{
+		mName.Set(name);
 	}
 
 	public void AddRef()

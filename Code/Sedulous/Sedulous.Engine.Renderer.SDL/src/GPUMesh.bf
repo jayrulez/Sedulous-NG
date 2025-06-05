@@ -12,7 +12,8 @@ class GPUMesh : GPUResource
 
 	private SDL_GPUDevice* mDevice;
 
-	public this(SDL_GPUDevice* device, Mesh mesh)
+	public this(StringView name, SDL_GPUDevice* device, Mesh mesh)
+		: base(name)
 	{
 		mDevice = device;
 		CreateBuffers(mDevice, mesh);

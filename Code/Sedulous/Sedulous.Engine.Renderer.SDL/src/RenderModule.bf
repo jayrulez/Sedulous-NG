@@ -123,7 +123,7 @@ class RenderModule : SceneModule
         mesh.Indices.SetIndex(4, 2);
         mesh.Indices.SetIndex(5, 3);
         
-        mSpriteQuadMesh = new GPUMesh(mRenderer.mDevice, mesh);
+        mSpriteQuadMesh = new GPUMesh("SpriteSquad", mRenderer.mDevice, mesh);
         delete mesh;
     }
 
@@ -330,7 +330,7 @@ class RenderModule : SceneModule
         {
             if (!mRendererMeshes.ContainsKey(command.Renderer))
             {
-                mRendererMeshes[command.Renderer] = new GPUMesh(mRenderer.mDevice, command.Renderer.Mesh.Resource.Mesh);
+                mRendererMeshes[command.Renderer] = new GPUMesh(scope $"{command.Entity.Name}_Mesh", mRenderer.mDevice, command.Renderer.Mesh.Resource.Mesh);
             }
             
             // Create GPU materials
@@ -350,13 +350,13 @@ class RenderModule : SceneModule
                             var textureResource = textureHandle.Resource;
                             if (!mTextureCache.ContainsKey(textureResource))
                             {
-                                mTextureCache[textureResource] = GPUResourceHandle<GPUTexture>(new GPUTexture(mRenderer.mDevice, textureResource));
+                                mTextureCache[textureResource] = GPUResourceHandle<GPUTexture>(new GPUTexture(scope $"{command.Entity.Name}_Mesh_Texture_{textureResource.Id}", mRenderer.mDevice, textureResource));
                             }
                         }
                     }
                     
                     // Now create the GPU material with texture cache
-                    mMaterialCache[materialResource] = new GPUMaterial(mRenderer.mDevice, materialResource.Material, mTextureCache);
+                    mMaterialCache[materialResource] = new GPUMaterial(scope $"{command.Entity.Name}_Material_{materialResource.Id}", mRenderer.mDevice, materialResource.Material, mTextureCache);
                 }
             }
         }
@@ -367,7 +367,7 @@ class RenderModule : SceneModule
             var textureResource = command.Renderer.Texture.Resource;
             if (!mTextureCache.ContainsKey(textureResource))
             {
-                mTextureCache[textureResource] = GPUResourceHandle<GPUTexture>(new GPUTexture(mRenderer.mDevice, textureResource));
+                mTextureCache[textureResource] = GPUResourceHandle<GPUTexture>(new GPUTexture(scope $"{command.Entity.Name}_Sprite_Texture_{textureResource.Id}", mRenderer.mDevice, textureResource));
             }
         }
     }

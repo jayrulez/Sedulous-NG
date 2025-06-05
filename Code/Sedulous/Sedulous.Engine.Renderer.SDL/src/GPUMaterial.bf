@@ -23,7 +23,8 @@ class GPUMaterial : GPUResource
     public bool DepthTest => mMaterial.DepthTest;
     public StringView ShaderName => mMaterial.ShaderName;
     
-    public this(SDL_GPUDevice* device, Material material, Dictionary<TextureResource, GPUResourceHandle<GPUTexture>> textureCache)
+    public this(StringView name, SDL_GPUDevice* device, Material material, Dictionary<TextureResource, GPUResourceHandle<GPUTexture>> textureCache)
+		: base(name)
     {
         mDevice = device;
         mMaterial = material;
@@ -117,6 +118,7 @@ class GPUMaterial : GPUResource
             {
                 if (textureCache.TryGetValue(handle.Resource, let gpuTexture))
                 {
+					gpuTexture.Resource.AddRef();
                     mGPUTextures.Add(gpuTexture);
                 }
             }

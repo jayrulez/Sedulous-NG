@@ -233,6 +233,8 @@ class SandboxApplication : Application
 		shinyMat.Shininess = 128.0f;
 		shinyMat.AmbientColor = Color(0.1f, 0.02f, 0.02f, 1.0f);
 
+		//var unlitMat = MaterialResource.CreateUnlit();
+
 		renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(shinyMat, true), true);
 		Mesh mesh = Mesh.CreatePlane();
 

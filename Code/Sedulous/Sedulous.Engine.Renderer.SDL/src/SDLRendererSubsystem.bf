@@ -96,9 +96,9 @@ class SDLRendererSubsystem : Subsystem
 	private SDL_GPUShader* mSpriteFragmentShader;
 
 	// Default textures
-	private GPUResourceHandle<GPUTexture> mDefaultWhiteTexture ~ _.Release();
-	private GPUResourceHandle<GPUTexture> mDefaultBlackTexture ~ _.Release();
-	private GPUResourceHandle<GPUTexture> mDefaultNormalTexture ~ _.Release();
+	private GPUResourceHandle<GPUTexture> mDefaultWhiteTexture;
+	private GPUResourceHandle<GPUTexture> mDefaultBlackTexture;
+	private GPUResourceHandle<GPUTexture> mDefaultNormalTexture;
 
 	public uint32 Width => mPrimaryWindow.Width;
 	public uint32 Height => mPrimaryWindow.Height;
@@ -152,6 +152,10 @@ class SDLRendererSubsystem : Subsystem
 	protected override void OnUnitializing(IEngine engine)
 	{
 		// Cleanup
+		mDefaultWhiteTexture.Release();
+		mDefaultBlackTexture.Release();
+		mDefaultNormalTexture.Release();
+
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mLitPipeline);
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mUnlitPipeline);
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mSpritePipeline);
@@ -163,6 +167,7 @@ class SDLRendererSubsystem : Subsystem
 		SDL_ReleaseGPUShader(mDevice, mSpriteFragmentShader);
 
 		SDL_ReleaseWindowFromGPUDevice(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
+
 		SDL_DestroyGPUDevice(mDevice);
 
 		engine.ResourceSystem.RemoveResourceManager(mMeshResourceManager);
@@ -182,8 +187,6 @@ class SDLRendererSubsystem : Subsystem
 			delete mRenderFunctionRegistration.Value.Function;
 			mRenderFunctionRegistration = null;
 		}
-
-
 
 		base.OnUnitializing(engine);
 	}
@@ -788,21 +791,21 @@ class SDLRendererSubsystem : Subsystem
 		{
 			var whiteImage = scope Sedulous.Imaging.Image(1, 1, .RGBA8);
 			whiteImage.SetPixel(0, 0, .White);
-			mDefaultWhiteTexture = GPUResourceHandle<GPUTexture>(new GPUTexture(mDevice, whiteImage));
+			mDefaultWhiteTexture = GPUResourceHandle<GPUTexture>(new GPUTexture("DefaultWhite", mDevice, whiteImage));
 		}
 
 		// Create 1x1 black texture
 		{
 			var blackImage = scope Sedulous.Imaging.Image(1, 1, .RGBA8);
 			blackImage.SetPixel(0, 0, .Black);
-			mDefaultBlackTexture = GPUResourceHandle<GPUTexture>(new GPUTexture(mDevice, blackImage));
+			mDefaultBlackTexture = GPUResourceHandle<GPUTexture>(new GPUTexture("DefaultBlack", mDevice, blackImage));
 		}
 
 		// Create 1x1 default normal texture (pointing up)
 		{
 			var normalImage = scope Sedulous.Imaging.Image(1, 1, .RGBA8);
 			normalImage.SetPixel(0, 0, Color(128, 128, 255, 255)); // Normal pointing up
-			mDefaultNormalTexture = GPUResourceHandle<GPUTexture>(new GPUTexture(mDevice, normalImage));
+			mDefaultNormalTexture = GPUResourceHandle<GPUTexture>(new GPUTexture("DefaultNormal", mDevice, normalImage));
 		}
 	}
 

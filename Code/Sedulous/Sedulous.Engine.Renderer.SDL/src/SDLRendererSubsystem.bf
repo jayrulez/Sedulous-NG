@@ -15,15 +15,9 @@ namespace Sedulous.Engine.Renderer.SDL;
 using internal Sedulous.Engine.Renderer.SDL;
 
 // Uniform buffer structures must match shader exactly and follow HLSL alignment rules
-
-[CRepr, Packed]
-struct LightData
+static
 {
-	public Vector4 PositionType; // xyz = position, w = type (0=dir, 1=point, 2=spot)
-	public Vector4 DirectionRange; // xyz = direction, w = range
-	public Vector4 ColorIntensity; // xyz = color, w = intensity
-	public Vector4 SpotAngles; // x = inner angle cos, y = outer angle cos, z = constant atten, w = linear atten
-	// Total: 64 bytes per light
+	public const int MAX_LIGHTS = 16;
 }
 
 [CRepr, Packed]
@@ -36,15 +30,29 @@ struct LitVertexUniforms
 }
 
 [CRepr, Packed]
+struct LightData
+{
+	public Vector4 PositionType; // xyz = position, w = type (0=dir, 1=point, 2=spot)
+	public Vector4 DirectionRange; // xyz = direction, w = range
+	public Vector4 ColorIntensity; // xyz = color, w = intensity
+	public Vector4 SpotAngles; // x = inner angle cos, y = outer angle cos, z = constant atten, w = linear atten
+	// Total: 64 bytes per light
+}
+
+[CRepr, Packed]
 struct LitFragmentUniforms
 {
-	public Vector4 LightDirAndIntensity; // 16 bytes - xyz = direction, w = intensity
-	public Vector4 LightColorPad; // 16 bytes - xyz = color, w = padding
+	// Material properties
 	public Vector4 MaterialColor; // 16 bytes - diffuse color
-	public Vector4 CameraPosAndPad; // 16 bytes - xyz = position, w = padding
 	public Vector4 SpecularColorShininess; // 16 bytes - xyz = specular color, w = shininess
 	public Vector4 AmbientColor; // 16 bytes - ambient color
-	// Total: 96 bytes (multiple of 16)
+	public Vector4 CameraPos; // 16 bytes - xyz = position, w = padding
+	
+	// Light array
+	public LightData[MAX_LIGHTS] Lights; // 64 * 16 = 1024 bytes
+	public Vector4 LightCount; // 16 bytes - x = active light count, yzw = padding
+	
+	// Total: 1088 bytes (multiple of 16)
 }
 
 [CRepr, Packed]
@@ -89,13 +97,17 @@ struct PBRVertexUniforms
 [CRepr, Packed]
 struct PBRFragmentUniforms
 {
-	public Vector4 CameraPos; // 16 bytes - xyz = position, w = padding
-	public Vector4 LightDirection; // 16 bytes - xyz = direction, w = padding
-	public Vector4 LightColor; // 16 bytes - xyz = color, w = intensity
+	// Material properties
 	public Vector4 AlbedoColor; // 16 bytes - base color
 	public Vector4 EmissiveColor; // 16 bytes - xyz = emissive, w = intensity
 	public Vector4 MetallicRoughnessAO; // 16 bytes - x = metallic, y = roughness, z = AO, w = padding
-	// Total: 96 bytes (multiple of 16)
+	public Vector4 CameraPos; // 16 bytes - xyz = position, w = padding
+	
+	// Light array
+	public LightData[MAX_LIGHTS] Lights; // 64 * 16 = 1024 bytes
+	public Vector4 LightCount; // 16 bytes - x = active light count, yzw = padding
+	
+	// Total: 1088 bytes (multiple of 16)
 }
 
 class SDLRendererSubsystem : Subsystem
@@ -305,14 +317,24 @@ class SDLRendererSubsystem : Subsystem
 
 		// Lit fragment shader - uniforms in space3, textures in space2
 		String litFragmentShaderSource = """
+		static const int MAX_LIGHTS = 16;
+		
+		struct LightData
+		{
+		    float4 PositionType;     // xyz = position, w = type (0=dir, 1=point, 2=spot)
+		    float4 DirectionRange;   // xyz = direction, w = range
+		    float4 ColorIntensity;   // xyz = color, w = intensity
+		    float4 SpotAngles;       // x = inner angle cos, y = outer angle cos, z = constant atten, w = linear atten
+		};
+		
 		cbuffer UniformBlock : register(b0, space3)
 		{
-		    float4 LightDirAndIntensity;  // xyz = direction, w = intensity
-		    float4 LightColorPad;         // xyz = color, w = padding
 		    float4 MaterialColor;         // diffuse color
-		    float4 CameraPosAndPad;       // xyz = position, w = padding
 		    float4 SpecularColorShininess; // xyz = specular color, w = shininess
 		    float4 AmbientColor;          // ambient color
+		    float4 CameraPos;            // xyz = position, w = padding
+		    LightData Lights[MAX_LIGHTS];
+		    float4 LightCount;           // x = active light count
 		};
 		
 		Texture2D DiffuseTexture : register(t0, space2);
@@ -327,38 +349,129 @@ class SDLRendererSubsystem : Subsystem
 		    float3 WorldPos : TEXCOORD3;
 		};
 		
+		float3 CalculateDirectionalLight(LightData light, float3 normal, float3 viewDir, float3 materialColor, float3 specularColor, float shininess)
+		{
+		    float3 lightDir = normalize(light.DirectionRange.xyz);
+		    float3 lightColor = light.ColorIntensity.xyz;
+		    float lightIntensity = light.ColorIntensity.w;
+		    
+		    // Diffuse
+		    float NdotL = max(dot(normal, -lightDir), 0.0);
+		    float3 diffuse = NdotL * lightColor * lightIntensity;
+		    
+		    // Specular
+		    float3 halfVector = normalize(viewDir - lightDir);
+		    float NdotH = max(dot(normal, halfVector), 0.0);
+		    float specularIntensity = pow(NdotH, shininess);
+		    float3 specular = specularIntensity * specularColor * lightColor * lightIntensity;
+		    
+		    return diffuse * materialColor + specular;
+		}
+		
+		float3 CalculatePointLight(LightData light, float3 normal, float3 worldPos, float3 viewDir, float3 materialColor, float3 specularColor, float shininess)
+		{
+		    float3 lightPos = light.PositionType.xyz;
+		    float3 lightColor = light.ColorIntensity.xyz;
+		    float lightIntensity = light.ColorIntensity.w;
+		    float range = light.DirectionRange.w;
+		    
+		    // Light direction from surface to light
+		    float3 lightDir = lightPos - worldPos;
+		    float distance = length(lightDir);
+		    lightDir = normalize(lightDir);
+		    
+		    // Range-based attenuation
+		    float attenuation = 1.0 - saturate(distance / range);
+		    attenuation *= attenuation; // Square for smoother falloff
+		    
+		    // Diffuse
+		    float NdotL = max(dot(normal, lightDir), 0.0);
+		    float3 diffuse = NdotL * lightColor * lightIntensity * attenuation;
+		    
+		    // Specular
+		    float3 halfVector = normalize(viewDir + lightDir);
+		    float NdotH = max(dot(normal, halfVector), 0.0);
+		    float specularIntensity = pow(NdotH, shininess);
+		    float3 specular = specularIntensity * specularColor * lightColor * lightIntensity * attenuation;
+		    
+		    return diffuse * materialColor + specular;
+		}
+		
+		float3 CalculateSpotLight(LightData light, float3 normal, float3 worldPos, float3 viewDir, float3 materialColor, float3 specularColor, float shininess)
+		{
+		    float3 lightPos = light.PositionType.xyz;
+		    float3 spotDir = normalize(light.DirectionRange.xyz);
+		    float3 lightColor = light.ColorIntensity.xyz;
+		    float lightIntensity = light.ColorIntensity.w;
+		    float range = light.DirectionRange.w;
+		    float innerCos = light.SpotAngles.x;
+		    float outerCos = light.SpotAngles.y;
+		    
+		    // Light direction from surface to light
+		    float3 lightDir = lightPos - worldPos;
+		    float distance = length(lightDir);
+		    lightDir = normalize(lightDir);
+		    
+		    // Spot cone calculation
+		    float cosAngle = dot(-lightDir, spotDir);
+		    float spotEffect = smoothstep(outerCos, innerCos, cosAngle);
+		    
+		    // Range-based attenuation
+		    float attenuation = 1.0 - saturate(distance / range);
+		    attenuation *= attenuation; // Square for smoother falloff
+		    attenuation *= spotEffect;
+		    
+		    // Diffuse
+		    float NdotL = max(dot(normal, lightDir), 0.0);
+		    float3 diffuse = NdotL * lightColor * lightIntensity * attenuation;
+		    
+		    // Specular
+		    float3 halfVector = normalize(viewDir + lightDir);
+		    float NdotH = max(dot(normal, halfVector), 0.0);
+		    float specularIntensity = pow(NdotH, shininess);
+		    float3 specular = specularIntensity * specularColor * lightColor * lightIntensity * attenuation;
+		    
+		    return diffuse * materialColor + specular;
+		}
+		
 		float4 main(PSInput input) : SV_Target
 		{
-		    // Extract light parameters
-		    float3 lightDir = normalize(LightDirAndIntensity.xyz);
-		    float lightIntensity = LightDirAndIntensity.w;
-		    float3 lightColor = LightColorPad.xyz;
-		    
-		    // Extract material parameters
-		    float3 cameraPos = CameraPosAndPad.xyz;
-		    float3 specularColor = SpecularColorShininess.xyz;
-		    float shininess = SpecularColorShininess.w;
-		    
 		    // Sample diffuse texture
 		    float4 diffuseTexColor = DiffuseTexture.Sample(DiffuseSampler, input.TexCoord);
 		    
 		    // Normalize the normal
 		    float3 normal = normalize(input.Normal);
 		    
-		    // Calculate diffuse lighting
-		    float NdotL = max(dot(normal, -lightDir), 0.0);
-		    float3 diffuse = NdotL * lightColor * lightIntensity;
+		    // Calculate view direction
+		    float3 viewDir = normalize(CameraPos.xyz - input.WorldPos);
 		    
-		    // Calculate view direction and specular
-		    float3 viewDir = normalize(cameraPos - input.WorldPos);
-		    float3 halfVector = normalize(viewDir - lightDir);
-		    float NdotH = max(dot(normal, halfVector), 0.0);
-		    float specularIntensity = pow(NdotH, shininess);
-		    float3 specular = specularIntensity * specularColor * lightColor * lightIntensity;
-		    
-		    // Combine lighting with material color and texture
+		    // Extract material parameters
 		    float3 materialColor = MaterialColor.rgb * input.Color.rgb * diffuseTexColor.rgb;
-		    float3 finalColor = AmbientColor.rgb * materialColor + diffuse * materialColor + specular;
+		    float3 specularColor = SpecularColorShininess.xyz;
+		    float shininess = SpecularColorShininess.w;
+		    
+		    // Start with ambient
+		    float3 finalColor = AmbientColor.rgb * materialColor;
+		    
+		    // Accumulate lighting from all active lights
+		    int lightCount = (int)LightCount.x;
+		    for (int i = 0; i < lightCount; i++)
+		    {
+		        float lightType = Lights[i].PositionType.w;
+		        
+		        if (lightType < 0.5) // Directional light
+		        {
+		            finalColor += CalculateDirectionalLight(Lights[i], normal, viewDir, materialColor, specularColor, shininess);
+		        }
+		        else if (lightType < 1.5) // Point light
+		        {
+		            finalColor += CalculatePointLight(Lights[i], normal, input.WorldPos, viewDir, materialColor, specularColor, shininess);
+		        }
+		        else // Spot light
+		        {
+		            finalColor += CalculateSpotLight(Lights[i], normal, input.WorldPos, viewDir, materialColor, specularColor, shininess);
+		        }
+		    }
 		    
 		    return float4(finalColor, MaterialColor.a * input.Color.a * diffuseTexColor.a);
 		}
@@ -484,14 +597,25 @@ class SDLRendererSubsystem : Subsystem
 
 		// PBR fragment shader - physically based rendering
 		String pbrFragmentShaderSource = """
+			static const int MAX_LIGHTS = 16;
+			static const float PI = 3.14159265359;
+			
+			struct LightData
+			{
+			    float4 PositionType;     // xyz = position, w = type (0=dir, 1=point, 2=spot)
+			    float4 DirectionRange;   // xyz = direction, w = range
+			    float4 ColorIntensity;   // xyz = color, w = intensity
+			    float4 SpotAngles;       // x = inner angle cos, y = outer angle cos, z = constant atten, w = linear atten
+			};
+			
 			cbuffer UniformBlock : register(b0, space3)
 			{
-			    float4 CameraPos;
-			    float4 LightDirection;
-			    float4 LightColor; // xyz = color, w = intensity
 			    float4 AlbedoColor;
 			    float4 EmissiveColor; // xyz = color, w = intensity
 			    float4 MetallicRoughnessAO; // x = metallic, y = roughness, z = AO
+			    float4 CameraPos;
+			    LightData Lights[MAX_LIGHTS];
+			    float4 LightCount; // x = active light count
 			};
 			
 			Texture2D AlbedoTexture : register(t0, space2);
@@ -509,8 +633,6 @@ class SDLRendererSubsystem : Subsystem
 			    float3 Normal : TEXCOORD2;
 			    float3 WorldPos : TEXCOORD3;
 			};
-			
-			static const float PI = 3.14159265359;
 			
 			// Normal Distribution Function (GGX/Trowbridge-Reitz)
 			float DistributionGGX(float3 N, float3 H, float roughness)
@@ -555,6 +677,33 @@ class SDLRendererSubsystem : Subsystem
 			    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 			}
 			
+			float3 CalculatePBRLight(float3 L, float3 V, float3 N, float3 albedo, float metallic, float roughness, float3 lightColor, float attenuation)
+			{
+			    float3 H = normalize(V + L);
+			    
+			    // Calculate F0 (base reflectivity)
+			    float3 F0 = float3(0.04, 0.04, 0.04); // Default for dielectrics
+			    F0 = lerp(F0, albedo, metallic);
+			    
+			    // Cook-Torrance BRDF
+			    float NDF = DistributionGGX(N, H, roughness);
+			    float G = GeometrySmith(N, V, L, roughness);
+			    float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+			    
+			    float3 kS = F;
+			    float3 kD = float3(1.0, 1.0, 1.0) - kS;
+			    kD *= 1.0 - metallic; // Metals have no diffuse
+			    
+			    float NdotL = max(dot(N, L), 0.0);
+			    
+			    float3 numerator = NDF * G * F;
+			    float denominator = 4.0 * max(dot(N, V), 0.0) * NdotL + 0.0001;
+			    float3 specular = numerator / denominator;
+			    
+			    // Final lighting calculation
+			    return (kD * albedo / PI + specular) * lightColor * NdotL * attenuation;
+			}
+			
 			float4 main(PSInput input) : SV_Target
 			{
 			    // Sample textures
@@ -574,30 +723,59 @@ class SDLRendererSubsystem : Subsystem
 			    roughness *= mrSample.g;
 			    
 			    float3 V = normalize(CameraPos.xyz - input.WorldPos);
-			    float3 L = normalize(-LightDirection.xyz);
-			    float3 H = normalize(V + L);
 			    
-			    // Calculate F0 (base reflectivity)
-			    float3 F0 = float3(0.04, 0.04, 0.04); // Default for dielectrics
-			    F0 = lerp(F0, albedo, metallic);
+			    // Accumulate lighting from all lights
+			    float3 Lo = float3(0.0, 0.0, 0.0);
+			    int lightCount = (int)LightCount.x;
 			    
-			    // Cook-Torrance BRDF
-			    float NDF = DistributionGGX(normal, H, roughness);
-			    float G = GeometrySmith(normal, V, L, roughness);
-			    float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
-			    
-			    float3 kS = F;
-			    float3 kD = float3(1.0, 1.0, 1.0) - kS;
-			    kD *= 1.0 - metallic; // Metals have no diffuse
-			    
-			    float NdotL = max(dot(normal, L), 0.0);
-			    
-			    float3 numerator = NDF * G * F;
-			    float denominator = 4.0 * max(dot(normal, V), 0.0) * NdotL + 0.0001;
-			    float3 specular = numerator / denominator;
-			    
-			    // Final lighting calculation
-			    float3 Lo = (kD * albedo / PI + specular) * LightColor.rgb * LightColor.w * NdotL;
+			    for (int i = 0; i < lightCount; i++)
+			    {
+			        float lightType = Lights[i].PositionType.w;
+			        float3 lightColor = Lights[i].ColorIntensity.xyz * Lights[i].ColorIntensity.w;
+			        float3 L;
+			        float attenuation = 1.0;
+			        
+			        if (lightType < 0.5) // Directional light
+			        {
+			            L = normalize(-Lights[i].DirectionRange.xyz);
+			        }
+			        else if (lightType < 1.5) // Point light
+			        {
+			            float3 lightPos = Lights[i].PositionType.xyz;
+			            float range = Lights[i].DirectionRange.w;
+			            
+			            L = lightPos - input.WorldPos;
+			            float distance = length(L);
+			            L = normalize(L);
+			            
+			            // Range-based attenuation
+			            attenuation = 1.0 - saturate(distance / range);
+			            attenuation *= attenuation;
+			        }
+			        else // Spot light
+			        {
+			            float3 lightPos = Lights[i].PositionType.xyz;
+			            float3 spotDir = normalize(Lights[i].DirectionRange.xyz);
+			            float range = Lights[i].DirectionRange.w;
+			            float innerCos = Lights[i].SpotAngles.x;
+			            float outerCos = Lights[i].SpotAngles.y;
+			            
+			            L = lightPos - input.WorldPos;
+			            float distance = length(L);
+			            L = normalize(L);
+			            
+			            // Spot cone calculation
+			            float cosAngle = dot(-L, spotDir);
+			            float spotEffect = smoothstep(outerCos, innerCos, cosAngle);
+			            
+			            // Range-based attenuation
+			            attenuation = 1.0 - saturate(distance / range);
+			            attenuation *= attenuation;
+			            attenuation *= spotEffect;
+			        }
+			        
+			        Lo += CalculatePBRLight(L, V, normal, albedo, metallic, roughness, lightColor, attenuation);
+			    }
 			    
 			    // Ambient lighting (simplified - should use IBL)
 			    float3 ambient = float3(0.03, 0.03, 0.03) * albedo * ao;

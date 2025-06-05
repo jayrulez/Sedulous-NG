@@ -20,7 +20,5 @@ public class Program
 {
     public static void Main()
     {
-        var app = scope Application();
-
     }
 }

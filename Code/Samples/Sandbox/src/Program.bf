@@ -119,6 +119,12 @@ class SandboxApplication : Application
 	private bool mFirstMouseMove = true;
 	private Vector2 mLastMousePos = .Zero;
 
+	// Light control
+	private Entity mSunLightEntity;
+	private DirectionalLight mSunLight;
+	private float mSunYaw = 0.0f;
+	private float mSunPitch = Math.DegreesToRadians(-45.0f);
+
 	private AppSubsystem mAppSubsystem;
 
 	public this(ILogger logger, WindowSystem windowSystem) : base(logger, windowSystem)
@@ -176,50 +182,71 @@ class SandboxApplication : Application
 		}
 
 		// Create main directional light (sun)
-		var sunLightEntity = scene.CreateEntity("SunLight");
-		sunLightEntity.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(0, Math.DegreesToRadians(-45), 0);
-		var sunLight = sunLightEntity.AddComponent<Light>();
-		sunLight.Type = .Directional;
-		sunLight.Color = Vector3(1.0f, 0.95f, 0.8f); // Warm white
-		sunLight.Intensity = 0.8f; // Reduced from 1.0 since we'll have multiple lights
+		mSunLightEntity = scene.CreateEntity("SunLight");
+		mSunLightEntity.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(mSunYaw, mSunPitch, 0);
+		mSunLight = mSunLightEntity.AddComponent<DirectionalLight>();
+		mSunLight.Color = Vector3(1.0f, 0.95f, 0.8f); // Warm white
+		mSunLight.Intensity = 0.8f; // Reduced from 1.0 since we'll have multiple lights
 
 		// Create point light 1 (red) - positioned to the left
 		var pointLight1Entity = scene.CreateEntity("PointLight1");
 		pointLight1Entity.Transform.Position = Vector3(-5, 2, -2);
-		var pointLight1 = pointLight1Entity.AddComponent<Light>();
-		pointLight1.Type = .Point;
+		var pointLight1 = pointLight1Entity.AddComponent<PointLight>();
 		pointLight1.Color = Vector3(1.0f, 0.2f, 0.2f); // Red
 		pointLight1.Intensity = 2.0f;
-		//pointLight1.Range = 10.0f;
+		pointLight1.Range = 10.0f;
 
 		// Create point light 2 (green) - positioned to the right
 		var pointLight2Entity = scene.CreateEntity("PointLight2");
 		pointLight2Entity.Transform.Position = Vector3(5, 2, -2);
-		var pointLight2 = pointLight2Entity.AddComponent<Light>();
-		pointLight2.Type = .Point;
+		var pointLight2 = pointLight2Entity.AddComponent<PointLight>();
 		pointLight2.Color = Vector3(0.2f, 1.0f, 0.2f); // Green
 		pointLight2.Intensity = 2.0f;
-		//pointLight2.Range = 10.0f;
+		pointLight2.Range = 10.0f;
 
 		// Create point light 3 (blue) - positioned behind
 		var pointLight3Entity = scene.CreateEntity("PointLight3");
 		pointLight3Entity.Transform.Position = Vector3(0, 2, 5);
-		var pointLight3 = pointLight3Entity.AddComponent<Light>();
-		pointLight3.Type = .Point;
+		var pointLight3 = pointLight3Entity.AddComponent<PointLight>();
 		pointLight3.Color = Vector3(0.2f, 0.2f, 1.0f); // Blue
 		pointLight3.Intensity = 2.0f;
-		//pointLight3.Range = 10.0f;
+		pointLight3.Range = 10.0f;
 
 		// Create spot light (white) - pointing down from above
 		var spotLightEntity = scene.CreateEntity("SpotLight");
 		spotLightEntity.Transform.Position = Vector3(0, 5, 0);
 		spotLightEntity.Transform.LookAt(Vector3.Zero); // Point down at origin
-		var spotLight = spotLightEntity.AddComponent<Light>();
-		spotLight.Type = .Spot;
+		var spotLight = spotLightEntity.AddComponent<SpotLight>();
 		spotLight.Color = Vector3(1.0f, 1.0f, 0.8f); // Slightly warm white
 		spotLight.Intensity = 3.0f;
-		//spotLight.Range = 15.0f;
-		//spotLight.SpotAngle = 30.0f; // 30 degree cone
+		spotLight.Range = 15.0f;
+		spotLight.InnerConeAngle = 25.0f;
+		spotLight.OuterConeAngle = 35.0f;
+
+		// Add a dedicated white point light for testing PBR materials
+		// Position it in front and slightly above the PBR objects (cylinder and cone)
+		var pbrTestLightEntity = scene.CreateEntity("PBRTestLight");
+		pbrTestLightEntity.Transform.Position = Vector3(1, 2, -4); // Front of the PBR objects
+		var pbrTestLight = pbrTestLightEntity.AddComponent<PointLight>();
+		pbrTestLight.Color = Vector3(1.0f, 1.0f, 1.0f); // Pure white
+		pbrTestLight.Intensity = 3.0f;
+		pbrTestLight.Range = 8.0f;
+
+		// Add visual representation for the PBR test light
+		var pbrLightVisual = scene.CreateEntity("PBRTestLightVisual");
+		pbrLightVisual.Transform.Position = pbrTestLightEntity.Transform.Position;
+		pbrLightVisual.Transform.Scale = Vector3(0.15f, 0.15f, 0.15f);
+		var pbrLightRenderer = pbrLightVisual.AddComponent<MeshRenderer>();
+		pbrLightRenderer.Color = Color.White;
+		var pbrLightMat = new UnlitMaterial();
+		pbrLightMat.Color = Color.White;
+		pbrLightRenderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(pbrLightMat, true));
+		var pbrLightMesh = Mesh.CreateSphere(0.5f, 16, 16);
+		for (int32 v = 0; v < pbrLightMesh.Vertices.VertexCount; v++)
+		{
+			pbrLightMesh.SetColor(v, pbrLightRenderer.Color.PackedValue);
+		}
+		pbrLightRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(pbrLightMesh, true));
 
 		// Optional: Add visual representations for the point lights
 		// These are small emissive spheres to show where the lights are
@@ -230,14 +257,14 @@ class SandboxApplication : Application
 			if (lightEntity != null)
 			{
 				lightVisual.Transform.Position = lightEntity.Transform.Position;
-				lightVisual.Transform.Scale = Vector3(0.02f, 0.02f, 0.02f);
+				lightVisual.Transform.Scale = Vector3(0.2f, 0.2f, 0.2f);
 				
 				var renderer = lightVisual.AddComponent<MeshRenderer>();
 				renderer.Color = Color.White;
 				
 				// Create unlit material with the light's color
 				var unlitMat = new UnlitMaterial();
-				var lightComp = lightEntity.GetComponent<Light>();
+				var lightComp = lightEntity.GetComponent<PointLight>();
 				unlitMat.Color = Color(
 					lightComp.Color.X,
 					lightComp.Color.Y,
@@ -247,7 +274,7 @@ class SandboxApplication : Application
 				
 				renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(unlitMat, true));
 				
-				var mesh = Mesh.CreateSphere(16, 16);
+				var mesh = Mesh.CreateSphere(0.5f, 16, 16);
 				for (int32 v = 0; v < mesh.Vertices.VertexCount; v++)
 				{
 					mesh.SetColor(v, renderer.Color.PackedValue);
@@ -264,12 +291,6 @@ class SandboxApplication : Application
 			geometry.Transform.Scale = Vector3(1, 1, 1);
 			geometry.AddComponent<RotateComponent>();
 			var renderer = geometry.AddComponent<MeshRenderer>();
-			/*renderer.Color = .(
-				(float)i / 4.0f, // Red gradient
-				0.5f, // Green
-				1.0f - (float)i / 4.0f, // Blue gradient
-				1.0f // Alpha
-				);*/
 			renderer.Color = Color.White;
 			Mesh mesh = null;
 			Material material = null;
@@ -310,33 +331,22 @@ class SandboxApplication : Application
 			if (materialType == "Phong")
 			{
 				var shinyMat = new PhongMaterial();
-				shinyMat.DiffuseColor = Color(1.0f, 0.2f, 0.2f, 1.0f);
+				shinyMat.DiffuseColor = Color(0.8f, 0.8f, 0.8f, 1.0f); // Light gray to show light colors
 				shinyMat.SpecularColor = Color(1.0f, 1.0f, 1.0f, 1.0f);
 				shinyMat.Shininess = 128.0f;
-				shinyMat.AmbientColor = Color(0.1f, 0.02f, 0.02f, 1.0f);
+				shinyMat.AmbientColor = Color(0.1f, 0.1f, 0.1f, 1.0f);
 
 				material = shinyMat;
 			}
 
 			if (materialType == "PBR")
 			{
-				// Shiny metal
+				// Shiny green metal
 				var metalMat = new PBRMaterial();
-				metalMat.AlbedoColor = Color(0.9f, 0.9f, 0.95f, 1.0f); // Silver
-				metalMat.Metallic = 1.0f;
-				metalMat.Roughness = 0.1f;
-
-				// Rough plastic
-				/*var plasticMat = new PBRMaterial();
-				plasticMat.AlbedoColor = Color(0.8f, 0.1f, 0.1f, 1.0f); // Red
-				plasticMat.Metallic = 0.0f;
-				plasticMat.Roughness = 0.7f;*/
-
-				// Gold
-				/*var goldMat = new PBRMaterial();
-				goldMat.AlbedoColor = Color(1.0f, 0.765f, 0.336f, 1.0f);
-				goldMat.Metallic = 1.0f;
-				goldMat.Roughness = 0.3f;*/
+				metalMat.AlbedoColor = Color(0.1f, 0.8f, 0.2f, 1.0f); // Green
+				metalMat.Metallic = 0.5f;
+				metalMat.Roughness = 0.3f; // Very glossy (was 0.1f)
+				metalMat.EmissiveColor = Color.Green;
 
 				material = metalMat;
 			}
@@ -344,7 +354,7 @@ class SandboxApplication : Application
 			if (materialType == "Unlit")
 			{
 				var unlit = new UnlitMaterial();
-				unlit.Color = Color.Red;
+				unlit.Color = Color(0.5f, 0.5f, 1.0f, 1.0f); // Light blue
 				material = unlit;
 			}
 
@@ -352,40 +362,40 @@ class SandboxApplication : Application
 			renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
 		}
 
-		var plane = scene.CreateEntity("Plane");
-		plane.Transform.Position = Vector3(0, -0.5f, 0);
-		plane.Transform.Scale = Vector3(1, 1, 1);
-		var renderer = plane.AddComponent<MeshRenderer>();
-		renderer.Color = Color.Red;
+		// Create floor plane
+		var plane = scene.CreateEntity("Floor");
+		plane.Transform.Position = Vector3(0, -1.5f, 0);
+		plane.Transform.Scale = Vector3(10, 1, 10);
+		var planeRenderer = plane.AddComponent<MeshRenderer>();
+		planeRenderer.Color = Color.White;
 
-		// Shiny red material
-		var shinyMat = new PhongMaterial();
-		shinyMat.DiffuseColor = Color(1.0f, 0.2f, 0.2f, 1.0f);
-		shinyMat.SpecularColor = Color(1.0f, 1.0f, 1.0f, 1.0f);
-		shinyMat.Shininess = 128.0f;
-		shinyMat.AmbientColor = Color(0.1f, 0.02f, 0.02f, 1.0f);
+		// Use a neutral gray material for the floor to show light colors
+		var floorMat = new PhongMaterial();
+		floorMat.DiffuseColor = Color(0.7f, 0.7f, 0.7f, 1.0f);
+		floorMat.SpecularColor = Color(0.3f, 0.3f, 0.3f, 1.0f);
+		floorMat.Shininess = 32.0f;
+		floorMat.AmbientColor = Color(0.05f, 0.05f, 0.05f, 1.0f);
 
-		renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(shinyMat, true), true);
-		Mesh mesh = Mesh.CreatePlane();
+		planeRenderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(floorMat, true));
+		var planeMesh = Mesh.CreatePlane();
 
-		for (int32 v = 0; v < mesh.Vertices.VertexCount; v++)
+		for (int32 v = 0; v < planeMesh.Vertices.VertexCount; v++)
 		{
-			mesh.SetColor(v, renderer.Color.PackedValue);
+			planeMesh.SetColor(v, planeRenderer.Color.PackedValue);
 		}
-		renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
-		{
-			// Create a sprite entity
-			var spriteEntity = scene.CreateEntity("TestSprite");
-			spriteEntity.Transform.Position = Vector3(-6, 6, 0);
+		planeRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(planeMesh, true));
 
-			spriteEntity.AddComponent<ControllerComponent>();
+		// Create a sprite entity
+		var spriteEntity = scene.CreateEntity("TestSprite");
+		spriteEntity.Transform.Position = Vector3(-6, 6, 0);
 
-			var spriteRenderer = spriteEntity.AddComponent<SpriteRenderer>();
-			spriteRenderer.Texture = engine.ResourceSystem.AddResource(TextureResource.CreateCheckerboard(256, 32));
-			spriteRenderer.Color = .White;
-			spriteRenderer.Size = Vector2(2, 2); // 2x2 world units
-			spriteRenderer.Billboard = .AxisAligned;
-		}
+		spriteEntity.AddComponent<ControllerComponent>();
+
+		var spriteRenderer = spriteEntity.AddComponent<SpriteRenderer>();
+		spriteRenderer.Texture = engine.ResourceSystem.AddResource(TextureResource.CreateCheckerboard(256, 32));
+		spriteRenderer.Color = .White;
+		spriteRenderer.Size = Vector2(2, 2); // 2x2 world units
+		spriteRenderer.Billboard = .AxisAligned;
 
 		base.OnEngineInitialized(engine);
 	}
@@ -409,10 +419,10 @@ class SandboxApplication : Application
 		var scene = info.Engine.SceneGraphSystem.ActiveScenes[0];
 
 		// Camera movement
+			var inputSubsystem = ((Engine)info.Engine).GetSubsystem<InputSubsystem>().Value;
 		var cameraEntity = scene.FindEntity("Camera");
 		if (cameraEntity != null)
 		{
-			var inputSubsystem = ((Engine)info.Engine).GetSubsystem<InputSubsystem>().Value;
 			var keyboard = inputSubsystem.GetKeyboard();
 			var mouse = inputSubsystem.GetMouse();
 
@@ -572,6 +582,107 @@ class SandboxApplication : Application
 
 			// Update position and mark dirty
 			transform.Position = position;
+		}
+
+		// Light controls
+		if (mSunLightEntity != null && mSunLight != null)
+		{
+			var keyboard = inputSubsystem.GetKeyboard();
+			bool lightChanged = false;
+
+			// Rotate sun with I/K (horizontal) and U/O (vertical)
+			float lightRotateSpeed = 2.0f * (float)info.Time.ElapsedTime.TotalSeconds;
+			if (keyboard.IsKeyDown(.I))
+			{
+				mSunPitch -= lightRotateSpeed;
+				mSunPitch = Math.Clamp(mSunPitch, -Math.PI_f * 0.49f, Math.PI_f * 0.49f);
+				lightChanged = true;
+			}
+			if (keyboard.IsKeyDown(.K))
+			{
+				mSunPitch += lightRotateSpeed;
+				mSunPitch = Math.Clamp(mSunPitch, -Math.PI_f * 0.49f, Math.PI_f * 0.49f);
+				lightChanged = true;
+			}
+			if (keyboard.IsKeyDown(.J))
+			{
+				mSunYaw -= lightRotateSpeed;
+				lightChanged = true;
+			}
+			if (keyboard.IsKeyDown(.L))
+			{
+				mSunYaw += lightRotateSpeed;
+				lightChanged = true;
+			}
+
+			// Adjust intensity with Y/H
+			float intensitySpeed = 1.0f * (float)info.Time.ElapsedTime.TotalSeconds;
+			if (keyboard.IsKeyDown(.Y))
+			{
+				mSunLight.Intensity = Math.Min(mSunLight.Intensity + intensitySpeed, 3.0f);
+				lightChanged = true;
+			}
+			if (keyboard.IsKeyDown(.H))
+			{
+				mSunLight.Intensity = Math.Max(mSunLight.Intensity - intensitySpeed, 0.0f);
+				lightChanged = true;
+			}
+
+			// Adjust color temperature with T/G
+			float colorSpeed = 1.0f * (float)info.Time.ElapsedTime.TotalSeconds;
+			if (keyboard.IsKeyDown(.T))
+			{
+				// Make warmer (more orange)
+				mSunLight.Color.X = Math.Min(mSunLight.Color.X + colorSpeed * 0.5f, 1.0f);
+				mSunLight.Color.Y = Math.Max(mSunLight.Color.Y - colorSpeed * 0.2f, 0.7f);
+				mSunLight.Color.Z = Math.Max(mSunLight.Color.Z - colorSpeed * 0.5f, 0.4f);
+				lightChanged = true;
+			}
+			if (keyboard.IsKeyDown(.G))
+			{
+				// Make cooler (more blue)
+				mSunLight.Color.X = Math.Max(mSunLight.Color.X - colorSpeed * 0.5f, 0.8f);
+				mSunLight.Color.Y = Math.Min(mSunLight.Color.Y + colorSpeed * 0.2f, 1.0f);
+				mSunLight.Color.Z = Math.Min(mSunLight.Color.Z + colorSpeed * 0.5f, 1.0f);
+				lightChanged = true;
+			}
+
+			// Reset light with R
+			if (keyboard.IsKeyDown(.R))
+			{
+				mSunYaw = 0.0f;
+				mSunPitch = Math.DegreesToRadians(-45.0f);
+				mSunLight.Color = Vector3(1.0f, 0.95f, 0.8f);
+				mSunLight.Intensity = 0.8f;
+				lightChanged = true;
+			}
+
+			// Apply rotation changes
+			if (lightChanged)
+			{
+				mSunLightEntity.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(mSunYaw, mSunPitch, 0);
+			}
+
+			// Display current values with F1
+			if (keyboard.IsKeyPressed(.F1))
+			{
+				Console.WriteLine("=== Directional Light Settings ===");
+				Console.WriteLine("Rotation: Yaw={0:F2}°, Pitch={1:F2}°", 
+					Math.RadiansToDegrees(mSunYaw), 
+					Math.RadiansToDegrees(mSunPitch));
+				Console.WriteLine("Color: R={0:F2}, G={1:F2}, B={2:F2}", 
+					mSunLight.Color.X, 
+					mSunLight.Color.Y, 
+					mSunLight.Color.Z);
+				Console.WriteLine("Intensity: {0:F2}", mSunLight.Intensity);
+				Console.WriteLine("Controls:");
+				Console.WriteLine("  J/L - Rotate horizontally");
+				Console.WriteLine("  I/K - Rotate vertically");
+				Console.WriteLine("  Y/H - Increase/Decrease intensity");
+				Console.WriteLine("  T/G - Warmer/Cooler color");
+				Console.WriteLine("  R   - Reset to default");
+				Console.WriteLine("  F1  - Show this help");
+			}
 		}
 	}
 }

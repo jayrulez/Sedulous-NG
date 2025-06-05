@@ -91,7 +91,7 @@ class OutputMemoryStreamTests
         
         // Data should be preserved
         stream.Write<int32>(42);
-        int oldCapacity = stream.Capacity;
+        //int oldCapacity = stream.Capacity;
         stream.Reserve(200);
         Test.Assert(stream.Capacity >= 200);
         Test.Assert(*(int32*)stream.Data == 42);

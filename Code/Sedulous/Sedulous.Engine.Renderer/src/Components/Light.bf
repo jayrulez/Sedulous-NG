@@ -7,6 +7,12 @@ abstract class Light : Component
 {
     public Vector3 Color = Vector3(1, 1, 1);
     public float Intensity = 1.0f;
+    
+    // Shadow properties
+    public bool CastShadows = true;
+    public float ShadowBias = 0.005f;
+    public float ShadowNormalBias = 0.01f;
+    public int ShadowMapSize = 2048;
 }
 
 // Directional light - only needs direction (from transform)
@@ -15,9 +21,9 @@ class DirectionalLight : Light
     private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<DirectionalLight>();
     public override ComponentTypeId TypeId => sTypeId;
     
-    // Could add shadow-specific properties here
-    public bool CastShadows = true;
-    public float ShadowBias = 0.001f;
+    // Directional light shadow properties
+    public float ShadowDistance = 100.0f; // How far from camera to render shadows
+    public float ShadowOrthoSize = 50.0f; // Size of orthographic projection for shadows
 }
 
 // Point light - needs position (from transform) and range

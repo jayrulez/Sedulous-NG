@@ -15,6 +15,17 @@ namespace Sedulous.Engine.Renderer.SDL;
 using internal Sedulous.Engine.Renderer.SDL;
 
 // Uniform buffer structures must match shader exactly and follow HLSL alignment rules
+
+[CRepr, Packed]
+struct LightData
+{
+	public Vector4 PositionType; // xyz = position, w = type (0=dir, 1=point, 2=spot)
+	public Vector4 DirectionRange; // xyz = direction, w = range
+	public Vector4 ColorIntensity; // xyz = color, w = intensity
+	public Vector4 SpotAngles; // x = inner angle cos, y = outer angle cos, z = constant atten, w = linear atten
+	// Total: 64 bytes per light
+}
+
 [CRepr, Packed]
 struct LitVertexUniforms
 {
@@ -66,6 +77,27 @@ struct SpriteFragmentUniforms
 	// Total: 16 bytes (multiple of 16)
 }
 
+[CRepr, Packed]
+struct PBRVertexUniforms
+{
+	public Matrix MVPMatrix; // 64 bytes (4x float4)
+	public Matrix ModelMatrix; // 64 bytes (4x float4)
+	public Matrix NormalMatrix; // 64 bytes (4x float4)
+	// Total: 192 bytes (multiple of 16)
+}
+
+[CRepr, Packed]
+struct PBRFragmentUniforms
+{
+	public Vector4 CameraPos; // 16 bytes - xyz = position, w = padding
+	public Vector4 LightDirection; // 16 bytes - xyz = direction, w = padding
+	public Vector4 LightColor; // 16 bytes - xyz = color, w = intensity
+	public Vector4 AlbedoColor; // 16 bytes - base color
+	public Vector4 EmissiveColor; // 16 bytes - xyz = emissive, w = intensity
+	public Vector4 MetallicRoughnessAO; // 16 bytes - x = metallic, y = roughness, z = AO, w = padding
+	// Total: 96 bytes (multiple of 16)
+}
+
 class SDLRendererSubsystem : Subsystem
 {
 	public override StringView Name => "SDLRenderer";
@@ -87,11 +119,14 @@ class SDLRendererSubsystem : Subsystem
 	// Pipelines
 	private SDL_GPUGraphicsPipeline* mLitPipeline;
 	private SDL_GPUGraphicsPipeline* mUnlitPipeline;
+	private SDL_GPUGraphicsPipeline* mPBRPipeline;
 	private SDL_GPUGraphicsPipeline* mSpritePipeline;
 	private SDL_GPUShader* mLitVertexShader;
 	private SDL_GPUShader* mLitFragmentShader;
 	private SDL_GPUShader* mUnlitVertexShader;
 	private SDL_GPUShader* mUnlitFragmentShader;
+	private SDL_GPUShader* mPBRVertexShader;
+	private SDL_GPUShader* mPBRFragmentShader;
 	private SDL_GPUShader* mSpriteVertexShader;
 	private SDL_GPUShader* mSpriteFragmentShader;
 
@@ -158,11 +193,14 @@ class SDLRendererSubsystem : Subsystem
 
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mLitPipeline);
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mUnlitPipeline);
+		SDL_ReleaseGPUGraphicsPipeline(mDevice, mPBRPipeline);
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mSpritePipeline);
 		SDL_ReleaseGPUShader(mDevice, mLitVertexShader);
 		SDL_ReleaseGPUShader(mDevice, mLitFragmentShader);
 		SDL_ReleaseGPUShader(mDevice, mUnlitVertexShader);
 		SDL_ReleaseGPUShader(mDevice, mUnlitFragmentShader);
+		SDL_ReleaseGPUShader(mDevice, mPBRVertexShader);
+		SDL_ReleaseGPUShader(mDevice, mPBRFragmentShader);
 		SDL_ReleaseGPUShader(mDevice, mSpriteVertexShader);
 		SDL_ReleaseGPUShader(mDevice, mSpriteFragmentShader);
 
@@ -396,6 +434,187 @@ class SDLRendererSubsystem : Subsystem
 		}
 		""";
 
+		// PBR vertex shader - same as lit vertex shader
+		String pbrVertexShaderSource = """
+			cbuffer UBO : register(b0, space1)
+			{
+			    float4x4 MVPMatrix;
+			    float4x4 ModelMatrix;
+			    float4x4 NormalMatrix;
+			};
+
+			struct VSInput
+			{
+			    float3 Position : TEXCOORD0;
+			    float3 Normal : TEXCOORD1;
+			    float2 TexCoord : TEXCOORD2;
+			    uint Color : TEXCOORD3;
+			};
+
+			struct VSOutput
+			{
+			    float4 Position : SV_POSITION;
+			    float2 TexCoord : TEXCOORD0;
+			    float4 Color : TEXCOORD1;
+			    float3 Normal : TEXCOORD2;
+			    float3 WorldPos : TEXCOORD3;
+			};
+
+			float4 UnpackColor(uint packedColor)
+			{
+			   float4 color;
+			   color.r = float((packedColor >> 0) & 0xFF) / 255.0;
+			   color.g = float((packedColor >> 8) & 0xFF) / 255.0;
+			   color.b = float((packedColor >> 16) & 0xFF) / 255.0;
+			   color.a = float((packedColor >> 24) & 0xFF) / 255.0;
+			   return color;
+			}
+
+			VSOutput main(VSInput input)
+			{
+			    VSOutput output;
+			    output.Position = mul(MVPMatrix, float4(input.Position, 1.0));
+			    output.TexCoord = input.TexCoord;
+			    output.Color = UnpackColor(input.Color);
+			    output.Normal = normalize(mul((float3x3)NormalMatrix, input.Normal));
+			    output.WorldPos = mul(ModelMatrix, float4(input.Position, 1.0)).xyz;
+			    return output;
+			}
+		""";
+
+		// PBR fragment shader - physically based rendering
+		String pbrFragmentShaderSource = """
+			cbuffer UniformBlock : register(b0, space3)
+			{
+			    float4 CameraPos;
+			    float4 LightDirection;
+			    float4 LightColor; // xyz = color, w = intensity
+			    float4 AlbedoColor;
+			    float4 EmissiveColor; // xyz = color, w = intensity
+			    float4 MetallicRoughnessAO; // x = metallic, y = roughness, z = AO
+			};
+			
+			Texture2D AlbedoTexture : register(t0, space2);
+			SamplerState AlbedoSampler : register(s0, space2);
+			Texture2D NormalTexture : register(t1, space2);
+			SamplerState NormalSampler : register(s1, space2);
+			Texture2D MetallicRoughnessTexture : register(t2, space2);
+			SamplerState MetallicRoughnessSampler : register(s2, space2);
+			
+			struct PSInput
+			{
+			    float4 Position : SV_Position;
+			    float2 TexCoord : TEXCOORD0;
+			    float4 Color : TEXCOORD1;
+			    float3 Normal : TEXCOORD2;
+			    float3 WorldPos : TEXCOORD3;
+			};
+			
+			static const float PI = 3.14159265359;
+			
+			// Normal Distribution Function (GGX/Trowbridge-Reitz)
+			float DistributionGGX(float3 N, float3 H, float roughness)
+			{
+			    float a = roughness * roughness;
+			    float a2 = a * a;
+			    float NdotH = max(dot(N, H), 0.0);
+			    float NdotH2 = NdotH * NdotH;
+			    
+			    float num = a2;
+			    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+			    denom = PI * denom * denom;
+			    
+			    return num / denom;
+			}
+			
+			// Geometry Function (Smith's method)
+			float GeometrySchlickGGX(float NdotV, float roughness)
+			{
+			    float r = (roughness + 1.0);
+			    float k = (r * r) / 8.0;
+			    
+			    float num = NdotV;
+			    float denom = NdotV * (1.0 - k) + k;
+			    
+			    return num / denom;
+			}
+			
+			float GeometrySmith(float3 N, float3 V, float3 L, float roughness)
+			{
+			    float NdotV = max(dot(N, V), 0.0);
+			    float NdotL = max(dot(N, L), 0.0);
+			    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+			    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+			    
+			    return ggx1 * ggx2;
+			}
+			
+			// Fresnel Equation (Schlick approximation)
+			float3 FresnelSchlick(float cosTheta, float3 F0)
+			{
+			    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+			}
+			
+			float4 main(PSInput input) : SV_Target
+			{
+			    // Sample textures
+			    float4 albedoSample = AlbedoTexture.Sample(AlbedoSampler, input.TexCoord);
+			    float3 albedo = pow(albedoSample.rgb * AlbedoColor.rgb * input.Color.rgb, 2.2); // Convert to linear space
+			    
+			    float3 normal = normalize(input.Normal);
+			    // TODO: Normal mapping support
+			    
+			    float metallic = MetallicRoughnessAO.x;
+			    float roughness = MetallicRoughnessAO.y;
+			    float ao = MetallicRoughnessAO.z;
+			    
+			    // Sample metallic/roughness texture if available
+			    float3 mrSample = MetallicRoughnessTexture.Sample(MetallicRoughnessSampler, input.TexCoord).rgb;
+			    metallic *= mrSample.b; // Often packed as: R=AO, G=Roughness, B=Metallic
+			    roughness *= mrSample.g;
+			    
+			    float3 V = normalize(CameraPos.xyz - input.WorldPos);
+			    float3 L = normalize(-LightDirection.xyz);
+			    float3 H = normalize(V + L);
+			    
+			    // Calculate F0 (base reflectivity)
+			    float3 F0 = float3(0.04, 0.04, 0.04); // Default for dielectrics
+			    F0 = lerp(F0, albedo, metallic);
+			    
+			    // Cook-Torrance BRDF
+			    float NDF = DistributionGGX(normal, H, roughness);
+			    float G = GeometrySmith(normal, V, L, roughness);
+			    float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+			    
+			    float3 kS = F;
+			    float3 kD = float3(1.0, 1.0, 1.0) - kS;
+			    kD *= 1.0 - metallic; // Metals have no diffuse
+			    
+			    float NdotL = max(dot(normal, L), 0.0);
+			    
+			    float3 numerator = NDF * G * F;
+			    float denominator = 4.0 * max(dot(normal, V), 0.0) * NdotL + 0.0001;
+			    float3 specular = numerator / denominator;
+			    
+			    // Final lighting calculation
+			    float3 Lo = (kD * albedo / PI + specular) * LightColor.rgb * LightColor.w * NdotL;
+			    
+			    // Ambient lighting (simplified - should use IBL)
+			    float3 ambient = float3(0.03, 0.03, 0.03) * albedo * ao;
+			    
+			    // Emissive
+			    float3 emissive = EmissiveColor.rgb * EmissiveColor.w;
+			    
+			    float3 color = ambient + Lo + emissive;
+			    
+			    // Tone mapping and gamma correction
+			    color = color / (color + float3(1.0, 1.0, 1.0)); // Reinhard tone mapping
+			    color = pow(color, 1.0/2.2); // Gamma correction
+			    
+			    return float4(color, albedoSample.a * AlbedoColor.a);
+			}
+		""";
+
 		// Sprite vertex shader - uniforms in space1
 		String spriteVertexShaderSource = """
 			cbuffer UBO : register(b0, space1)
@@ -479,6 +698,8 @@ class SDLRendererSubsystem : Subsystem
 		var litPsCode = scope List<uint8>();
 		var unlitVsCode = scope List<uint8>();
 		var unlitPsCode = scope List<uint8>();
+		var pbrVsCode = scope List<uint8>();
+		var pbrPsCode = scope List<uint8>();
 		var spriteVsCode = scope List<uint8>();
 		var spritePsCode = scope List<uint8>();
 
@@ -486,6 +707,8 @@ class SDLRendererSubsystem : Subsystem
 		CompileShaderFromSource(litFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", litPsCode);
 		CompileShaderFromSource(unlitVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", unlitVsCode);
 		CompileShaderFromSource(unlitFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", unlitPsCode);
+		CompileShaderFromSource(pbrVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", pbrVsCode);
+		CompileShaderFromSource(pbrFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", pbrPsCode);
 		CompileShaderFromSource(spriteVertexShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", spriteVsCode);
 		CompileShaderFromSource(spriteFragmentShaderSource, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", spritePsCode);
 
@@ -545,6 +768,35 @@ class SDLRendererSubsystem : Subsystem
 			num_storage_textures = 0
 		};
 		mUnlitFragmentShader = SDL_CreateGPUShader(mDevice, &unlitPsDesc);
+
+		// Create PBR shaders
+		var pbrVsDesc = SDL_GPUShaderCreateInfo()
+		{
+			code = pbrVsCode.Ptr,
+			code_size = (uint32)pbrVsCode.Count,
+			entrypoint = "main",
+			format = ShaderFormat,
+			stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+			num_samplers = 0,
+			num_uniform_buffers = 1, // We have 1 uniform buffer
+			num_storage_buffers = 0,
+			num_storage_textures = 0
+		};
+		mPBRVertexShader = SDL_CreateGPUShader(mDevice, &pbrVsDesc);
+
+		var pbrPsDesc = SDL_GPUShaderCreateInfo()
+		{
+			code = pbrPsCode.Ptr,
+			code_size = (uint32)pbrPsCode.Count,
+			entrypoint = "main",
+			format = ShaderFormat,
+			stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
+			num_samplers = 3, // Albedo, Normal, MetallicRoughness
+			num_uniform_buffers = 1, // We have 1 uniform buffer
+			num_storage_buffers = 0,
+			num_storage_textures = 0
+		};
+		mPBRFragmentShader = SDL_CreateGPUShader(mDevice, &pbrPsDesc);
 
 		// Create sprite shaders
 		var spriteVsDesc = SDL_GPUShaderCreateInfo()
@@ -718,6 +970,23 @@ class SDLRendererSubsystem : Subsystem
 		pipelineDesc.target_info = targetInfo;
 
 		mSpritePipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+
+		// Create PBR pipeline
+		// Reset to default states for PBR
+		colorTargetDesc.blend_state = blendState; // Use the original blend state
+		targetInfo.color_target_descriptions = &colorTargetDesc;
+
+		depthStencilState.enable_depth_write = true;
+		depthStencilState.enable_depth_test = true;
+		rasterState.cull_mode = .SDL_GPU_CULLMODE_BACK;
+
+		pipelineDesc.vertex_shader = mPBRVertexShader;
+		pipelineDesc.fragment_shader = mPBRFragmentShader;
+		pipelineDesc.rasterizer_state = rasterState;
+		pipelineDesc.depth_stencil_state = depthStencilState;
+		pipelineDesc.target_info = targetInfo;
+
+		mPBRPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
 	}
 
 	private void OnUpdate(IEngine.UpdateInfo info)
@@ -736,6 +1005,11 @@ class SDLRendererSubsystem : Subsystem
 	public SDL_GPUGraphicsPipeline* GetPipeline(bool lit)
 	{
 		return lit ? mLitPipeline : mUnlitPipeline;
+	}
+
+	public SDL_GPUGraphicsPipeline* GetPBRPipeline()
+	{
+		return mPBRPipeline;
 	}
 
 	public SDL_GPUGraphicsPipeline* GetSpritePipeline()

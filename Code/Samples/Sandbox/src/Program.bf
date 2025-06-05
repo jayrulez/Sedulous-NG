@@ -175,13 +175,86 @@ class SandboxApplication : Application
 			mCameraPitch = Math.Asin(lookDir.Y);
 		}
 
-		// Create light
-		var lightEntity = scene.CreateEntity("Light");
-		lightEntity.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(0, Math.DegreesToRadians(-45), 0);
-		var light = lightEntity.AddComponent<Light>();
-		light.Type = .Directional;
-		light.Color = Vector3(1, 0.95f, 0.8f);
-		light.Intensity = 1.0f;
+		// Create main directional light (sun)
+		var sunLightEntity = scene.CreateEntity("SunLight");
+		sunLightEntity.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(0, Math.DegreesToRadians(-45), 0);
+		var sunLight = sunLightEntity.AddComponent<Light>();
+		sunLight.Type = .Directional;
+		sunLight.Color = Vector3(1.0f, 0.95f, 0.8f); // Warm white
+		sunLight.Intensity = 0.8f; // Reduced from 1.0 since we'll have multiple lights
+
+		// Create point light 1 (red) - positioned to the left
+		var pointLight1Entity = scene.CreateEntity("PointLight1");
+		pointLight1Entity.Transform.Position = Vector3(-5, 2, -2);
+		var pointLight1 = pointLight1Entity.AddComponent<Light>();
+		pointLight1.Type = .Point;
+		pointLight1.Color = Vector3(1.0f, 0.2f, 0.2f); // Red
+		pointLight1.Intensity = 2.0f;
+		//pointLight1.Range = 10.0f;
+
+		// Create point light 2 (green) - positioned to the right
+		var pointLight2Entity = scene.CreateEntity("PointLight2");
+		pointLight2Entity.Transform.Position = Vector3(5, 2, -2);
+		var pointLight2 = pointLight2Entity.AddComponent<Light>();
+		pointLight2.Type = .Point;
+		pointLight2.Color = Vector3(0.2f, 1.0f, 0.2f); // Green
+		pointLight2.Intensity = 2.0f;
+		//pointLight2.Range = 10.0f;
+
+		// Create point light 3 (blue) - positioned behind
+		var pointLight3Entity = scene.CreateEntity("PointLight3");
+		pointLight3Entity.Transform.Position = Vector3(0, 2, 5);
+		var pointLight3 = pointLight3Entity.AddComponent<Light>();
+		pointLight3.Type = .Point;
+		pointLight3.Color = Vector3(0.2f, 0.2f, 1.0f); // Blue
+		pointLight3.Intensity = 2.0f;
+		//pointLight3.Range = 10.0f;
+
+		// Create spot light (white) - pointing down from above
+		var spotLightEntity = scene.CreateEntity("SpotLight");
+		spotLightEntity.Transform.Position = Vector3(0, 5, 0);
+		spotLightEntity.Transform.LookAt(Vector3.Zero); // Point down at origin
+		var spotLight = spotLightEntity.AddComponent<Light>();
+		spotLight.Type = .Spot;
+		spotLight.Color = Vector3(1.0f, 1.0f, 0.8f); // Slightly warm white
+		spotLight.Intensity = 3.0f;
+		//spotLight.Range = 15.0f;
+		//spotLight.SpotAngle = 30.0f; // 30 degree cone
+
+		// Optional: Add visual representations for the point lights
+		// These are small emissive spheres to show where the lights are
+		for (int i = 1; i <= 3; i++)
+		{
+			var lightVisual = scene.CreateEntity(scope $"LightVisual{i}");
+			var lightEntity = scene.FindEntity(scope $"PointLight{i}");
+			if (lightEntity != null)
+			{
+				lightVisual.Transform.Position = lightEntity.Transform.Position;
+				lightVisual.Transform.Scale = Vector3(0.02f, 0.02f, 0.02f);
+				
+				var renderer = lightVisual.AddComponent<MeshRenderer>();
+				renderer.Color = Color.White;
+				
+				// Create unlit material with the light's color
+				var unlitMat = new UnlitMaterial();
+				var lightComp = lightEntity.GetComponent<Light>();
+				unlitMat.Color = Color(
+					lightComp.Color.X,
+					lightComp.Color.Y,
+					lightComp.Color.Z,
+					1.0f
+				);
+				
+				renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(unlitMat, true));
+				
+				var mesh = Mesh.CreateSphere(16, 16);
+				for (int32 v = 0; v < mesh.Vertices.VertexCount; v++)
+				{
+					mesh.SetColor(v, renderer.Color.PackedValue);
+				}
+				renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
+			}
+		}
 
 		// Create objects
 		for (int i = 0; i < 5; i++)
@@ -191,33 +264,92 @@ class SandboxApplication : Application
 			geometry.Transform.Scale = Vector3(1, 1, 1);
 			geometry.AddComponent<RotateComponent>();
 			var renderer = geometry.AddComponent<MeshRenderer>();
-			renderer.Color = .(
+			/*renderer.Color = .(
 				(float)i / 4.0f, // Red gradient
 				0.5f, // Green
 				1.0f - (float)i / 4.0f, // Blue gradient
 				1.0f // Alpha
-				);
-			//renderer.UseLighting = true;
+				);*/
+			renderer.Color = Color.White;
 			Mesh mesh = null;
+			Material material = null;
+
+			String materialType = "Phong";
 
 			if (i == 0)
+			{
 				mesh = Mesh.CreateCube();
-			else if (i == 1)
+				materialType = "Phong";
+			} else if (i == 1)
+			{
 				mesh = Mesh.CreateSphere();
-			else if (i == 2)
+				materialType = "Phong";
+			} else if (i == 2)
+			{
 				mesh = Mesh.CreateCylinder();
-			else if (i == 3)
+				materialType = "PBR";
+			} else if (i == 3)
+			{
 				mesh = Mesh.CreateCone();
-			else if (i == 4)
+				materialType = "PBR";
+			} else if (i == 4)
+			{
 				mesh = Mesh.CreateTorus();
-			else
+				materialType = "Unlit";
+			} else
+			{
 				mesh = Mesh.CreatePlane();
+				materialType = "Unlit";
+			}
 
 			for (int32 v = 0; v < mesh.Vertices.VertexCount; v++)
 			{
 				mesh.SetColor(v, renderer.Color.PackedValue);
 			}
+
+			if (materialType == "Phong")
+			{
+				var shinyMat = new PhongMaterial();
+				shinyMat.DiffuseColor = Color(1.0f, 0.2f, 0.2f, 1.0f);
+				shinyMat.SpecularColor = Color(1.0f, 1.0f, 1.0f, 1.0f);
+				shinyMat.Shininess = 128.0f;
+				shinyMat.AmbientColor = Color(0.1f, 0.02f, 0.02f, 1.0f);
+
+				material = shinyMat;
+			}
+
+			if (materialType == "PBR")
+			{
+				// Shiny metal
+				var metalMat = new PBRMaterial();
+				metalMat.AlbedoColor = Color(0.9f, 0.9f, 0.95f, 1.0f); // Silver
+				metalMat.Metallic = 1.0f;
+				metalMat.Roughness = 0.1f;
+
+				// Rough plastic
+				/*var plasticMat = new PBRMaterial();
+				plasticMat.AlbedoColor = Color(0.8f, 0.1f, 0.1f, 1.0f); // Red
+				plasticMat.Metallic = 0.0f;
+				plasticMat.Roughness = 0.7f;*/
+
+				// Gold
+				/*var goldMat = new PBRMaterial();
+				goldMat.AlbedoColor = Color(1.0f, 0.765f, 0.336f, 1.0f);
+				goldMat.Metallic = 1.0f;
+				goldMat.Roughness = 0.3f;*/
+
+				material = metalMat;
+			}
+
+			if (materialType == "Unlit")
+			{
+				var unlit = new UnlitMaterial();
+				unlit.Color = Color.Red;
+				material = unlit;
+			}
+
 			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
+			renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
 		}
 
 		var plane = scene.CreateEntity("Plane");
@@ -232,8 +364,6 @@ class SandboxApplication : Application
 		shinyMat.SpecularColor = Color(1.0f, 1.0f, 1.0f, 1.0f);
 		shinyMat.Shininess = 128.0f;
 		shinyMat.AmbientColor = Color(0.1f, 0.02f, 0.02f, 1.0f);
-
-		//var unlitMat = MaterialResource.CreateUnlit();
 
 		renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(shinyMat, true), true);
 		Mesh mesh = Mesh.CreatePlane();

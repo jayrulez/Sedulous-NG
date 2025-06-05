@@ -7,7 +7,6 @@ using Sedulous.Resources;
 using Sedulous.SceneGraph;
 using Sedulous.Utilities;
 using Sedulous.Geometry;
-using Sedulous.Engine.Renderer.SDL;
 
 namespace Sedulous.Engine.Renderer.SDL;
 
@@ -149,7 +148,7 @@ class RenderModule : SceneModule
         UpdateActiveCameraAndLights();
 
         // Clear render commands
-		mMeshCommands.Clear();
+        mMeshCommands.Clear();
         mSpriteCommands.Clear();
 
         // Collect render commands
@@ -228,7 +227,7 @@ class RenderModule : SceneModule
                     command.DistanceToCamera = Vector3.Distance(transform.Position, mActiveCameraTransform.Position);
                 }
 
-				mMeshCommands.Add(command);
+                mMeshCommands.Add(command);
             }
         }
     }
@@ -326,7 +325,7 @@ class RenderModule : SceneModule
     private void PrepareGPUResources()
     {
         // Create GPU meshes for any new mesh renderers
-		for (var command in mMeshCommands)
+        for (var command in mMeshCommands)
         {
             if (!mRendererMeshes.ContainsKey(command.Renderer))
             {
@@ -374,7 +373,7 @@ class RenderModule : SceneModule
 
     private void Render3DObjects(SDL_GPUCommandBuffer* commandBuffer, SDL_GPUTexture* swapchainTexture)
     {
-		if (mMeshCommands.IsEmpty)
+        if (mMeshCommands.IsEmpty)
             return;
             
         // Setup render targets for 3D pass
@@ -412,7 +411,7 @@ class RenderModule : SceneModule
         SDL_SetGPUViewport(renderPass, &viewport);
 
         // Render all 3D objects
-		for (var command in mMeshCommands)
+        for (var command in mMeshCommands)
         {
             RenderObject(commandBuffer, renderPass, command);
         }
@@ -476,8 +475,9 @@ class RenderModule : SceneModule
         SDL_GPUBuffer* indexBuffer = mesh.IndexBuffer;
         uint32 indexCount = mesh.IndexCount;
 
-        // Determine if we should use lit or unlit pipeline
+        // Determine which pipeline to use
         bool useLit = true;
+        bool usePBR = false;
         GPUMaterial gpuMaterial = null;
         
         if (command.Renderer.Material.IsValid && command.Renderer.Material.Resource != null)
@@ -486,13 +486,28 @@ class RenderModule : SceneModule
             if (mMaterialCache.TryGetValue(materialResource, let material))
             {
                 gpuMaterial = material;
-                // Use unlit pipeline if material's shader is "Unlit"
-                useLit = material.ShaderName != "Unlit";
+                // Determine pipeline based on material's shader name
+                switch (material.ShaderName)
+                {
+                case "Unlit":
+                    useLit = false;
+                    usePBR = false;
+                case "PBR":
+                    useLit = false;
+                    usePBR = true;
+                default: // "Phong" or others
+                    useLit = true;
+                    usePBR = false;
+                }
             }
         }
 
         // Bind pipeline
-        var pipeline = mRenderer.GetPipeline(useLit);
+        SDL_GPUGraphicsPipeline* pipeline;
+        if (usePBR)
+            pipeline = mRenderer.GetPBRPipeline();
+        else
+            pipeline = mRenderer.GetPipeline(useLit);
         SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
 
         // Bind vertex and index buffers
@@ -504,38 +519,120 @@ class RenderModule : SceneModule
         SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBinding, 1);
         SDL_BindGPUIndexBuffer(renderPass, scope .() { buffer = indexBuffer, offset = 0 }, .SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
-        // Bind textures if we have a material
-        if (gpuMaterial != null)
-        {
-            gpuMaterial.BindTextures(renderPass);
-        }
-        else if (useLit)
-        {
-            // For lit without material textures, bind default white texture
-            var defaultWhite = mRenderer.GetDefaultWhiteTexture();
-            var textureSamplerBinding = SDL_GPUTextureSamplerBinding()
-            {
-                texture = defaultWhite.Resource.Texture,
-                sampler = defaultWhite.Resource.Sampler
-            };
-            SDL_BindGPUFragmentSamplers(renderPass, 0, &textureSamplerBinding, 1);
-        }
-        else if (!useLit)
-        {
-            // For unlit without material, bind a white texture
-            var defaultWhite = mRenderer.GetDefaultWhiteTexture();
-            var textureSamplerBinding = SDL_GPUTextureSamplerBinding()
-            {
-                texture = defaultWhite.Resource.Texture,
-                sampler = defaultWhite.Resource.Sampler
-            };
-            SDL_BindGPUFragmentSamplers(renderPass, 0, &textureSamplerBinding, 1);
-        }
+        // Bind textures - always ensure something is bound to prevent crashes
+		if (gpuMaterial != null)
+		{
+		    // Let the material bind its textures, filling missing slots with defaults
+		    gpuMaterial.BindTextures(renderPass, 
+		        mRenderer.GetDefaultWhiteTexture(),
+		        mRenderer.GetDefaultNormalTexture(),
+		        mRenderer.GetDefaultBlackTexture());
+		}
+		else
+		{
+		    // No material - bind appropriate defaults based on pipeline
+		    if (usePBR)
+		    {
+		        // For PBR without material, bind defaults
+		        var defaultWhite = mRenderer.GetDefaultWhiteTexture();
+		        var defaultNormal = mRenderer.GetDefaultNormalTexture();
+		        
+		        // Albedo texture
+		        var albedoBinding = SDL_GPUTextureSamplerBinding()
+		        {
+		            texture = defaultWhite.Resource.Texture,
+		            sampler = defaultWhite.Resource.Sampler
+		        };
+		        SDL_BindGPUFragmentSamplers(renderPass, 0, &albedoBinding, 1);
+		        
+		        // Normal texture
+		        var normalBinding = SDL_GPUTextureSamplerBinding()
+		        {
+		            texture = defaultNormal.Resource.Texture,
+		            sampler = defaultNormal.Resource.Sampler
+		        };
+		        SDL_BindGPUFragmentSamplers(renderPass, 1, &normalBinding, 1);
+		        
+		        // Metallic/Roughness texture (use white)
+		        var metallicBinding = SDL_GPUTextureSamplerBinding()
+		        {
+		            texture = defaultWhite.Resource.Texture,
+		            sampler = defaultWhite.Resource.Sampler
+		        };
+		        SDL_BindGPUFragmentSamplers(renderPass, 2, &metallicBinding, 1);
+		    }
+		    else
+		    {
+		        // For lit and unlit without material, bind default white texture
+		        var defaultWhite = mRenderer.GetDefaultWhiteTexture();
+		        var textureSamplerBinding = SDL_GPUTextureSamplerBinding()
+		        {
+		            texture = defaultWhite.Resource.Texture,
+		            sampler = defaultWhite.Resource.Sampler
+		        };
+		        SDL_BindGPUFragmentSamplers(renderPass, 0, &textureSamplerBinding, 1);
+		    }
+		}
 
         // Push uniform data for this object
         if (mActiveCamera != null)
         {
-            if (useLit)
+            if (usePBR)
+            {
+                // PBR rendering
+                Matrix normalMatrix = command.WorldMatrix;
+                normalMatrix = Matrix.Invert(normalMatrix);
+                normalMatrix = Matrix.Transpose(normalMatrix);
+
+                var vertexUniforms = PBRVertexUniforms()
+                {
+                    MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+                    ModelMatrix = command.WorldMatrix,
+                    NormalMatrix = normalMatrix
+                };
+
+                SDL_PushGPUVertexUniformData(commandBuffer, 0, &vertexUniforms, sizeof(PBRVertexUniforms));
+
+                // Prepare PBR fragment uniforms
+                var lightDir = mMainLight != null ? mMainLightTransform.Forward : Vector3(0, -1, 0);
+                var lightColor = mMainLight != null ? mMainLight.Color : Vector3(1, 1, 1);
+                var lightIntensity = mMainLight != null ? mMainLight.Intensity : 1.0f;
+
+                // Default PBR values
+                var albedoColor = command.Renderer.Color.ToVector4();
+                var emissiveColor = Vector4.Zero;
+                float metallic = 0.0f;
+                float roughness = 0.5f;
+                float ao = 1.0f;
+                
+                if (gpuMaterial != null && command.Renderer.Material.Resource?.Material is PBRMaterial)
+                {
+					var pbrMat = command.Renderer.Material.Resource?.Material as PBRMaterial;
+                    albedoColor = pbrMat.AlbedoColor.ToVector4();
+                    emissiveColor = Vector4(
+                        pbrMat.EmissiveColor.R / 255.0f,
+                        pbrMat.EmissiveColor.G / 255.0f,
+                        pbrMat.EmissiveColor.B / 255.0f,
+                        pbrMat.EmissiveIntensity
+                    );
+                    metallic = pbrMat.Metallic;
+                    roughness = pbrMat.Roughness;
+                    ao = pbrMat.AmbientOcclusion;
+                }
+
+                var fragmentUniforms = PBRFragmentUniforms()
+                {
+                    CameraPos = Vector4(mActiveCameraTransform.Position.X, mActiveCameraTransform.Position.Y, mActiveCameraTransform.Position.Z, 0),
+                    LightDirection = Vector4(lightDir.X, lightDir.Y, lightDir.Z, 0),
+                    LightColor = Vector4(lightColor.X, lightColor.Y, lightColor.Z, lightIntensity),
+                    AlbedoColor = albedoColor,
+                    EmissiveColor = emissiveColor,
+                    MetallicRoughnessAO = Vector4(metallic, roughness, ao, 0)
+                };
+
+                SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragmentUniforms, sizeof(PBRFragmentUniforms));
+            }
+            else if (useLit)
             {
                 // Prepare vertex uniforms
                 Matrix normalMatrix = command.WorldMatrix;

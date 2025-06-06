@@ -23,6 +23,7 @@ class ShaderSources
 			    float3 Normal : TEXCOORD1;
 			    float2 TexCoord : TEXCOORD2;
 			    uint Color : TEXCOORD3;
+			    float3 Tangent : TEXCOORD4;  // Added tangent for normal mapping
 			};
 		
 			struct VSOutput
@@ -32,6 +33,8 @@ class ShaderSources
 			    float4 Color : TEXCOORD1;
 			    float3 Normal : TEXCOORD2;
 			    float3 WorldPos : TEXCOORD3;
+			    float3 Tangent : TEXCOORD4;   // World space tangent
+			    float3 Bitangent : TEXCOORD5; // World space bitangent
 			};
 		
 			float4 UnpackColor(uint packedColor)
@@ -53,6 +56,13 @@ class ShaderSources
 			    output.Color = UnpackColor(input.Color);
 			    output.Normal = normalize(mul((float3x3)NormalMatrix, input.Normal));
 			    output.WorldPos = mul(ModelMatrix, float4(input.Position, 1.0)).xyz;
+			    
+			    // Transform tangent to world space
+			    output.Tangent = normalize(mul((float3x3)NormalMatrix, input.Tangent));
+			    
+			    // Calculate bitangent (cross product of normal and tangent)
+			    output.Bitangent = normalize(cross(output.Normal, output.Tangent));
+			    
 			    return output;
 			}
 		""";
@@ -81,6 +91,8 @@ class ShaderSources
 		
 		Texture2D DiffuseTexture : register(t0, space2);
 		SamplerState DiffuseSampler : register(s0, space2);
+		Texture2D NormalTexture : register(t1, space2);
+		SamplerState NormalSampler : register(s1, space2);
 		
 		struct PSInput
 		{
@@ -89,7 +101,29 @@ class ShaderSources
 		    float4 Color : TEXCOORD1;
 		    float3 Normal : TEXCOORD2;
 		    float3 WorldPos : TEXCOORD3;
+		    float3 Tangent : TEXCOORD4;
+		    float3 Bitangent : TEXCOORD5;
 		};
+		
+		// Sample and decode normal from normal map
+		float3 SampleNormalMap(float2 texCoord, float3 normal, float3 tangent, float3 bitangent)
+		{
+		    // Sample normal map (values are in [0,1] range)
+		    float3 normalMap = NormalTexture.Sample(NormalSampler, texCoord).rgb;
+		    
+		    // Convert from [0,1] to [-1,1] range
+		    normalMap = normalMap * 2.0 - 1.0;
+		    
+		    // Build TBN matrix (tangent space to world space)
+		    float3x3 TBN = float3x3(
+		        normalize(tangent),
+		        normalize(bitangent),
+		        normalize(normal)
+		    );
+		    
+		    // Transform normal from tangent space to world space
+		    return normalize(mul(normalMap, TBN));
+		}
 		
 		float3 CalculateDirectionalLight(LightData light, float3 normal, float3 viewDir, float3 materialColor, float3 specularColor, float shininess)
 		{
@@ -181,8 +215,8 @@ class ShaderSources
 		    // Sample diffuse texture
 		    float4 diffuseTexColor = DiffuseTexture.Sample(DiffuseSampler, input.TexCoord);
 		    
-		    // Normalize the normal
-		    float3 normal = normalize(input.Normal);
+		    // Sample and apply normal mapping
+		    float3 normal = SampleNormalMap(input.TexCoord, input.Normal, input.Tangent, input.Bitangent);
 		    
 		    // Calculate view direction
 		    float3 viewDir = normalize(CameraPos.xyz - input.WorldPos);
@@ -233,6 +267,7 @@ class ShaderSources
 			float3 Normal : TEXCOORD1;
 			float2 TexCoord : TEXCOORD2;
 			uint Color : TEXCOORD3;
+			float3 Tangent : TEXCOORD4;  // Added for consistency
 		};
 
 		struct VSOutput
@@ -289,7 +324,7 @@ class ShaderSources
 		}
 		""";
 	
-	// PBR vertex shader - same as lit vertex shader
+	// PBR vertex shader - same as lit vertex shader with tangents
 	public const String PBRVertex = """
 			cbuffer UBO : register(b0, space1)
 			{
@@ -304,6 +339,7 @@ class ShaderSources
 			    float3 Normal : TEXCOORD1;
 			    float2 TexCoord : TEXCOORD2;
 			    uint Color : TEXCOORD3;
+			    float3 Tangent : TEXCOORD4;  // Added tangent for normal mapping
 			};
 
 			struct VSOutput
@@ -313,6 +349,8 @@ class ShaderSources
 			    float4 Color : TEXCOORD1;
 			    float3 Normal : TEXCOORD2;
 			    float3 WorldPos : TEXCOORD3;
+			    float3 Tangent : TEXCOORD4;   // World space tangent
+			    float3 Bitangent : TEXCOORD5; // World space bitangent
 			};
 
 			float4 UnpackColor(uint packedColor)
@@ -333,11 +371,18 @@ class ShaderSources
 			    output.Color = UnpackColor(input.Color);
 			    output.Normal = normalize(mul((float3x3)NormalMatrix, input.Normal));
 			    output.WorldPos = mul(ModelMatrix, float4(input.Position, 1.0)).xyz;
+			    
+			    // Transform tangent to world space
+			    output.Tangent = normalize(mul((float3x3)NormalMatrix, input.Tangent));
+			    
+			    // Calculate bitangent (cross product of normal and tangent)
+			    output.Bitangent = normalize(cross(output.Normal, output.Tangent));
+			    
 			    return output;
 			}
 		""";
 	
-	// PBR fragment shader - physically based rendering
+	// PBR fragment shader - physically based rendering with normal mapping
 	public const String PBRFragment = """
 			static const int MAX_LIGHTS = 16;
 			static const float PI = 3.14159265359;
@@ -374,7 +419,29 @@ class ShaderSources
 			    float4 Color : TEXCOORD1;
 			    float3 Normal : TEXCOORD2;
 			    float3 WorldPos : TEXCOORD3;
+			    float3 Tangent : TEXCOORD4;
+			    float3 Bitangent : TEXCOORD5;
 			};
+			
+			// Sample and decode normal from normal map
+			float3 SampleNormalMap(float2 texCoord, float3 normal, float3 tangent, float3 bitangent)
+			{
+			    // Sample normal map (values are in [0,1] range)
+			    float3 normalMap = NormalTexture.Sample(NormalSampler, texCoord).rgb;
+			    
+			    // Convert from [0,1] to [-1,1] range
+			    normalMap = normalMap * 2.0 - 1.0;
+			    
+			    // Build TBN matrix (tangent space to world space)
+			    float3x3 TBN = float3x3(
+			        normalize(tangent),
+			        normalize(bitangent),
+			        normalize(normal)
+			    );
+			    
+			    // Transform normal from tangent space to world space
+			    return normalize(mul(normalMap, TBN));
+			}
 			
 			// Normal Distribution Function (GGX/Trowbridge-Reitz)
 			float DistributionGGX(float3 N, float3 H, float roughness)
@@ -452,8 +519,8 @@ class ShaderSources
 			    float4 albedoSample = AlbedoTexture.Sample(AlbedoSampler, input.TexCoord);
 			    float3 albedo = pow(albedoSample.rgb * AlbedoColor.rgb * input.Color.rgb, 2.2); // Convert to linear space
 			    
-			    float3 normal = normalize(input.Normal);
-			    // TODO: Normal mapping support
+			    // Sample and apply normal mapping
+			    float3 normal = SampleNormalMap(input.TexCoord, input.Normal, input.Tangent, input.Bitangent);
 			    
 			    float metallic = MetallicRoughnessAO.x;
 			    float roughness = MetallicRoughnessAO.y;
@@ -549,6 +616,7 @@ class ShaderSources
 			    float3 Normal : TEXCOORD1;
 			    float2 TexCoord : TEXCOORD2;
 			    uint Color : TEXCOORD3;
+			    float3 Tangent : TEXCOORD4;  // Added for consistency
 			};
 		
 			struct VSOutput

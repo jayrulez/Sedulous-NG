@@ -397,6 +397,352 @@ public class Image
         
         return image;
     }
+
+    // ========== NORMAL MAP CREATION METHODS ==========
+    
+    // Factory method: Create flat normal map (all normals pointing up)
+    public static Image CreateFlatNormalMap(uint32 width = 256, uint32 height = 256, PixelFormat format = .RGBA8)
+    {
+        var image = new Image(width, height, format);
+        
+        // Normal pointing straight up: (0, 0, 1) -> (128, 128, 255) in texture space
+        Color normalUp = Color(128, 128, 255, 255);
+        image.FillColor(normalUp);
+        
+        return image;
+    }
+    
+    // Factory method: Create wave pattern normal map
+    public static Image CreateWaveNormalMap(uint32 width = 256, uint32 height = 256, 
+                                           float waveFrequencyX = 8.0f, float waveFrequencyY = 6.0f,
+                                           float amplitude = 0.3f, PixelFormat format = .RGBA8)
+    {
+        var image = new Image(width, height, format);
+        
+        for (uint32 y = 0; y < height; y++)
+        {
+            for (uint32 x = 0; x < width; x++)
+            {
+                float fx = (float)x / width;
+                float fy = (float)y / height;
+                
+                // Create height variations using sine waves
+                float heightValue = Math.Sin(fx * Math.PI_f * waveFrequencyX) * amplitude + 
+                                   Math.Sin(fy * Math.PI_f * waveFrequencyY) * amplitude * 0.7f;
+                
+                // Calculate normal from height gradient
+                float heightRight = Math.Sin((fx + 1.0f/width) * Math.PI_f * waveFrequencyX) * amplitude + 
+                                   Math.Sin(fy * Math.PI_f * waveFrequencyY) * amplitude * 0.7f;
+                float heightDown = Math.Sin(fx * Math.PI_f * waveFrequencyX) * amplitude + 
+                                  Math.Sin((fy + 1.0f/height) * Math.PI_f * waveFrequencyY) * amplitude * 0.7f;
+                
+                // Calculate gradients
+                float dx = heightRight - heightValue;
+                float dy = heightDown - heightValue;
+                
+                // Create normal vector
+                Vector3 normal = Vector3.Normalize(Vector3(-dx * 5, -dy * 5, 1.0f));
+                
+                // Convert from [-1,1] to [0,255] range
+                uint8 r = (uint8)((normal.X * 0.5f + 0.5f) * 255);
+                uint8 g = (uint8)((normal.Y * 0.5f + 0.5f) * 255);
+                uint8 b = (uint8)((normal.Z * 0.5f + 0.5f) * 255);
+                
+                image.SetPixel(x, y, Color(r, g, b, 255));
+            }
+        }
+        
+        return image;
+    }
+    
+    // Factory method: Create brick pattern normal map
+    public static Image CreateBrickNormalMap(uint32 width = 256, uint32 height = 256,
+                                            uint32 bricksX = 8, uint32 bricksY = 4,
+                                            float mortarDepth = 0.3f, PixelFormat format = .RGBA8)
+    {
+        var image = new Image(width, height, format);
+        
+        uint32 brickWidth = width / bricksX;
+        uint32 brickHeight = height / bricksY;
+        
+        for (uint32 y = 0; y < height; y++)
+        {
+            for (uint32 x = 0; x < width; x++)
+            {
+                // Determine brick position
+                uint32 brickX = x / brickWidth;
+                uint32 brickY = y / brickHeight;
+                
+                // Offset every other row for brick pattern
+                if (brickY % 2 == 1)
+                    brickX = (x + brickWidth/2) / brickWidth;
+                
+                // Distance to brick edge
+                uint32 localX = x % brickWidth;
+                uint32 localY = y % brickHeight;
+                
+                if (brickY % 2 == 1)
+                    localX = (x + brickWidth/2) % brickWidth;
+                
+                float distToEdgeX = Math.Min(localX, brickWidth - localX) / (float)brickWidth;
+                float distToEdgeY = Math.Min(localY, brickHeight - localY) / (float)brickHeight;
+                float distToEdge = Math.Min(distToEdgeX, distToEdgeY);
+                
+                // Create normal based on distance to edge (mortar is depressed)
+                Vector3 normal;
+                if (distToEdge < 0.05f) // Mortar
+                {
+                    normal = Vector3(0, 0, 1.0f - mortarDepth); // Depressed
+                }
+                else // Brick surface with slight texture
+                {
+                    // Add some subtle surface variation to bricks
+                    float variation = Math.Sin(localX * 0.1f) * Math.Sin(localY * 0.1f) * 0.05f;
+                    normal = Vector3(0, 0, 1.0f + variation);
+                }
+                
+                normal = Vector3.Normalize(normal);
+                
+                // Convert to texture space
+                uint8 r = (uint8)((normal.X * 0.5f + 0.5f) * 255);
+                uint8 g = (uint8)((normal.Y * 0.5f + 0.5f) * 255);
+                uint8 b = (uint8)((normal.Z * 0.5f + 0.5f) * 255);
+                
+                image.SetPixel(x, y, Color(r, g, b, 255));
+            }
+        }
+        
+        return image;
+    }
+    
+    // Factory method: Create circular bump normal map
+    public static Image CreateCircularBumpNormalMap(uint32 width = 256, uint32 height = 256,
+                                                   float bumpHeight = 0.5f, float falloff = 2.0f,
+                                                   PixelFormat format = .RGBA8)
+    {
+        var image = new Image(width, height, format);
+        
+        float centerX = width * 0.5f;
+        float centerY = height * 0.5f;
+        float maxRadius = Math.Min(width, height) * 0.4f;
+        
+        for (uint32 y = 0; y < height; y++)
+        {
+            for (uint32 x = 0; x < width; x++)
+            {
+                float dx = x - centerX;
+                float dy = y - centerY;
+                float distance = Math.Sqrt(dx * dx + dy * dy);
+                
+                Vector3 normal;
+                if (distance < maxRadius && distance > 0.001f) // Avoid division by zero
+                {
+                    // Calculate normalized distance [0..1]
+                    float normalizedDist = distance / maxRadius;
+                    
+                    // Calculate height derivative (how steep the slope is)
+                    // For height function: h(r) = (1-r)^falloff * bumpHeight
+                    // Derivative: dh/dr = -falloff * (1-r)^(falloff-1) * bumpHeight
+                    float heightDerivative = -falloff * Math.Pow(1.0f - normalizedDist, falloff - 1) * bumpHeight / maxRadius;
+                    
+                    // Normal components from gradient
+                    float nx = (dx / distance) * heightDerivative;
+                    float ny = (dy / distance) * heightDerivative;
+                    
+                    normal = Vector3.Normalize(Vector3(nx, ny, 1.0f));
+                }
+                else
+                {
+                    normal = Vector3(0, 0, 1); // Flat outside the bump or at center
+                }
+                
+                // Convert to texture space
+                uint8 r = (uint8)((normal.X * 0.5f + 0.5f) * 255);
+                uint8 g = (uint8)((normal.Y * 0.5f + 0.5f) * 255);
+                uint8 b = (uint8)((normal.Z * 0.5f + 0.5f) * 255);
+                
+                image.SetPixel(x, y, Color(r, g, b, 255));
+            }
+        }
+        
+        return image;
+    }
+    
+    // Factory method: Create noise-based normal map
+    public static Image CreateNoiseNormalMap(uint32 width = 256, uint32 height = 256,
+                                            float scale = 0.1f, float amplitude = 0.2f,
+                                            int32 seed = 12345, PixelFormat format = .RGBA8)
+    {
+        var image = new Image(width, height, format);
+        
+        // Create a simple noise heightfield using a hash-based approach
+        var heightMap = scope float[width * height];
+        
+        for (uint32 y = 0; y < height; y++)
+        {
+            for (uint32 x = 0; x < width; x++)
+            {
+                // Simple value noise using hash function instead of Random
+                float noise = 0;
+                float freq = scale;
+                float amp = amplitude;
+                
+                for (int octave = 0; octave < 4; octave++)
+                {
+                    float fx = x * freq;
+                    float fy = y * freq;
+                    
+                    // Simple noise function using hash
+                    uint32 ix = (uint32)fx;
+                    uint32 iy = (uint32)fy;
+                    float fracX = fx - ix;
+                    float fracY = fy - iy;
+                    
+                    // Sample corners using hash function
+                    float a = HashToFloat(seed + (int32)ix + (int32)iy * 1000 + (int32)octave * 10000);
+                    float b = HashToFloat(seed + (int32)(ix + 1) + (int32)iy * 1000 + (int32)octave * 10000);
+                    float c = HashToFloat(seed + (int32)ix + (int32)(iy + 1) * 1000 + (int32)octave * 10000);
+                    float d = HashToFloat(seed + (int32)(ix + 1) + (int32)(iy + 1) * 1000 + (int32)octave * 10000);
+                    
+                    // Smooth interpolation (smoothstep for better noise)
+                    float smoothX = fracX * fracX * (3 - 2 * fracX);
+                    float smoothY = fracY * fracY * (3 - 2 * fracY);
+                    
+                    // Bilinear interpolation
+                    float i1 = Math.Lerp(a, b, smoothX);
+                    float i2 = Math.Lerp(c, d, smoothX);
+                    float value = Math.Lerp(i1, i2, smoothY);
+                    
+                    noise += value * amp;
+                    freq *= 2;
+                    amp *= 0.5f;
+                }
+                
+                heightMap[y * width + x] = noise;
+            }
+        }
+        
+        // Convert heightmap to normal map
+        for (uint32 y = 0; y < height; y++)
+        {
+            for (uint32 x = 0; x < width; x++)
+            {
+                // Sample neighboring heights
+                float heightL = heightMap[y * width + Math.Max(x - 1, 0)];
+                float heightR = heightMap[y * width + Math.Min(x + 1, width - 1)];
+                float heightU = heightMap[Math.Max(y - 1, 0) * width + x];
+                float heightD = heightMap[Math.Min(y + 1, height - 1) * width + x];
+                
+                // Calculate gradients
+                float dx = heightR - heightL;
+                float dy = heightD - heightU;
+                
+                // Create normal
+                Vector3 normal = Vector3.Normalize(Vector3(-dx * 2, -dy * 2, 1.0f));
+                
+                // Convert to texture space
+                uint8 r = (uint8)((normal.X * 0.5f + 0.5f) * 255);
+                uint8 g = (uint8)((normal.Y * 0.5f + 0.5f) * 255);
+                uint8 b = (uint8)((normal.Z * 0.5f + 0.5f) * 255);
+                
+                image.SetPixel(x, y, Color(r, g, b, 255));
+            }
+        }
+        
+        return image;
+    }
+    
+    // Helper method: Simple hash function to convert int to float [-1, 1]
+    private static float HashToFloat(int32 value)
+    {
+        // Simple hash function based on integer overflow behavior
+        uint32 hash = (uint32)value;
+        hash = hash * 1103515245u + 12345u; // Linear congruential generator constants
+        hash = (hash >> 16) ^ hash; // XOR with shifted version
+        hash = hash * 0x85ebca6bu; // Multiply by large prime
+        hash = (hash >> 13) ^ hash; // XOR with shifted version again
+        
+        // Convert to float in range [-1, 1]
+        return ((hash & 0x7FFFFFFF) / (float)0x7FFFFFFF) * 2.0f - 1.0f;
+    }
+    
+    // Factory method: Create test pattern normal map (for debugging)
+    public static Image CreateTestPatternNormalMap(uint32 width = 256, uint32 height = 256, PixelFormat format = .RGBA8)
+    {
+        var image = new Image(width, height, format);
+        
+        for (uint32 y = 0; y < height; y++)
+        {
+            for (uint32 x = 0; x < width; x++)
+            {
+                float fx = (float)x / width;
+                float fy = (float)y / height;
+                
+                Vector3 normal;
+                
+                // Create different patterns in different quadrants
+                if (fx < 0.5f && fy < 0.5f)
+                {
+                    // Top-left: Flat (baseline)
+                    normal = Vector3(0, 0, 1);
+                }
+                else if (fx >= 0.5f && fy < 0.5f)
+                {
+                    // Top-right: X-direction bumps
+                    float bump = Math.Sin(fx * Math.PI_f * 16) * 0.5f;
+                    normal = Vector3.Normalize(Vector3(bump, 0, 1));
+                }
+                else if (fx < 0.5f && fy >= 0.5f)
+                {
+                    // Bottom-left: Y-direction bumps
+                    float bump = Math.Sin(fy * Math.PI_f * 16) * 0.5f;
+                    normal = Vector3.Normalize(Vector3(0, bump, 1));
+                }
+                else
+                {
+                    // Bottom-right: Circular pattern
+                    float centerX = 0.75f;
+                    float centerY = 0.75f;
+                    float dx = fx - centerX;
+                    float dy = fy - centerY;
+                    float dist = Math.Sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < 0.2f)
+                    {
+                        float angle = Math.Atan2(dy, dx);
+                        normal = Vector3.Normalize(Vector3(
+                            Math.Cos(angle) * 0.3f,
+                            Math.Sin(angle) * 0.3f,
+                            1.0f
+                        ));
+                    }
+                    else
+                    {
+                        normal = Vector3(0, 0, 1);
+                    }
+                }
+                
+                // Convert to texture space
+                uint8 r = (uint8)((normal.X * 0.5f + 0.5f) * 255);
+                uint8 g = (uint8)((normal.Y * 0.5f + 0.5f) * 255);
+                uint8 b = (uint8)((normal.Z * 0.5f + 0.5f) * 255);
+                
+                image.SetPixel(x, y, Color(r, g, b, 255));
+            }
+        }
+        
+        return image;
+    }
+    
+    // Helper method: Create normal from height value (for heightmap conversion)
+    public static Vector3 CalculateNormalFromHeight(float heightL, float heightR, float heightU, float heightD, float scale = 1.0f)
+    {
+        float dx = (heightR - heightL) * scale;
+        float dy = (heightD - heightU) * scale;
+        return Vector3.Normalize(Vector3(-dx, -dy, 1.0f));
+    }
+    
+    // ========== END NORMAL MAP METHODS ==========
     
     // Helper: Get bytes per pixel for format
     public static int GetBytesPerPixel(PixelFormat format)

@@ -91,6 +91,14 @@ class TextureResource : Resource
         return .Err;
     }
     
+    // ========== BASIC TEXTURE FACTORY METHODS ==========
+
+	public static TextureResource CreateSolidColor(uint32 width, uint32 height, Color color)
+	{
+	    var image = Image.CreateSolidColor(width, height, color);
+	    return new TextureResource(image, true);
+	}
+    
     // Factory method: Create default white texture
     public static TextureResource CreateWhite(uint32 size = 4)
     {
@@ -128,7 +136,76 @@ class TextureResource : Resource
         return new TextureResource(image, true);
     }
     
-    // Update texture settings for common use cases
+    // ========== NORMAL MAP FACTORY METHODS ==========
+    
+    // Factory method: Create flat normal map (baseline for testing)
+    public static TextureResource CreateFlatNormalMap(uint32 size = 256)
+    {
+        var image = Image.CreateFlatNormalMap(size, size);
+        var texture = new TextureResource(image, true);
+        texture.SetupForNormalMap();
+        return texture;
+    }
+    
+    // Factory method: Create wave pattern normal map
+    public static TextureResource CreateWaveNormalMap(uint32 size = 256, 
+                                                     float waveFrequencyX = 8.0f, 
+                                                     float waveFrequencyY = 6.0f,
+                                                     float amplitude = 0.3f)
+    {
+        var image = Image.CreateWaveNormalMap(size, size, waveFrequencyX, waveFrequencyY, amplitude);
+        var texture = new TextureResource(image, true);
+        texture.SetupForNormalMap();
+        return texture;
+    }
+    
+    // Factory method: Create brick pattern normal map
+    public static TextureResource CreateBrickNormalMap(uint32 size = 256,
+                                                      uint32 bricksX = 8, 
+                                                      uint32 bricksY = 4,
+                                                      float mortarDepth = 0.3f)
+    {
+        var image = Image.CreateBrickNormalMap(size, size, bricksX, bricksY, mortarDepth);
+        var texture = new TextureResource(image, true);
+        texture.SetupForNormalMap();
+        return texture;
+    }
+    
+    // Factory method: Create circular bump normal map
+    public static TextureResource CreateCircularBumpNormalMap(uint32 size = 256,
+                                                             float bumpHeight = 0.5f, 
+                                                             float falloff = 2.0f)
+    {
+        var image = Image.CreateCircularBumpNormalMap(size, size, bumpHeight, falloff);
+        var texture = new TextureResource(image, true);
+        texture.SetupForNormalMap();
+        return texture;
+    }
+    
+    // Factory method: Create noise-based normal map
+    public static TextureResource CreateNoiseNormalMap(uint32 size = 256,
+                                                      float scale = 0.1f, 
+                                                      float amplitude = 0.2f,
+                                                      int32 seed = 12345)
+    {
+        var image = Image.CreateNoiseNormalMap(size, size, scale, amplitude, seed);
+        var texture = new TextureResource(image, true);
+        texture.SetupForNormalMap();
+        return texture;
+    }
+    
+    // Factory method: Create test pattern normal map (debugging)
+    public static TextureResource CreateTestPatternNormalMap(uint32 size = 256)
+    {
+        var image = Image.CreateTestPatternNormalMap(size, size);
+        var texture = new TextureResource(image, true);
+        texture.SetupForNormalMap();
+        return texture;
+    }
+    
+    // ========== TEXTURE SETUP METHODS ==========
+    
+    // Setup texture settings for UI textures
     public void SetupForUI()
     {
         MinFilter = .Linear;
@@ -136,8 +213,10 @@ class TextureResource : Resource
         WrapU = .ClampToEdge;
         WrapV = .ClampToEdge;
         GenerateMipmaps = false;
+        Anisotropy = 1.0f;
     }
     
+    // Setup texture settings for pixel art sprites
     public void SetupForSprite()
     {
         MinFilter = .Nearest;
@@ -145,8 +224,10 @@ class TextureResource : Resource
         WrapU = .ClampToEdge;
         WrapV = .ClampToEdge;
         GenerateMipmaps = false;
+        Anisotropy = 1.0f;
     }
     
+    // Setup texture settings for 3D world textures
     public void SetupFor3D()
     {
         MinFilter = .LinearMipmapLinear;
@@ -157,6 +238,7 @@ class TextureResource : Resource
         Anisotropy = 16.0f;
     }
     
+    // Setup texture settings for skybox textures
     public void SetupForSkybox()
     {
         MinFilter = .Linear;
@@ -165,5 +247,40 @@ class TextureResource : Resource
         WrapV = .ClampToEdge;
         WrapW = .ClampToEdge;
         GenerateMipmaps = false;
+        Anisotropy = 1.0f;
+    }
+    
+    // Setup texture settings specifically for normal maps
+    public void SetupForNormalMap()
+    {
+        MinFilter = .LinearMipmapLinear;
+        MagFilter = .Linear;
+        WrapU = .Repeat;
+        WrapV = .Repeat;
+        GenerateMipmaps = true; // Normal maps benefit from mipmaps
+        Anisotropy = 16.0f; // High anisotropy for better detail at oblique angles
+    }
+    
+    // Setup texture settings for height maps / displacement
+    public void SetupForHeightMap()
+    {
+        MinFilter = .Linear;
+        MagFilter = .Linear;
+        WrapU = .Repeat;
+        WrapV = .Repeat;
+        GenerateMipmaps = false; // Height maps usually don't need mipmaps
+        Anisotropy = 1.0f;
+    }
+    
+    // Setup texture settings for environment maps
+    public void SetupForEnvironmentMap()
+    {
+        MinFilter = .LinearMipmapLinear;
+        MagFilter = .Linear;
+        WrapU = .ClampToEdge;
+        WrapV = .ClampToEdge;
+        WrapW = .ClampToEdge;
+        GenerateMipmaps = true;
+        Anisotropy = 8.0f;
     }
 }

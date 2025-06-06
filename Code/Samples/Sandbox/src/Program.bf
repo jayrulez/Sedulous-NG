@@ -17,6 +17,7 @@ using Sedulous.Geometry;
 using Sedulous.SceneGraph;
 using Sedulous.Utilities;
 using System.Collections;
+using System.Diagnostics;
 namespace Sandbox;
 
 public class RotateComponent : Component
@@ -275,10 +276,6 @@ class SandboxApplication : Application
 				renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(unlitMat, true));
 				
 				var mesh = Mesh.CreateSphere(0.5f, 16, 16);
-				for (int32 v = 0; v < mesh.Vertices.VertexCount; v++)
-				{
-					mesh.SetColor(v, renderer.Color.PackedValue);
-				}
 				renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
 			}
 		}
@@ -323,11 +320,6 @@ class SandboxApplication : Application
 				materialType = "Unlit";
 			}
 
-			for (int32 v = 0; v < mesh.Vertices.VertexCount; v++)
-			{
-				mesh.SetColor(v, renderer.Color.PackedValue);
-			}
-
 			if (materialType == "Phong")
 			{
 				var shinyMat = new PhongMaterial();
@@ -362,6 +354,166 @@ class SandboxApplication : Application
 			renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
 		}
 
+		{
+			// Create normal mapping test row - positioned behind the main objects
+			for (int i = 0; i < 6; i++)
+			{
+				var normalTestEntity = scene.CreateEntity(scope $"NormalTest{i}");
+				normalTestEntity.Transform.Position = Vector3(i * 2 - 5, 0, 3); // Behind main objects
+				normalTestEntity.Transform.Scale = Vector3(1.2f, 1.2f, 1.2f); // Slightly larger
+				//normalTestEntity.AddComponent<RotateComponent>();
+				
+				var renderer = normalTestEntity.AddComponent<MeshRenderer>();
+				renderer.Color = Color.White;
+
+				// Create mesh - use different shapes for variety
+				Mesh mesh = null;
+				if (i % 3 == 0)
+					mesh = Mesh.CreateCube();
+				else if (i % 3 == 1)
+					mesh = Mesh.CreateSphere(0.5f, 32, 32); // Higher resolution for better normal mapping
+				else
+					mesh = Mesh.CreateCylinder(0.5f, 1.0f, 32); // Higher resolution
+
+				// Create materials with different normal maps
+				PhongMaterial material = new PhongMaterial();
+				material.DiffuseColor = Color(0.8f, 0.8f, 0.8f, 1.0f); // Light gray to show normal details
+				material.SpecularColor = Color(0.6f, 0.6f, 0.6f, 1.0f);
+				material.Shininess = 64.0f; // Higher shininess shows normal mapping better
+				material.AmbientColor = Color(0.1f, 0.1f, 0.1f, 1.0f);
+
+				// Create diffuse texture
+				material.DiffuseTexture =  engine.ResourceSystem.AddResource(TextureResource.CreateWhite(64));
+
+				// Create different normal maps for each object
+				String normalMapType = "";
+				switch (i)
+				{
+				case 0:
+					// Flat normal map (baseline - should look like no normal mapping)
+					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateFlatNormalMap(256));
+					normalMapType = "Flat (Baseline)";
+					
+				case 1:
+					// Wave pattern normal map
+					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateWaveNormalMap(256, 12.0f, 8.0f, 0.4f));
+					normalMapType = "Wave Pattern";
+					
+				case 2:
+					// Brick pattern normal map
+					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateBrickNormalMap(256, 6, 3, 0.4f));
+					normalMapType = "Brick Pattern";
+					
+				case 3:
+					// Circular bump normal map
+					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateCircularBumpNormalMap(256, 0.6f, 2.0f));
+					normalMapType = "Circular Bump";
+					
+				case 4:
+					// Noise-based normal map
+					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateNoiseNormalMap(256, 0.08f, 0.3f, 54321));
+					normalMapType = "Noise Texture";
+					
+				case 5:
+					// Test pattern normal map (shows multiple effects)
+					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateTestPatternNormalMap(256));
+					normalMapType = "Test Pattern";
+				}
+
+				Debug.WriteLine($"Created normal mapping test {i}: {normalMapType}");
+
+				renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
+				renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
+			}
+
+			// Create a dedicated light for the normal mapping test area
+			var normalTestLightEntity = scene.CreateEntity("NormalTestLight");
+			normalTestLightEntity.Transform.Position = Vector3(0, 3, 3); // Above the test objects
+			var normalTestLight = normalTestLightEntity.AddComponent<PointLight>();
+			normalTestLight.Color = Vector3(1.0f, 1.0f, 1.0f); // Pure white to show normal details clearly
+			normalTestLight.Intensity = 4.0f; // Bright to emphasize normal mapping
+			normalTestLight.Range = 12.0f;
+
+			// Add a visual representation for the normal test light
+			var normalTestLightVisual = scene.CreateEntity("NormalTestLightVisual");
+			normalTestLightVisual.Transform.Position = normalTestLightEntity.Transform.Position;
+			normalTestLightVisual.Transform.Scale = Vector3(0.1f, 0.1f, 0.1f);
+			var normalTestLightRenderer = normalTestLightVisual.AddComponent<MeshRenderer>();
+			normalTestLightRenderer.Color = Color.White;
+			var normalTestLightMat = new UnlitMaterial();
+			normalTestLightMat.Color = Color.White;
+			normalTestLightRenderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(normalTestLightMat, true));
+			var normalTestLightMesh = Mesh.CreateSphere(0.5f, 16, 16);
+			normalTestLightRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(normalTestLightMesh, true));
+
+			// Create information labels (as sprites) above each normal test object
+			for (int i = 0; i < 6; i++)
+			{
+				String labelText = "";
+				switch (i)
+				{
+				case 0: labelText = "Flat";
+				case 1: labelText = "Wave";
+				case 2: labelText = "Brick";
+				case 3: labelText = "Bump";
+				case 4: labelText = "Noise";
+				case 5: labelText = "Test";
+				}
+
+				var labelEntity = scene.CreateEntity(scope $"NormalLabel{i}");
+				labelEntity.Transform.Position = Vector3(i * 2 - 5, 2.5f, 3); // Above each test object
+				
+				var labelRenderer = labelEntity.AddComponent<SpriteRenderer>();
+				labelRenderer.Texture = engine.ResourceSystem.AddResource(TextureResource.CreateSolidColor(128, 32, Color.White));
+				labelRenderer.Color = Color(0.2f, 0.8f, 0.2f, 0.8f); // Semi-transparent green
+				labelRenderer.Size = Vector2(1.5f, 0.5f);
+				labelRenderer.Billboard = .Full; // Always face camera
+			}
+
+			// Add some explanatory text as console output
+			Debug.WriteLine("=== Normal Mapping Test Setup Complete ===");
+			Debug.WriteLine("Look at the back row of objects (behind the main demo objects):");
+			Debug.WriteLine("- Object 0 (Flat): Baseline - should look like regular lighting");
+			Debug.WriteLine("- Object 1 (Wave): Should show wavy surface bumps");
+			Debug.WriteLine("- Object 2 (Brick): Should show brick pattern with mortar lines");
+			Debug.WriteLine("- Object 3 (Bump): Should show a circular raised bump");
+			Debug.WriteLine("- Object 4 (Noise): Should show organic rough surface texture");
+			Debug.WriteLine("- Object 5 (Test): Shows multiple patterns in quadrants");
+			Debug.WriteLine("");
+			Debug.WriteLine("Move the camera around to see how the lighting changes with normal mapping!");
+			Debug.WriteLine("Use right-click + mouse drag to look around.");
+			Debug.WriteLine("Use WASD to move, Q/E for up/down.");
+			Debug.WriteLine("");
+
+			// Add a test to verify tangent generation
+			Debug.WriteLine("=== Verifying Tangent Generation ===");
+			var testMesh = Mesh.CreateCube();
+			bool tangentsValid = true;
+			for (int32 v = 0; v < Math.Min(testMesh.Vertices.VertexCount, 8); v++)
+			{
+				var normal = testMesh.GetNormal(v);
+				var tangent = testMesh.GetTangent(v);
+				float dot = Math.Abs(Vector3.Dot(normal, tangent));
+				
+				if (dot > 0.1f)
+				{
+					Debug.WriteLine($"️  Vertex {v}: Tangent not perpendicular to normal (dot = {dot:F3})");
+					tangentsValid = false;
+				}
+			}
+
+			if (tangentsValid)
+			{
+				Debug.WriteLine("Tangent generation verified - all tangents are properly perpendicular to normals");
+			}
+			else
+			{
+				Debug.WriteLine("Tangent generation has issues - normal mapping may not work correctly");
+			}
+
+			delete testMesh;
+		}
+
 		// Create floor plane
 		var plane = scene.CreateEntity("Floor");
 		plane.Transform.Position = Vector3(0, -1.5f, 0);
@@ -379,10 +531,6 @@ class SandboxApplication : Application
 		planeRenderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(floorMat, true));
 		var planeMesh = Mesh.CreatePlane();
 
-		for (int32 v = 0; v < planeMesh.Vertices.VertexCount; v++)
-		{
-			planeMesh.SetColor(v, planeRenderer.Color.PackedValue);
-		}
 		planeRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(planeMesh, true));
 
 		// Create a sprite entity
@@ -666,22 +814,22 @@ class SandboxApplication : Application
 			// Display current values with F1
 			if (keyboard.IsKeyPressed(.F1))
 			{
-				Console.WriteLine("=== Directional Light Settings ===");
-				Console.WriteLine("Rotation: Yaw={0:F2}°, Pitch={1:F2}°", 
+				Debug.WriteLine("=== Directional Light Settings ===");
+				Debug.WriteLine("Rotation: Yaw={0:F2}°, Pitch={1:F2}°", 
 					Math.RadiansToDegrees(mSunYaw), 
 					Math.RadiansToDegrees(mSunPitch));
-				Console.WriteLine("Color: R={0:F2}, G={1:F2}, B={2:F2}", 
+				Debug.WriteLine("Color: R={0:F2}, G={1:F2}, B={2:F2}", 
 					mSunLight.Color.X, 
 					mSunLight.Color.Y, 
 					mSunLight.Color.Z);
-				Console.WriteLine("Intensity: {0:F2}", mSunLight.Intensity);
-				Console.WriteLine("Controls:");
-				Console.WriteLine("  J/L - Rotate horizontally");
-				Console.WriteLine("  I/K - Rotate vertically");
-				Console.WriteLine("  Y/H - Increase/Decrease intensity");
-				Console.WriteLine("  T/G - Warmer/Cooler color");
-				Console.WriteLine("  R   - Reset to default");
-				Console.WriteLine("  F1  - Show this help");
+				Debug.WriteLine("Intensity: {0:F2}", mSunLight.Intensity);
+				Debug.WriteLine("Controls:");
+				Debug.WriteLine("  J/L - Rotate horizontally");
+				Debug.WriteLine("  I/K - Rotate vertically");
+				Debug.WriteLine("  Y/H - Increase/Decrease intensity");
+				Debug.WriteLine("  T/G - Warmer/Cooler color");
+				Debug.WriteLine("  R   - Reset to default");
+				Debug.WriteLine("  F1  - Show this help");
 			}
 		}
 	}

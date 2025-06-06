@@ -224,6 +224,8 @@ class SDLRendererSubsystem : Subsystem
 
 		SDL_ReleaseWindowFromGPUDevice(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
 
+		mGPUResourceManager.Clear();
+
 		SDL_DestroyGPUDevice(mDevice);
 
 		engine.ResourceSystem.RemoveResourceManager(mMeshResourceManager);
@@ -268,300 +270,301 @@ class SDLRendererSubsystem : Subsystem
 
 	private void CreateShaders()
 	{
-		// Compile all shaders
-		var litVsCode = scope List<uint8>();
-		var litPsCode = scope List<uint8>();
-		var unlitVsCode = scope List<uint8>();
-		var unlitPsCode = scope List<uint8>();
-		var pbrVsCode = scope List<uint8>();
-		var pbrPsCode = scope List<uint8>();
-		var spriteVsCode = scope List<uint8>();
-		var spritePsCode = scope List<uint8>();
+	    // Compile all shaders
+	    var litVsCode = scope List<uint8>();
+	    var litPsCode = scope List<uint8>();
+	    var unlitVsCode = scope List<uint8>();
+	    var unlitPsCode = scope List<uint8>();
+	    var pbrVsCode = scope List<uint8>();
+	    var pbrPsCode = scope List<uint8>();
+	    var spriteVsCode = scope List<uint8>();
+	    var spritePsCode = scope List<uint8>();
 
-		CompileShaderFromSource(ShaderSources.LitVertex, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", litVsCode);
-		CompileShaderFromSource(ShaderSources.LitFragment, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", litPsCode);
-		CompileShaderFromSource(ShaderSources.UnlitVertex, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", unlitVsCode);
-		CompileShaderFromSource(ShaderSources.UnlitFragment, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", unlitPsCode);
-		CompileShaderFromSource(ShaderSources.PBRVertex, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", pbrVsCode);
-		CompileShaderFromSource(ShaderSources.PBRFragment, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", pbrPsCode);
-		CompileShaderFromSource(ShaderSources.SpriteVertex, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", spriteVsCode);
-		CompileShaderFromSource(ShaderSources.SpriteFragment, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", spritePsCode);
+	    CompileShaderFromSource(ShaderSources.LitVertex, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", litVsCode);
+	    CompileShaderFromSource(ShaderSources.LitFragment, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", litPsCode);
+	    CompileShaderFromSource(ShaderSources.UnlitVertex, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", unlitVsCode);
+	    CompileShaderFromSource(ShaderSources.UnlitFragment, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", unlitPsCode);
+	    CompileShaderFromSource(ShaderSources.PBRVertex, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", pbrVsCode);
+	    CompileShaderFromSource(ShaderSources.PBRFragment, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", pbrPsCode);
+	    CompileShaderFromSource(ShaderSources.SpriteVertex, .SDL_SHADERCROSS_SHADERSTAGE_VERTEX, "main", spriteVsCode);
+	    CompileShaderFromSource(ShaderSources.SpriteFragment, .SDL_SHADERCROSS_SHADERSTAGE_FRAGMENT, "main", spritePsCode);
 
-		// Create shader objects
-		var litVsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = litVsCode.Ptr,
-				code_size = (uint32)litVsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_VERTEX,
-				num_samplers = 0,
-				num_uniform_buffers = 1, // We have 1 uniform buffer
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mLitVertexShader = SDL_CreateGPUShader(mDevice, &litVsDesc);
+	    // Create shader objects
+	    var litVsDesc = SDL_GPUShaderCreateInfo()
+	        {
+	            code = litVsCode.Ptr,
+	            code_size = (uint32)litVsCode.Count,
+	            entrypoint = "main",
+	            format = ShaderFormat,
+	            stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+	            num_samplers = 0,
+	            num_uniform_buffers = 1, // We have 1 uniform buffer
+	            num_storage_buffers = 0,
+	            num_storage_textures = 0
+	        };
+	    mLitVertexShader = SDL_CreateGPUShader(mDevice, &litVsDesc);
 
-		var litPsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = litPsCode.Ptr,
-				code_size = (uint32)litPsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
-				num_samplers = 1, // We have 1 texture sampler
-				num_uniform_buffers = 1, // We have 1 uniform buffer
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mLitFragmentShader = SDL_CreateGPUShader(mDevice, &litPsDesc);
+	    var litPsDesc = SDL_GPUShaderCreateInfo()
+	        {
+	            code = litPsCode.Ptr,
+	            code_size = (uint32)litPsCode.Count,
+	            entrypoint = "main",
+	            format = ShaderFormat,
+	            stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
+	            num_samplers = 2, // NOW HAS 2 SAMPLERS: Diffuse + Normal
+	            num_uniform_buffers = 1, // We have 1 uniform buffer
+	            num_storage_buffers = 0,
+	            num_storage_textures = 0
+	        };
+	    mLitFragmentShader = SDL_CreateGPUShader(mDevice, &litPsDesc);
 
-		var unlitVsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = unlitVsCode.Ptr,
-				code_size = (uint32)unlitVsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_VERTEX,
-				num_samplers = 0,
-				num_uniform_buffers = 1, // We have 1 uniform buffer
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mUnlitVertexShader = SDL_CreateGPUShader(mDevice, &unlitVsDesc);
+	    var unlitVsDesc = SDL_GPUShaderCreateInfo()
+	        {
+	            code = unlitVsCode.Ptr,
+	            code_size = (uint32)unlitVsCode.Count,
+	            entrypoint = "main",
+	            format = ShaderFormat,
+	            stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+	            num_samplers = 0,
+	            num_uniform_buffers = 1, // We have 1 uniform buffer
+	            num_storage_buffers = 0,
+	            num_storage_textures = 0
+	        };
+	    mUnlitVertexShader = SDL_CreateGPUShader(mDevice, &unlitVsDesc);
 
-		var unlitPsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = unlitPsCode.Ptr,
-				code_size = (uint32)unlitPsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
-				num_samplers = 1, // We have 1 texture sampler
-				num_uniform_buffers = 1, // We have 1 uniform buffer
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mUnlitFragmentShader = SDL_CreateGPUShader(mDevice, &unlitPsDesc);
+	    var unlitPsDesc = SDL_GPUShaderCreateInfo()
+	        {
+	            code = unlitPsCode.Ptr,
+	            code_size = (uint32)unlitPsCode.Count,
+	            entrypoint = "main",
+	            format = ShaderFormat,
+	            stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
+	            num_samplers = 1, // We have 1 texture sampler
+	            num_uniform_buffers = 1, // We have 1 uniform buffer
+	            num_storage_buffers = 0,
+	            num_storage_textures = 0
+	        };
+	    mUnlitFragmentShader = SDL_CreateGPUShader(mDevice, &unlitPsDesc);
 
-		// Create PBR shaders
-		var pbrVsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = pbrVsCode.Ptr,
-				code_size = (uint32)pbrVsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_VERTEX,
-				num_samplers = 0,
-				num_uniform_buffers = 1, // We have 1 uniform buffer
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mPBRVertexShader = SDL_CreateGPUShader(mDevice, &pbrVsDesc);
+	    // Create PBR shaders
+	    var pbrVsDesc = SDL_GPUShaderCreateInfo()
+	        {
+	            code = pbrVsCode.Ptr,
+	            code_size = (uint32)pbrVsCode.Count,
+	            entrypoint = "main",
+	            format = ShaderFormat,
+	            stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+	            num_samplers = 0,
+	            num_uniform_buffers = 1, // We have 1 uniform buffer
+	            num_storage_buffers = 0,
+	            num_storage_textures = 0
+	        };
+	    mPBRVertexShader = SDL_CreateGPUShader(mDevice, &pbrVsDesc);
 
-		var pbrPsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = pbrPsCode.Ptr,
-				code_size = (uint32)pbrPsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
-				num_samplers = 3, // Albedo, Normal, MetallicRoughness
-				num_uniform_buffers = 1, // We have 1 uniform buffer
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mPBRFragmentShader = SDL_CreateGPUShader(mDevice, &pbrPsDesc);
+	    var pbrPsDesc = SDL_GPUShaderCreateInfo()
+	        {
+	            code = pbrPsCode.Ptr,
+	            code_size = (uint32)pbrPsCode.Count,
+	            entrypoint = "main",
+	            format = ShaderFormat,
+	            stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
+	            num_samplers = 3, // Albedo, Normal, MetallicRoughness
+	            num_uniform_buffers = 1, // We have 1 uniform buffer
+	            num_storage_buffers = 0,
+	            num_storage_textures = 0
+	        };
+	    mPBRFragmentShader = SDL_CreateGPUShader(mDevice, &pbrPsDesc);
 
-		// Create sprite shaders
-		var spriteVsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = spriteVsCode.Ptr,
-				code_size = (uint32)spriteVsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_VERTEX,
-				num_samplers = 0,
-				num_uniform_buffers = 1, // We have 1 uniform buffer
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mSpriteVertexShader = SDL_CreateGPUShader(mDevice, &spriteVsDesc);
+	    // Create sprite shaders
+	    var spriteVsDesc = SDL_GPUShaderCreateInfo()
+	        {
+	            code = spriteVsCode.Ptr,
+	            code_size = (uint32)spriteVsCode.Count,
+	            entrypoint = "main",
+	            format = ShaderFormat,
+	            stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+	            num_samplers = 0,
+	            num_uniform_buffers = 1, // We have 1 uniform buffer
+	            num_storage_buffers = 0,
+	            num_storage_textures = 0
+	        };
+	    mSpriteVertexShader = SDL_CreateGPUShader(mDevice, &spriteVsDesc);
 
-		var spritePsDesc = SDL_GPUShaderCreateInfo()
-			{
-				code = spritePsCode.Ptr,
-				code_size = (uint32)spritePsCode.Count,
-				entrypoint = "main",
-				format = ShaderFormat,
-				stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
-				num_samplers = 1, // We have 1 sampler for the sprite texture
-				num_uniform_buffers = 1, // We have 1 uniform buffer
-				num_storage_buffers = 0,
-				num_storage_textures = 0
-			};
-		mSpriteFragmentShader = SDL_CreateGPUShader(mDevice, &spritePsDesc);
+	    var spritePsDesc = SDL_GPUShaderCreateInfo()
+	        {
+	            code = spritePsCode.Ptr,
+	            code_size = (uint32)spritePsCode.Count,
+	            entrypoint = "main",
+	            format = ShaderFormat,
+	            stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
+	            num_samplers = 1, // We have 1 sampler for the sprite texture
+	            num_uniform_buffers = 1, // We have 1 uniform buffer
+	            num_storage_buffers = 0,
+	            num_storage_textures = 0
+	        };
+	    mSpriteFragmentShader = SDL_CreateGPUShader(mDevice, &spritePsDesc);
 	}
 
 	private void CreatePipelines()
 	{
-		// Query the swapchain format
-		SDL_GPUTextureFormat swapchainFormat = SDL_GetGPUSwapchainTextureFormat(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
+	    // Query the swapchain format
+	    SDL_GPUTextureFormat swapchainFormat = SDL_GetGPUSwapchainTextureFormat(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
 
-		// Define vertex attributes
-		var vertexAttributes = SDL_GPUVertexAttribute[4](
-			. { location = 0, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 0 }, // Position
-			. { location = 1, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 12 }, // Normal
-			. { location = 2, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, offset = 24 }, // TexCoord
-			. { location = 3, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_UINT, offset = 32 } // Color
-			);
+	    // Define vertex attributes - NOW WITH TANGENT SUPPORT
+	    var vertexAttributes = SDL_GPUVertexAttribute[5](
+	        . { location = 0, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 0 }, // Position
+	        . { location = 1, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 12 }, // Normal
+	        . { location = 2, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, offset = 24 }, // TexCoord
+	        . { location = 3, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_UINT, offset = 32 }, // Color
+	        . { location = 4, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 36 } // Tangent
+	        );
 
-		var vertexBufferDesc = SDL_GPUVertexBufferDescription()
-			{
-				slot = 0,
-				pitch = sizeof(Vector3) + sizeof(Vector3) + sizeof(Vector2) + sizeof(uint32),
-				input_rate = .SDL_GPU_VERTEXINPUTRATE_VERTEX,
-				instance_step_rate = 0
-			};
+	    var vertexBufferDesc = SDL_GPUVertexBufferDescription()
+	        {
+	            slot = 0,
+	            pitch = sizeof(Vector3) + sizeof(Vector3) + sizeof(Vector2) + sizeof(uint32) + sizeof(Vector3), // Added tangent
+	            input_rate = .SDL_GPU_VERTEXINPUTRATE_VERTEX,
+	            instance_step_rate = 0
+	        };
 
-		var vertexInputState = SDL_GPUVertexInputState()
-			{
-				vertex_buffer_descriptions = &vertexBufferDesc,
-				num_vertex_buffers = 1,
-				vertex_attributes = &vertexAttributes[0],
-				num_vertex_attributes = 4
-			};
+	    var vertexInputState = SDL_GPUVertexInputState()
+	        {
+	            vertex_buffer_descriptions = &vertexBufferDesc,
+	            num_vertex_buffers = 1,
+	            vertex_attributes = &vertexAttributes[0],
+	            num_vertex_attributes = 5 // Updated count
+	        };
 
-		SDL_GPUColorTargetBlendState blendState = .()
-			{
-				src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-				dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				color_blend_op = .SDL_GPU_BLENDOP_ADD,
-				src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
-				dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
-				color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
-					.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
-				enable_blend = true,
-				enable_color_write_mask = false
-			};
+	    SDL_GPUColorTargetBlendState blendState = .()
+	        {
+	            src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+	            dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+	            color_blend_op = .SDL_GPU_BLENDOP_ADD,
+	            src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
+	            dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+	            alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
+	            color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
+	                .SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
+	            enable_blend = true,
+	            enable_color_write_mask = false
+	        };
 
-		var colorTargetDesc = SDL_GPUColorTargetDescription()
-			{
-				format = swapchainFormat,
-				blend_state = blendState
-			};
+	    var colorTargetDesc = SDL_GPUColorTargetDescription()
+	        {
+	            format = swapchainFormat,
+	            blend_state = blendState
+	        };
 
-		var targetInfo = SDL_GPUGraphicsPipelineTargetInfo()
-			{
-				color_target_descriptions = &colorTargetDesc,
-				num_color_targets = 1,
-				depth_stencil_format = .SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-				has_depth_stencil_target = true
-			};
+	    var targetInfo = SDL_GPUGraphicsPipelineTargetInfo()
+	        {
+	            color_target_descriptions = &colorTargetDesc,
+	            num_color_targets = 1,
+	            depth_stencil_format = .SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+	            has_depth_stencil_target = true
+	        };
 
-		SDL_GPURasterizerState rasterState = .()
-			{
-				fill_mode = .SDL_GPU_FILLMODE_FILL,
-				cull_mode = .SDL_GPU_CULLMODE_BACK,
-				front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
-				depth_bias_constant_factor = 0,
-				depth_bias_clamp = 0,
-				depth_bias_slope_factor = 0,
-				enable_depth_bias = false,
-				enable_depth_clip = true
-			};
+	    SDL_GPURasterizerState rasterState = .()
+	        {
+	            fill_mode = .SDL_GPU_FILLMODE_FILL,
+	            cull_mode = .SDL_GPU_CULLMODE_BACK,
+	            front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+	            depth_bias_constant_factor = 0,
+	            depth_bias_clamp = 0,
+	            depth_bias_slope_factor = 0,
+	            enable_depth_bias = false,
+	            enable_depth_clip = true
+	        };
 
-		SDL_GPUDepthStencilState depthStencilState = .()
-			{
-				compare_op = .SDL_GPU_COMPAREOP_LESS,
-				back_stencil_state = .(),
-				front_stencil_state = .(),
-				compare_mask = 0,
-				write_mask = 0,
-				enable_depth_test = true,
-				enable_depth_write = true,
-				enable_stencil_test = false
-			};
+	    SDL_GPUDepthStencilState depthStencilState = .()
+	        {
+	            compare_op = .SDL_GPU_COMPAREOP_LESS,
+	            back_stencil_state = .(),
+	            front_stencil_state = .(),
+	            compare_mask = 0,
+	            write_mask = 0,
+	            enable_depth_test = true,
+	            enable_depth_write = true,
+	            enable_stencil_test = false
+	        };
 
-		var pipelineDesc = SDL_GPUGraphicsPipelineCreateInfo()
-			{
-				vertex_shader = mLitVertexShader,
-				fragment_shader = mLitFragmentShader,
-				vertex_input_state = vertexInputState,
-				primitive_type = .SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-				rasterizer_state = rasterState,
-				multisample_state = .
-					{
-						sample_count = .SDL_GPU_SAMPLECOUNT_1,
-						sample_mask = 0,
-						enable_mask = false
-					},
-				depth_stencil_state = depthStencilState,
-				target_info = targetInfo,
-				props = 0
-			};
+	    var pipelineDesc = SDL_GPUGraphicsPipelineCreateInfo()
+	        {
+	            vertex_shader = mLitVertexShader,
+	            fragment_shader = mLitFragmentShader,
+	            vertex_input_state = vertexInputState,
+	            primitive_type = .SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+	            rasterizer_state = rasterState,
+	            multisample_state = .
+	                {
+	                    sample_count = .SDL_GPU_SAMPLECOUNT_1,
+	                    sample_mask = 0,
+	                    enable_mask = false
+	                },
+	            depth_stencil_state = depthStencilState,
+	            target_info = targetInfo,
+	            props = 0
+	        };
 
-		mLitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+	    mLitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
 
-		// Create unlit pipeline
-		// Reset to default states for unlit
-		pipelineDesc.vertex_shader = mUnlitVertexShader;
-		pipelineDesc.fragment_shader = mUnlitFragmentShader;
-		pipelineDesc.rasterizer_state = rasterState;
-		pipelineDesc.depth_stencil_state = depthStencilState;
-		pipelineDesc.target_info = targetInfo;
+	    // Create unlit pipeline
+	    // Reset to default states for unlit
+	    pipelineDesc.vertex_shader = mUnlitVertexShader;
+	    pipelineDesc.fragment_shader = mUnlitFragmentShader;
+	    pipelineDesc.rasterizer_state = rasterState;
+	    pipelineDesc.depth_stencil_state = depthStencilState;
+	    pipelineDesc.target_info = targetInfo;
 
-		mUnlitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+	    mUnlitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
 
-		// Create sprite pipeline
-		// Sprite pipeline uses alpha blending and no depth write
-		colorTargetDesc.blend_state = SDL_GPUColorTargetBlendState()
-			{
-				src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-				dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				color_blend_op = .SDL_GPU_BLENDOP_ADD,
-				src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
-				dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
-				color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
-					.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
-				enable_blend = true,
-				enable_color_write_mask = false
-			};
+	    // Create sprite pipeline
+	    // Sprite pipeline uses alpha blending and no depth write
+	    colorTargetDesc.blend_state = SDL_GPUColorTargetBlendState()
+	        {
+	            src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+	            dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+	            color_blend_op = .SDL_GPU_BLENDOP_ADD,
+	            src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
+	            dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+	            alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
+	            color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
+	                .SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
+	            enable_blend = true,
+	            enable_color_write_mask = false
+	        };
 
-		targetInfo.color_target_descriptions = &colorTargetDesc;
+	    targetInfo.color_target_descriptions = &colorTargetDesc;
 
-		// Sprites test depth but don't write to it
-		depthStencilState.enable_depth_write = false;
+	    // Sprites test depth but don't write to it
+	    depthStencilState.enable_depth_write = false;
 
-		// No backface culling for sprites (they might be flipped)
-		rasterState.cull_mode = .SDL_GPU_CULLMODE_NONE;
+	    // No backface culling for sprites (they might be flipped)
+	    rasterState.cull_mode = .SDL_GPU_CULLMODE_NONE;
 
-		pipelineDesc.vertex_shader = mSpriteVertexShader;
-		pipelineDesc.fragment_shader = mSpriteFragmentShader;
-		pipelineDesc.rasterizer_state = rasterState;
-		pipelineDesc.depth_stencil_state = depthStencilState;
-		pipelineDesc.target_info = targetInfo;
+	    pipelineDesc.vertex_shader = mSpriteVertexShader;
+	    pipelineDesc.fragment_shader = mSpriteFragmentShader;
+	    pipelineDesc.rasterizer_state = rasterState;
+	    pipelineDesc.depth_stencil_state = depthStencilState;
+	    pipelineDesc.target_info = targetInfo;
 
-		mSpritePipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+	    mSpritePipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
 
-		// Create PBR pipeline
-		// Reset to default states for PBR
-		colorTargetDesc.blend_state = blendState; // Use the original blend state
-		targetInfo.color_target_descriptions = &colorTargetDesc;
+	    // Create PBR pipeline
+	    // Reset to default states for PBR
+	    colorTargetDesc.blend_state = blendState; // Use the original blend state
+	    targetInfo.color_target_descriptions = &colorTargetDesc;
 
-		depthStencilState.enable_depth_write = true;
-		depthStencilState.enable_depth_test = true;
-		rasterState.cull_mode = .SDL_GPU_CULLMODE_BACK;
+	    depthStencilState.enable_depth_write = true;
+	    depthStencilState.enable_depth_test = true;
+	    rasterState.cull_mode = .SDL_GPU_CULLMODE_BACK;
 
-		pipelineDesc.vertex_shader = mPBRVertexShader;
-		pipelineDesc.fragment_shader = mPBRFragmentShader;
-		pipelineDesc.rasterizer_state = rasterState;
-		pipelineDesc.depth_stencil_state = depthStencilState;
-		pipelineDesc.target_info = targetInfo;
+	    pipelineDesc.vertex_shader = mPBRVertexShader;
+	    pipelineDesc.fragment_shader = mPBRFragmentShader;
+	    pipelineDesc.rasterizer_state = rasterState;
+	    pipelineDesc.depth_stencil_state = depthStencilState;
+	    pipelineDesc.target_info = targetInfo;
 
-		mPBRPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+	    mPBRPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
 	}
 
 	private void OnUpdate(IEngine.UpdateInfo info)

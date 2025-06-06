@@ -47,6 +47,11 @@ class GPUMaterial : GPUResource
 		{
 			SDL_ReleaseGPUBuffer(mDevice, mUniformBuffer);
 		}
+
+		for(var item in mGPUTextures)
+		{
+			item.Release();
+		}
 	}
 
 	private void CreateUniformBuffer()
@@ -127,57 +132,60 @@ class GPUMaterial : GPUResource
 	// Returns true if material has all required textures, false if defaults are needed
 	public bool HasRequiredTextures()
 	{
-		switch (mMaterial.ShaderName)
-		{
-		case "Phong":
-			// Phong requires at least a diffuse texture (slot 0)
-			return mGPUTextures.Count >= 1;
-		case "PBR":
-			// PBR requires at least albedo (slot 0)
-			// Normal and metallic/roughness are optional but recommended
-			return mGPUTextures.Count >= 1;
-		case "Unlit":
-			// Unlit requires a main texture (slot 0)
-			return mGPUTextures.Count >= 1;
-		default:
-			return false;
-		}
+	    switch (mMaterial.ShaderName)
+	    {
+	    case "Phong":
+	        // Phong requires at least a diffuse texture (slot 0)
+	        // Normal map (slot 1) is optional
+	        return mGPUTextures.Count >= 1;
+	    case "PBR":
+	        // PBR requires at least albedo (slot 0)
+	        // Normal and metallic/roughness are optional but recommended
+	        return mGPUTextures.Count >= 1;
+	    case "Unlit":
+	        // Unlit requires a main texture (slot 0)
+	        return mGPUTextures.Count >= 1;
+	    default:
+	        return false;
+	    }
 	}
 
 	public void BindTextures(SDL_GPURenderPass* renderPass,
-		GPUResourceHandle<GPUTexture> defaultWhite,
-		GPUResourceHandle<GPUTexture> defaultNormal,
-		GPUResourceHandle<GPUTexture> defaultBlack)
+	    GPUResourceHandle<GPUTexture> defaultWhite,
+	    GPUResourceHandle<GPUTexture> defaultNormal,
+	    GPUResourceHandle<GPUTexture> defaultBlack)
 	{
-		// Bind textures based on material type, filling missing slots with defaults
-		switch (mMaterial.ShaderName)
-		{
-		case "Phong":
-			// Slot 0: Diffuse texture
-			BindTextureSlot(renderPass, 0, 0, defaultWhite);
+	    // Bind textures based on material type, filling missing slots with defaults
+	    switch (mMaterial.ShaderName)
+	    {
+	    case "Phong":
+	        // Slot 0: Diffuse texture
+	        BindTextureSlot(renderPass, 0, 0, defaultWhite);
+	        // Slot 1: Normal texture
+	        BindTextureSlot(renderPass, 1, 1, defaultNormal);
 
-		case "PBR":
-			// Slot 0: Albedo texture
-			BindTextureSlot(renderPass, 0, 0, defaultWhite);
-			// Slot 1: Normal texture
-			BindTextureSlot(renderPass, 1, 1, defaultNormal);
-			// Slot 2: Metallic/Roughness texture
-			BindTextureSlot(renderPass, 2, 2, defaultWhite);
-			// Note: AO and Emissive slots could be added here if needed
+	    case "PBR":
+	        // Slot 0: Albedo texture
+	        BindTextureSlot(renderPass, 0, 0, defaultWhite);
+	        // Slot 1: Normal texture
+	        BindTextureSlot(renderPass, 1, 1, defaultNormal);
+	        // Slot 2: Metallic/Roughness texture
+	        BindTextureSlot(renderPass, 2, 2, defaultWhite);
+	        // Note: AO and Emissive slots could be added here if needed
 
-		case "Unlit":
-			// Slot 0: Main texture
-			BindTextureSlot(renderPass, 0, 0, defaultWhite);
+	    case "Unlit":
+	        // Slot 0: Main texture
+	        BindTextureSlot(renderPass, 0, 0, defaultWhite);
 
-		default:
-			// Unknown material type - bind default white to slot 0
-			var binding = SDL_GPUTextureSamplerBinding()
-				{
-					texture = defaultWhite.Resource.Texture,
-					sampler = defaultWhite.Resource.Sampler
-				};
-			SDL_BindGPUFragmentSamplers(renderPass, 0, &binding, 1);
-		}
+	    default:
+	        // Unknown material type - bind default white to slot 0
+	        var binding = SDL_GPUTextureSamplerBinding()
+	            {
+	                texture = defaultWhite.Resource.Texture,
+	                sampler = defaultWhite.Resource.Sampler
+	            };
+	        SDL_BindGPUFragmentSamplers(renderPass, 0, &binding, 1);
+	    }
 	}
 
 	private void BindTextureSlot(SDL_GPURenderPass* renderPass, uint32 slot,

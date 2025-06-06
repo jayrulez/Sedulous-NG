@@ -133,6 +133,8 @@ class SDLRendererSubsystem : Subsystem
 	private SDL_GPUGraphicsPipeline* mUnlitPipeline;
 	private SDL_GPUGraphicsPipeline* mPBRPipeline;
 	private SDL_GPUGraphicsPipeline* mSpritePipeline;
+	// private SDL_GPUGraphicsPipeline* mLitPipelineWithTangents;
+	// private SDL_GPUGraphicsPipeline* mPBRPipelineWithTangents;
 	private SDL_GPUShader* mLitVertexShader;
 	private SDL_GPUShader* mLitFragmentShader;
 	private SDL_GPUShader* mUnlitVertexShader;
@@ -207,6 +209,10 @@ class SDLRendererSubsystem : Subsystem
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mUnlitPipeline);
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mPBRPipeline);
 		SDL_ReleaseGPUGraphicsPipeline(mDevice, mSpritePipeline);
+		//if (mLitPipelineWithTangents != null)
+		//    SDL_ReleaseGPUGraphicsPipeline(mDevice, mLitPipelineWithTangents);
+		//if (mPBRPipelineWithTangents != null)
+		//    SDL_ReleaseGPUGraphicsPipeline(mDevice, mPBRPipelineWithTangents);
 		SDL_ReleaseGPUShader(mDevice, mLitVertexShader);
 		SDL_ReleaseGPUShader(mDevice, mLitFragmentShader);
 		SDL_ReleaseGPUShader(mDevice, mUnlitVertexShader);
@@ -399,164 +405,205 @@ class SDLRendererSubsystem : Subsystem
 
 	private void CreatePipelines()
 	{
-		// Query the swapchain format
-		SDL_GPUTextureFormat swapchainFormat = SDL_GetGPUSwapchainTextureFormat(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
+	    // Query the swapchain format
+	    SDL_GPUTextureFormat swapchainFormat = SDL_GetGPUSwapchainTextureFormat(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
 
-		// Define vertex attributes
-		var vertexAttributes = SDL_GPUVertexAttribute[4](
-			. { location = 0, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 0 }, // Position
-			. { location = 1, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 12 }, // Normal
-			. { location = 2, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, offset = 24 }, // TexCoord
-			. { location = 3, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_UINT, offset = 32 } // Color
-			);
+	    // Define vertex attributes for standard format
+	    var vertexAttributes = SDL_GPUVertexAttribute[4](
+	        . { location = 0, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 0 }, // Position
+	        . { location = 1, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 12 }, // Normal
+	        . { location = 2, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, offset = 24 }, // TexCoord
+	        . { location = 3, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_UINT, offset = 32 } // Color
+	    );
 
-		var vertexBufferDesc = SDL_GPUVertexBufferDescription()
-			{
-				slot = 0,
-				pitch = sizeof(Vector3) + sizeof(Vector3) + sizeof(Vector2) + sizeof(uint32),
-				input_rate = .SDL_GPU_VERTEXINPUTRATE_VERTEX,
-				instance_step_rate = 0
-			};
+	    var vertexBufferDesc = SDL_GPUVertexBufferDescription()
+	    {
+	        slot = 0,
+	        pitch = sizeof(Vector3) + sizeof(Vector3) + sizeof(Vector2) + sizeof(uint32),
+	        input_rate = .SDL_GPU_VERTEXINPUTRATE_VERTEX,
+	        instance_step_rate = 0
+	    };
 
-		var vertexInputState = SDL_GPUVertexInputState()
-			{
-				vertex_buffer_descriptions = &vertexBufferDesc,
-				num_vertex_buffers = 1,
-				vertex_attributes = &vertexAttributes[0],
-				num_vertex_attributes = 4
-			};
+	    var vertexInputState = SDL_GPUVertexInputState()
+	    {
+	        vertex_buffer_descriptions = &vertexBufferDesc,
+	        num_vertex_buffers = 1,
+	        vertex_attributes = &vertexAttributes[0],
+	        num_vertex_attributes = 4
+	    };
 
-		SDL_GPUColorTargetBlendState blendState = .()
-			{
-				src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-				dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				color_blend_op = .SDL_GPU_BLENDOP_ADD,
-				src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
-				dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
-				color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
-					.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
-				enable_blend = true,
-				enable_color_write_mask = false
-			};
+	    SDL_GPUColorTargetBlendState blendState = .()
+	    {
+	        src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+	        dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+	        color_blend_op = .SDL_GPU_BLENDOP_ADD,
+	        src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
+	        dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+	        alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
+	        color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
+	            .SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
+	        enable_blend = true,
+	        enable_color_write_mask = false
+	    };
 
-		var colorTargetDesc = SDL_GPUColorTargetDescription()
-			{
-				format = swapchainFormat,
-				blend_state = blendState
-			};
+	    var colorTargetDesc = SDL_GPUColorTargetDescription()
+	    {
+	        format = swapchainFormat,
+	        blend_state = blendState
+	    };
 
-		var targetInfo = SDL_GPUGraphicsPipelineTargetInfo()
-			{
-				color_target_descriptions = &colorTargetDesc,
-				num_color_targets = 1,
-				depth_stencil_format = .SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-				has_depth_stencil_target = true
-			};
+	    var targetInfo = SDL_GPUGraphicsPipelineTargetInfo()
+	    {
+	        color_target_descriptions = &colorTargetDesc,
+	        num_color_targets = 1,
+	        depth_stencil_format = .SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+	        has_depth_stencil_target = true
+	    };
 
-		SDL_GPURasterizerState rasterState = .()
-			{
-				fill_mode = .SDL_GPU_FILLMODE_FILL,
-				cull_mode = .SDL_GPU_CULLMODE_BACK,
-				front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
-				depth_bias_constant_factor = 0,
-				depth_bias_clamp = 0,
-				depth_bias_slope_factor = 0,
-				enable_depth_bias = false,
-				enable_depth_clip = true
-			};
+	    SDL_GPURasterizerState rasterState = .()
+	    {
+	        fill_mode = .SDL_GPU_FILLMODE_FILL,
+	        cull_mode = .SDL_GPU_CULLMODE_BACK,
+	        front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+	        depth_bias_constant_factor = 0,
+	        depth_bias_clamp = 0,
+	        depth_bias_slope_factor = 0,
+	        enable_depth_bias = false,
+	        enable_depth_clip = true
+	    };
 
-		SDL_GPUDepthStencilState depthStencilState = .()
-			{
-				compare_op = .SDL_GPU_COMPAREOP_LESS,
-				back_stencil_state = .(),
-				front_stencil_state = .(),
-				compare_mask = 0,
-				write_mask = 0,
-				enable_depth_test = true,
-				enable_depth_write = true,
-				enable_stencil_test = false
-			};
+	    SDL_GPUDepthStencilState depthStencilState = .()
+	    {
+	        compare_op = .SDL_GPU_COMPAREOP_LESS,
+	        back_stencil_state = .(),
+	        front_stencil_state = .(),
+	        compare_mask = 0,
+	        write_mask = 0,
+	        enable_depth_test = true,
+	        enable_depth_write = true,
+	        enable_stencil_test = false
+	    };
 
-		var pipelineDesc = SDL_GPUGraphicsPipelineCreateInfo()
-			{
-				vertex_shader = mLitVertexShader,
-				fragment_shader = mLitFragmentShader,
-				vertex_input_state = vertexInputState,
-				primitive_type = .SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-				rasterizer_state = rasterState,
-				multisample_state = .
-					{
-						sample_count = .SDL_GPU_SAMPLECOUNT_1,
-						sample_mask = 0,
-						enable_mask = false
-					},
-				depth_stencil_state = depthStencilState,
-				target_info = targetInfo,
-				props = 0
-			};
+	    var pipelineDesc = SDL_GPUGraphicsPipelineCreateInfo()
+	    {
+	        vertex_shader = mLitVertexShader,
+	        fragment_shader = mLitFragmentShader,
+	        vertex_input_state = vertexInputState,
+	        primitive_type = .SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+	        rasterizer_state = rasterState,
+	        multisample_state = .
+	        {
+	            sample_count = .SDL_GPU_SAMPLECOUNT_1,
+	            sample_mask = 0,
+	            enable_mask = false
+	        },
+	        depth_stencil_state = depthStencilState,
+	        target_info = targetInfo,
+	        props = 0
+	    };
 
-		mLitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+	    mLitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
 
-		// Create unlit pipeline
-		// Reset to default states for unlit
-		pipelineDesc.vertex_shader = mUnlitVertexShader;
-		pipelineDesc.fragment_shader = mUnlitFragmentShader;
-		pipelineDesc.rasterizer_state = rasterState;
-		pipelineDesc.depth_stencil_state = depthStencilState;
-		pipelineDesc.target_info = targetInfo;
+	    // Create unlit pipeline
+	    // Reset to default states for unlit
+	    pipelineDesc.vertex_shader = mUnlitVertexShader;
+	    pipelineDesc.fragment_shader = mUnlitFragmentShader;
+	    pipelineDesc.rasterizer_state = rasterState;
+	    pipelineDesc.depth_stencil_state = depthStencilState;
+	    pipelineDesc.target_info = targetInfo;
 
-		mUnlitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+	    mUnlitPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
 
-		// Create sprite pipeline
-		// Sprite pipeline uses alpha blending and no depth write
-		colorTargetDesc.blend_state = SDL_GPUColorTargetBlendState()
-			{
-				src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-				dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				color_blend_op = .SDL_GPU_BLENDOP_ADD,
-				src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
-				dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-				alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
-				color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
-					.SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
-				enable_blend = true,
-				enable_color_write_mask = false
-			};
+	    // Create sprite pipeline
+	    // Sprite pipeline uses alpha blending and no depth write
+	    colorTargetDesc.blend_state = SDL_GPUColorTargetBlendState()
+	    {
+	        src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+	        dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+	        color_blend_op = .SDL_GPU_BLENDOP_ADD,
+	        src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE,
+	        dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+	        alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
+	        color_write_mask = .SDL_GPU_COLORCOMPONENT_R | .SDL_GPU_COLORCOMPONENT_G |
+	            .SDL_GPU_COLORCOMPONENT_B | .SDL_GPU_COLORCOMPONENT_A,
+	        enable_blend = true,
+	        enable_color_write_mask = false
+	    };
 
-		targetInfo.color_target_descriptions = &colorTargetDesc;
+	    targetInfo.color_target_descriptions = &colorTargetDesc;
 
-		// Sprites test depth but don't write to it
-		depthStencilState.enable_depth_write = false;
+	    // Sprites test depth but don't write to it
+	    depthStencilState.enable_depth_write = false;
 
-		// No backface culling for sprites (they might be flipped)
-		rasterState.cull_mode = .SDL_GPU_CULLMODE_NONE;
+	    // No backface culling for sprites (they might be flipped)
+	    rasterState.cull_mode = .SDL_GPU_CULLMODE_NONE;
 
-		pipelineDesc.vertex_shader = mSpriteVertexShader;
-		pipelineDesc.fragment_shader = mSpriteFragmentShader;
-		pipelineDesc.rasterizer_state = rasterState;
-		pipelineDesc.depth_stencil_state = depthStencilState;
-		pipelineDesc.target_info = targetInfo;
+	    pipelineDesc.vertex_shader = mSpriteVertexShader;
+	    pipelineDesc.fragment_shader = mSpriteFragmentShader;
+	    pipelineDesc.rasterizer_state = rasterState;
+	    pipelineDesc.depth_stencil_state = depthStencilState;
+	    pipelineDesc.target_info = targetInfo;
 
-		mSpritePipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+	    mSpritePipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
 
-		// Create PBR pipeline
-		// Reset to default states for PBR
-		colorTargetDesc.blend_state = blendState; // Use the original blend state
-		targetInfo.color_target_descriptions = &colorTargetDesc;
+	    // Create PBR pipeline
+	    // Reset to default states for PBR
+	    colorTargetDesc.blend_state = blendState; // Use the original blend state
+	    targetInfo.color_target_descriptions = &colorTargetDesc;
 
-		depthStencilState.enable_depth_write = true;
-		depthStencilState.enable_depth_test = true;
-		rasterState.cull_mode = .SDL_GPU_CULLMODE_BACK;
+	    depthStencilState.enable_depth_write = true;
+	    depthStencilState.enable_depth_test = true;
+	    rasterState.cull_mode = .SDL_GPU_CULLMODE_BACK;
 
-		pipelineDesc.vertex_shader = mPBRVertexShader;
-		pipelineDesc.fragment_shader = mPBRFragmentShader;
-		pipelineDesc.rasterizer_state = rasterState;
-		pipelineDesc.depth_stencil_state = depthStencilState;
-		pipelineDesc.target_info = targetInfo;
+	    pipelineDesc.vertex_shader = mPBRVertexShader;
+	    pipelineDesc.fragment_shader = mPBRFragmentShader;
+	    pipelineDesc.rasterizer_state = rasterState;
+	    pipelineDesc.depth_stencil_state = depthStencilState;
+	    pipelineDesc.target_info = targetInfo;
 
-		mPBRPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+	    mPBRPipeline = SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineDesc);
+
+	    // OPTIONAL: Create pipelines with tangent support if you have tangent-aware shaders
+	    // CreateTangentPipelines(swapchainFormat);
 	}
+
+	// Optional method to create pipelines with tangent vertex format
+	// Uncomment if you have created tangent-aware vertex shaders
+	/*
+	private void CreateTangentPipelines(SDL_GPUTextureFormat swapchainFormat)
+	{
+	    // Define vertex attributes with tangents
+	    var vertexAttributesWithTangents = SDL_GPUVertexAttribute[5](
+	        . { location = 0, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 0 }, // Position
+	        . { location = 1, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offset = 12 }, // Normal
+	        . { location = 2, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, offset = 24 }, // TexCoord
+	        . { location = 3, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_UINT, offset = 32 }, // Color
+	        . { location = 4, buffer_slot = 0, format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4, offset = 36 } // Tangent
+	    );
+
+	    var vertexBufferDescWithTangents = SDL_GPUVertexBufferDescription()
+	    {
+	        slot = 0,
+	        pitch = sizeof(Vector3) + sizeof(Vector3) + sizeof(Vector2) + sizeof(uint32) + sizeof(Vector4),
+	        input_rate = .SDL_GPU_VERTEXINPUTRATE_VERTEX,
+	        instance_step_rate = 0
+	    };
+
+	    var vertexInputStateWithTangents = SDL_GPUVertexInputState()
+	    {
+	        vertex_buffer_descriptions = &vertexBufferDescWithTangents,
+	        num_vertex_buffers = 1,
+	        vertex_attributes = &vertexAttributesWithTangents[0],
+	        num_vertex_attributes = 5
+	    };
+
+	    // Same pipeline creation code as above but with vertexInputStateWithTangents
+	    // and tangent-aware shaders (mLitVertexShaderWithTangents, etc.)
+	    
+	    // You would need separate shaders compiled with tangent support
+	    // For now, the screen-space derivative approach works without this
+	}
+	*/
 
 	private void OnUpdate(IEngine.UpdateInfo info)
 	{

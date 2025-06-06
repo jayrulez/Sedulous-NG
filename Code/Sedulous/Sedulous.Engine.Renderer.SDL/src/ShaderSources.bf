@@ -81,6 +81,8 @@ class ShaderSources
 		
 		Texture2D DiffuseTexture : register(t0, space2);
 		SamplerState DiffuseSampler : register(s0, space2);
+		Texture2D NormalTexture : register(t1, space2);
+		SamplerState NormalSampler : register(s1, space2);
 		
 		struct PSInput
 		{
@@ -90,6 +92,36 @@ class ShaderSources
 		    float3 Normal : TEXCOORD2;
 		    float3 WorldPos : TEXCOORD3;
 		};
+		
+		// Calculate TBN matrix for normal mapping
+		float3x3 CalculateTBN(float3 normal, float3 worldPos, float2 texCoord)
+		{
+		    // Calculate derivatives of world position with respect to UV
+		    float3 dp1 = ddx(worldPos);
+		    float3 dp2 = ddy(worldPos);
+		    float2 duv1 = ddx(texCoord);
+		    float2 duv2 = ddy(texCoord);
+		    
+		    // Calculate tangent and bitangent
+		    float3 tangent = normalize(duv2.y * dp1 - duv1.y * dp2);
+		    float3 bitangent = normalize(duv1.x * dp2 - duv2.x * dp1);
+		    
+		    // Ensure orthogonality
+		    tangent = normalize(tangent - dot(tangent, normal) * normal);
+		    bitangent = cross(normal, tangent);
+		    
+		    return float3x3(tangent, bitangent, normal);
+		}
+		
+		// Unpack normal from normal map
+		float3 UnpackNormal(float3 normalMapSample)
+		{
+		    // Convert from [0,1] to [-1,1]
+		    float3 normal;
+		    normal.xy = normalMapSample.xy * 2.0 - 1.0;
+		    normal.z = sqrt(1.0 - saturate(dot(normal.xy, normal.xy)));
+		    return normalize(normal);
+		}
 		
 		float3 CalculateDirectionalLight(LightData light, float3 normal, float3 viewDir, float3 materialColor, float3 specularColor, float shininess)
 		{
@@ -181,8 +213,25 @@ class ShaderSources
 		    // Sample diffuse texture
 		    float4 diffuseTexColor = DiffuseTexture.Sample(DiffuseSampler, input.TexCoord);
 		    
-		    // Normalize the normal
+		    // Get base normal
 		    float3 normal = normalize(input.Normal);
+		    
+		    // Apply normal mapping
+		    float3 normalMapSample = NormalTexture.Sample(NormalSampler, input.TexCoord).rgb;
+		    
+		    // Check if we have a valid normal map (not the default normal color)
+		    // Default normal map color is (0.5, 0.5, 1.0) which is (128, 128, 255) in RGB
+		    if (length(normalMapSample - float3(0.5, 0.5, 1.0)) > 0.01)
+		    {
+		        // Unpack the normal from tangent space
+		        float3 tangentNormal = UnpackNormal(normalMapSample);
+		        
+		        // Calculate TBN matrix
+		        float3x3 TBN = CalculateTBN(normal, input.WorldPos, input.TexCoord);
+		        
+		        // Transform normal from tangent space to world space
+		        normal = normalize(mul(tangentNormal, TBN));
+		    }
 		    
 		    // Calculate view direction
 		    float3 viewDir = normalize(CameraPos.xyz - input.WorldPos);
@@ -419,6 +468,36 @@ class ShaderSources
 			    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 			}
 			
+			// Calculate TBN matrix for normal mapping
+			float3x3 CalculateTBN(float3 normal, float3 worldPos, float2 texCoord)
+			{
+			    // Calculate derivatives of world position with respect to UV
+			    float3 dp1 = ddx(worldPos);
+			    float3 dp2 = ddy(worldPos);
+			    float2 duv1 = ddx(texCoord);
+			    float2 duv2 = ddy(texCoord);
+			    
+			    // Calculate tangent and bitangent
+			    float3 tangent = normalize(duv2.y * dp1 - duv1.y * dp2);
+			    float3 bitangent = normalize(duv1.x * dp2 - duv2.x * dp1);
+			    
+			    // Ensure orthogonality
+			    tangent = normalize(tangent - dot(tangent, normal) * normal);
+			    bitangent = cross(normal, tangent);
+			    
+			    return float3x3(tangent, bitangent, normal);
+			}
+			
+			// Unpack normal from normal map
+			float3 UnpackNormal(float3 normalMapSample)
+			{
+			    // Convert from [0,1] to [-1,1]
+			    float3 normal;
+			    normal.xy = normalMapSample.xy * 2.0 - 1.0;
+			    normal.z = sqrt(1.0 - saturate(dot(normal.xy, normal.xy)));
+			    return normalize(normal);
+			}
+			
 			float3 CalculatePBRLight(float3 L, float3 V, float3 N, float3 albedo, float metallic, float roughness, float3 lightColor, float attenuation)
 			{
 			    float3 H = normalize(V + L);
@@ -452,8 +531,25 @@ class ShaderSources
 			    float4 albedoSample = AlbedoTexture.Sample(AlbedoSampler, input.TexCoord);
 			    float3 albedo = pow(albedoSample.rgb * AlbedoColor.rgb * input.Color.rgb, 2.2); // Convert to linear space
 			    
+			    // Get base normal
 			    float3 normal = normalize(input.Normal);
-			    // TODO: Normal mapping support
+			    
+			    // Apply normal mapping
+			    float3 normalMapSample = NormalTexture.Sample(NormalSampler, input.TexCoord).rgb;
+			    
+			    // Check if we have a valid normal map (not the default normal color)
+			    // Default normal map color is (0.5, 0.5, 1.0) which is (128, 128, 255) in RGB
+			    if (length(normalMapSample - float3(0.5, 0.5, 1.0)) > 0.01)
+			    {
+			        // Unpack the normal from tangent space
+			        float3 tangentNormal = UnpackNormal(normalMapSample);
+			        
+			        // Calculate TBN matrix
+			        float3x3 TBN = CalculateTBN(normal, input.WorldPos, input.TexCoord);
+			        
+			        // Transform normal from tangent space to world space
+			        normal = normalize(mul(tangentNormal, TBN));
+			    }
 			    
 			    float metallic = MetallicRoughnessAO.x;
 			    float roughness = MetallicRoughnessAO.y;

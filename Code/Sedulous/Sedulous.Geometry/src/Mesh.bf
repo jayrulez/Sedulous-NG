@@ -16,6 +16,7 @@ public class Mesh
 	private int32 mNormalOffset = -1;
 	private int32 mUVOffset = -1;
 	private int32 mColorOffset = -1;
+	private int32 mTangentOffset = -1;
 
 	public VertexBuffer Vertices => mVertexBuffer;
 	public IndexBuffer Indices => mIndexBuffer;
@@ -52,6 +53,29 @@ public class Mesh
 
 		mColorOffset = sizeof(Vector3) * 2 + sizeof(Vector2);
 		mVertexBuffer.AddAttribute("color", .Color32, mColorOffset, sizeof(uint32));
+		
+		mTangentOffset = -1; // Not included in common format
+	}
+
+	// Vertex format with tangents for normal mapping
+	public void SetupTangentVertexFormat()
+	{
+		Initialize(sizeof(Vector3) + sizeof(Vector3) + sizeof(Vector2) + sizeof(uint32) + sizeof(Vector4));
+
+		mPositionOffset = 0;
+		mVertexBuffer.AddAttribute("position", .Vec3, mPositionOffset, sizeof(Vector3));
+
+		mNormalOffset = sizeof(Vector3);
+		mVertexBuffer.AddAttribute("normal", .Vec3, mNormalOffset, sizeof(Vector3));
+
+		mUVOffset = sizeof(Vector3) * 2;
+		mVertexBuffer.AddAttribute("uv", .Vec2, mUVOffset, sizeof(Vector2));
+
+		mColorOffset = sizeof(Vector3) * 2 + sizeof(Vector2);
+		mVertexBuffer.AddAttribute("color", .Color32, mColorOffset, sizeof(uint32));
+
+		mTangentOffset = sizeof(Vector3) * 2 + sizeof(Vector2) + sizeof(uint32);
+		mVertexBuffer.AddAttribute("tangent", .Vec4, mTangentOffset, sizeof(Vector4));
 	}
 
 	// Vertex data helpers
@@ -77,16 +101,43 @@ public class Mesh
 			mVertexBuffer.SetVertexData(vertexIndex, mNormalOffset, normal);
 	}
 
+	public Vector3 GetNormal(int32 vertexIndex)
+	{
+		if (mNormalOffset >= 0)
+			return mVertexBuffer.GetVertexData<Vector3>(vertexIndex, mNormalOffset);
+		return .UnitY;
+	}
+
 	public void SetUV(int32 vertexIndex, Vector2 uv)
 	{
 		if (mUVOffset >= 0)
 			mVertexBuffer.SetVertexData(vertexIndex, mUVOffset, uv);
 	}
 
+	public Vector2 GetUV(int32 vertexIndex)
+	{
+		if (mUVOffset >= 0)
+			return mVertexBuffer.GetVertexData<Vector2>(vertexIndex, mUVOffset);
+		return .Zero;
+	}
+
 	public void SetColor(int32 vertexIndex, uint32 color)
 	{
 		if (mColorOffset >= 0)
 			mVertexBuffer.SetVertexData(vertexIndex, mColorOffset, color);
+	}
+
+	public void SetTangent(int32 vertexIndex, Vector4 tangent)
+	{
+		if (mTangentOffset >= 0)
+			mVertexBuffer.SetVertexData(vertexIndex, mTangentOffset, tangent);
+	}
+
+	public Vector4 GetTangent(int32 vertexIndex)
+	{
+		if (mTangentOffset >= 0)
+			return mVertexBuffer.GetVertexData<Vector4>(vertexIndex, mTangentOffset);
+		return Vector4(1, 0, 0, 1);
 	}
 
 	// Direct vertex buffer access for custom formats
@@ -130,6 +181,80 @@ public class Mesh
 		return mBounds;
 	}
 
+	// Calculate tangents for the mesh (call after setting positions, normals, and UVs)
+	public void CalculateTangents()
+	{
+		if (mTangentOffset < 0 || mPositionOffset < 0 || mNormalOffset < 0 || mUVOffset < 0)
+			return;
+
+		// Initialize tangents to zero
+		for (int32 i = 0; i < mVertexBuffer.VertexCount; i++)
+		{
+			SetTangent(i, Vector4.Zero);
+		}
+
+		// Calculate tangents for each triangle
+		for (int32 i = 0; i < mIndexBuffer.IndexCount; i += 3)
+		{
+			uint32 i0 = mIndexBuffer.GetIndex(i);
+			uint32 i1 = mIndexBuffer.GetIndex(i + 1);
+			uint32 i2 = mIndexBuffer.GetIndex(i + 2);
+
+			Vector3 p0 = GetPosition((int32)i0);
+			Vector3 p1 = GetPosition((int32)i1);
+			Vector3 p2 = GetPosition((int32)i2);
+
+			Vector2 uv0 = GetUV((int32)i0);
+			Vector2 uv1 = GetUV((int32)i1);
+			Vector2 uv2 = GetUV((int32)i2);
+
+			// Calculate triangle edges
+			Vector3 edge1 = p1 - p0;
+			Vector3 edge2 = p2 - p0;
+
+			Vector2 deltaUV1 = uv1 - uv0;
+			Vector2 deltaUV2 = uv2 - uv0;
+
+			float det = deltaUV1.X * deltaUV2.Y - deltaUV1.Y * deltaUV2.X;
+			if (Math.Abs(det) < 0.0001f)
+				continue;
+
+			float r = 1.0f / det;
+
+			// Calculate tangent
+			Vector3 tangent = (edge1 * deltaUV2.Y - edge2 * deltaUV1.Y) * r;
+			Vector3 bitangent = (edge2 * deltaUV1.X - edge1 * deltaUV2.X) * r;
+
+			// Accumulate tangents for each vertex
+			for (int32 j = 0; j < 3; j++)
+			{
+				uint32 idx = mIndexBuffer.GetIndex(i + j);
+				Vector4 t = GetTangent((int32)idx);
+				t.X += tangent.X;
+				t.Y += tangent.Y;
+				t.Z += tangent.Z;
+				SetTangent((int32)idx, t);
+			}
+		}
+
+		// Orthogonalize and normalize tangents
+		for (int32 i = 0; i < mVertexBuffer.VertexCount; i++)
+		{
+			Vector3 normal = GetNormal(i);
+			Vector4 tangent = GetTangent(i);
+			
+			// Gram-Schmidt orthogonalize
+			Vector3 t = Vector3(tangent.X, tangent.Y, tangent.Z);
+			t = Vector3.Normalize(t - normal * Vector3.Dot(normal, t));
+			
+			// Calculate handedness
+			Vector3 bitangent = Vector3.Cross(normal, t);
+			float handedness = (Vector3.Dot(Vector3.Cross(normal, t), bitangent) < 0.0f) ? -1.0f : 1.0f;
+			
+			SetTangent(i, Vector4(t.X, t.Y, t.Z, handedness));
+		}
+	}
+
 	// Create a simple triangle mesh
 	public static Mesh CreateTriangle()
 	{
@@ -151,6 +276,9 @@ public class Mesh
 		mesh.SetUV(0, .(0, 1));
 		mesh.SetUV(1, .(1, 1));
 		mesh.SetUV(2, .(0.5f, 0));
+
+		for (int32 i = 0; i < 3; i++)
+			mesh.SetColor(i, Color.White.PackedValue);
 
 		// Indices
 		mesh.Indices.SetIndex(0, 0);
@@ -182,7 +310,10 @@ public class Mesh
 		mesh.SetPosition(3, .(-hw, hh, 0));
 
 		for (int32 i = 0; i < 4; i++)
+		{
 			mesh.SetNormal(i, .(0, 0, 1));
+			mesh.SetColor(i, Color.White.PackedValue);
+		}
 
 		mesh.SetUV(0, .(0, 1));
 		mesh.SetUV(1, .(1, 1));
@@ -196,6 +327,51 @@ public class Mesh
 		mesh.Indices.SetIndex(3, 0);
 		mesh.Indices.SetIndex(4, 2);
 		mesh.Indices.SetIndex(5, 3);
+
+		mesh.AddSubMesh(SubMesh(0, 6));
+
+		return mesh;
+	}
+
+	// Create a quad mesh with tangents
+	public static Mesh CreateQuadWithTangents(float width = 1.0f, float height = 1.0f)
+	{
+		let mesh = new Mesh();
+		mesh.SetupTangentVertexFormat();
+
+		mesh.Vertices.Resize(4);
+		mesh.Indices.Resize(6);
+
+		float hw = width * 0.5f;
+		float hh = height * 0.5f;
+
+		// Vertices
+		mesh.SetPosition(0, .(-hw, -hh, 0));
+		mesh.SetPosition(1, .(hw, -hh, 0));
+		mesh.SetPosition(2, .(hw, hh, 0));
+		mesh.SetPosition(3, .(-hw, hh, 0));
+
+		for (int32 i = 0; i < 4; i++)
+		{
+			mesh.SetNormal(i, .(0, 0, 1));
+			mesh.SetColor(i, Color.White.PackedValue);
+		}
+
+		mesh.SetUV(0, .(0, 1));
+		mesh.SetUV(1, .(1, 1));
+		mesh.SetUV(2, .(1, 0));
+		mesh.SetUV(3, .(0, 0));
+
+		// Indices
+		mesh.Indices.SetIndex(0, 0);
+		mesh.Indices.SetIndex(1, 1);
+		mesh.Indices.SetIndex(2, 2);
+		mesh.Indices.SetIndex(3, 0);
+		mesh.Indices.SetIndex(4, 2);
+		mesh.Indices.SetIndex(5, 3);
+
+		// Calculate tangents
+		mesh.CalculateTangents();
 
 		mesh.AddSubMesh(SubMesh(0, 6));
 
@@ -244,6 +420,7 @@ public class Mesh
 		{
 			mesh.SetPosition(i, positions[i]);
 			mesh.SetNormal(i, normals[i / 4]);
+			mesh.SetColor(i, Color.White.PackedValue);
 			
 			// Simple UV mapping
 			int32 faceVertex = i % 4;
@@ -310,6 +487,7 @@ public class Mesh
 				mesh.SetPosition(v, pos);
 				mesh.SetNormal(v, .(pos.X / radius, pos.Y / radius, pos.Z / radius));
 				mesh.SetUV(v, .((float)x / segments, (float)y / rings));
+				mesh.SetColor(v, Color.White.PackedValue);
 				v++;
 			}
 		}
@@ -362,6 +540,7 @@ public class Mesh
 	    mesh.SetPosition(v, .(0, halfHeight, 0));
 	    mesh.SetNormal(v, .(0, 1, 0));
 	    mesh.SetUV(v, .(0.5f, 0.5f));
+	    mesh.SetColor(v, Color.White.PackedValue);
 	    int32 topCenterIdx = v;
 	    v++;
 	    
@@ -376,6 +555,7 @@ public class Mesh
 	        mesh.SetPosition(v, .(x, halfHeight, z));
 	        mesh.SetNormal(v, .(0, 1, 0));
 	        mesh.SetUV(v, .(x / radius * 0.5f + 0.5f, z / radius * 0.5f + 0.5f));
+	        mesh.SetColor(v, Color.White.PackedValue);
 	        v++;
 	    }
 	    
@@ -383,6 +563,7 @@ public class Mesh
 	    mesh.SetPosition(v, .(0, -halfHeight, 0));
 	    mesh.SetNormal(v, .(0, -1, 0));
 	    mesh.SetUV(v, .(0.5f, 0.5f));
+	    mesh.SetColor(v, Color.White.PackedValue);
 	    int32 bottomCenterIdx = v;
 	    v++;
 	    
@@ -397,6 +578,7 @@ public class Mesh
 	        mesh.SetPosition(v, .(x, -halfHeight, z));
 	        mesh.SetNormal(v, .(0, -1, 0));
 	        mesh.SetUV(v, .(x / radius * 0.5f + 0.5f, z / radius * 0.5f + 0.5f));
+	        mesh.SetColor(v, Color.White.PackedValue);
 	        v++;
 	    }
 	    
@@ -413,12 +595,14 @@ public class Mesh
 	        mesh.SetPosition(v, .(x, halfHeight, z));
 	        mesh.SetNormal(v, normal);
 	        mesh.SetUV(v, .((float)i / segments, 0));
+	        mesh.SetColor(v, Color.White.PackedValue);
 	        v++;
 	        
 	        // Bottom vertex for side
 	        mesh.SetPosition(v, .(x, -halfHeight, z));
 	        mesh.SetNormal(v, normal);
 	        mesh.SetUV(v, .((float)i / segments, 1));
+	        mesh.SetColor(v, Color.White.PackedValue);
 	        v++;
 	    }
 	    
@@ -483,6 +667,7 @@ public class Mesh
 		mesh.SetPosition(v, .(0, halfHeight, 0));
 		mesh.SetNormal(v, .(0, 1, 0)); // Simplified normal
 		mesh.SetUV(v, .(0.5f, 0));
+		mesh.SetColor(v, Color.White.PackedValue);
 		v++;
 		
 		// Base ring vertices (for sides)
@@ -502,6 +687,7 @@ public class Mesh
 			mesh.SetPosition(v, .(x, -halfHeight, z));
 			mesh.SetNormal(v, normal);
 			mesh.SetUV(v, .((float)i / segments, 1));
+			mesh.SetColor(v, Color.White.PackedValue);
 			v++;
 		}
 		
@@ -509,6 +695,7 @@ public class Mesh
 		mesh.SetPosition(v, .(0, -halfHeight, 0));
 		mesh.SetNormal(v, .(0, -1, 0));
 		mesh.SetUV(v, .(0.5f, 0.5f));
+		mesh.SetColor(v, Color.White.PackedValue);
 		int32 baseCenterIdx = v;
 		v++;
 		
@@ -522,6 +709,7 @@ public class Mesh
 			mesh.SetPosition(v, .(x, -halfHeight, z));
 			mesh.SetNormal(v, .(0, -1, 0));
 			mesh.SetUV(v, .(x / radius * 0.5f + 0.5f, z / radius * 0.5f + 0.5f));
+			mesh.SetColor(v, Color.White.PackedValue);
 			v++;
 		}
 		
@@ -591,6 +779,7 @@ public class Mesh
 				mesh.SetPosition(v, position);
 				mesh.SetNormal(v, normal);
 				mesh.SetUV(v, .(u, v2));
+				mesh.SetColor(v, Color.White.PackedValue);
 				v++;
 			}
 		}
@@ -649,6 +838,7 @@ public class Mesh
 				mesh.SetPosition(v, .(xPos, 0, zPos));
 				mesh.SetNormal(v, .(0, 1, 0));
 				mesh.SetUV(v, .((float)x / widthSegments, (float)z / depthSegments));
+				mesh.SetColor(v, Color.White.PackedValue);
 				v++;
 			}
 		}
@@ -675,6 +865,70 @@ public class Mesh
 				mesh.Indices.SetIndex(idx++, (uint32)c);
 			}
 		}
+		
+		mesh.AddSubMesh(SubMesh(0, indexCount));
+		return mesh;
+	}
+
+	// Create a plane mesh with subdivisions and tangents
+	public static Mesh CreatePlaneWithTangents(float width = 10.0f, float depth = 10.0f, int32 widthSegments = 10, int32 depthSegments = 10)
+	{
+		let mesh = new Mesh();
+		mesh.SetupTangentVertexFormat();
+		
+		int32 vertexCount = (widthSegments + 1) * (depthSegments + 1);
+		int32 indexCount = widthSegments * depthSegments * 6;
+		
+		mesh.Vertices.Resize(vertexCount);
+		mesh.Indices.Resize(indexCount);
+		
+		float halfWidth = width * 0.5f;
+		float halfDepth = depth * 0.5f;
+		float segmentWidth = width / widthSegments;
+		float segmentDepth = depth / depthSegments;
+		
+		// Generate vertices
+		int32 v = 0;
+		for (int32 z = 0; z <= depthSegments; z++)
+		{
+			for (int32 x = 0; x <= widthSegments; x++)
+			{
+				float xPos = -halfWidth + x * segmentWidth;
+				float zPos = -halfDepth + z * segmentDepth;
+				
+				mesh.SetPosition(v, .(xPos, 0, zPos));
+				mesh.SetNormal(v, .(0, 1, 0));
+				mesh.SetUV(v, .((float)x / widthSegments, (float)z / depthSegments));
+				mesh.SetColor(v, Color.White.PackedValue);
+				v++;
+			}
+		}
+		
+		// Generate indices with REVERSED winding order
+		int32 idx = 0;
+		for (int32 z = 0; z < depthSegments; z++)
+		{
+			for (int32 x = 0; x < widthSegments; x++)
+			{
+				int32 a = z * (widthSegments + 1) + x;
+				int32 b = a + 1;
+				int32 c = a + widthSegments + 1;
+				int32 d = c + 1;
+				
+				// First triangle (reversed: a,c,b -> a,b,c)
+				mesh.Indices.SetIndex(idx++, (uint32)a);
+				mesh.Indices.SetIndex(idx++, (uint32)b);
+				mesh.Indices.SetIndex(idx++, (uint32)c);
+				
+				// Second triangle (reversed: b,c,d -> b,d,c)
+				mesh.Indices.SetIndex(idx++, (uint32)b);
+				mesh.Indices.SetIndex(idx++, (uint32)d);
+				mesh.Indices.SetIndex(idx++, (uint32)c);
+			}
+		}
+		
+		// Calculate tangents
+		mesh.CalculateTangents();
 		
 		mesh.AddSubMesh(SubMesh(0, indexCount));
 		return mesh;

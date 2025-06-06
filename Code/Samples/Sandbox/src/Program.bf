@@ -255,10 +255,10 @@ class SandboxApplication : Application
 			{
 				lightVisual.Transform.Position = lightEntity.Transform.Position;
 				lightVisual.Transform.Scale = Vector3(0.2f, 0.2f, 0.2f);
-				
+
 				var renderer = lightVisual.AddComponent<MeshRenderer>();
 				renderer.Color = Color.White;
-				
+
 				// Create unlit material with the light's color
 				var unlitMat = new UnlitMaterial();
 				var lightComp = lightEntity.GetComponent<PointLight>();
@@ -267,10 +267,10 @@ class SandboxApplication : Application
 					lightComp.Color.Y,
 					lightComp.Color.Z,
 					1.0f
-				);
-				
+					);
+
 				renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(unlitMat, true));
-				
+
 				var mesh = Mesh.CreateSphere(0.5f, 16, 16);
 				renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
 			}
@@ -349,7 +349,6 @@ class SandboxApplication : Application
 			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
 			renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
 		}
-
 		{
 			Console.WriteLine("=== Setting up Normal Mapping Test ===");
 
@@ -357,9 +356,9 @@ class SandboxApplication : Application
 			for (int i = 0; i < 6; i++)
 			{
 				var normalTestEntity = scene.CreateEntity(scope $"NormalTest{i}");
-				normalTestEntity.Transform.Position = Vector3(i * 2 - 5, 0, 4); // Behind main objects
-				normalTestEntity.Transform.Scale = Vector3(2f, 2f, 2f); // Larger for better visibility
-				
+				normalTestEntity.Transform.Position = Vector3(i * 2 - 10, 0, 4); // Behind main objects
+				normalTestEntity.Transform.Scale = Vector3(4f, 4f, 4f); // Larger for better visibility
+
 				var renderer = normalTestEntity.AddComponent<MeshRenderer>();
 				renderer.Color = Color.White;
 
@@ -368,9 +367,9 @@ class SandboxApplication : Application
 				if (i % 3 == 0)
 					mesh = Mesh.CreateCube();
 				else if (i % 3 == 1)
-					mesh = Mesh.CreateCube();//Mesh.CreateSphere(0.5f, 64, 64); // Even higher resolution for better normal mapping
+					mesh = Mesh.CreateCube(); //Mesh.CreateSphere(0.5f, 64, 64); // Even higher resolution for better normal mapping
 				else
-					mesh = Mesh.CreateCube();//Mesh.CreateCylinder(0.5f, 1.0f, 64); // Even higher resolution
+					mesh = Mesh.CreateCube(); //Mesh.CreateCylinder(0.5f, 1.0f, 64); // Even higher resolution
 
 				// Create materials with different normal maps
 				PhongMaterial material = new PhongMaterial();
@@ -390,27 +389,27 @@ class SandboxApplication : Application
 					// Flat normal map (baseline - should look like no normal mapping)
 					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateFlatNormalMap(256));
 					normalMapType = "Flat (Baseline)";
-					
+
 				case 1:
 					// Wave pattern normal map - MUCH STRONGER for sphere
 					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateWaveNormalMap(256, 3.0f, 3.0f, 1.5f));
 					normalMapType = "Wave Pattern (STRONG)";
-					
+
 				case 2:
 					// Circular bump normal map - good for cylinder
 					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateCircularBumpNormalMap(256, 1.5f, 1.2f));
 					normalMapType = "Circular Bump";
-					
+
 				case 3:
 					// Brick pattern normal map - FEWER, LARGER BRICKS
 					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateBrickNormalMap(256, 3, 2, 1.0f));
 					normalMapType = "Brick Pattern (LARGE)";
-					
+
 				case 4:
 					// Noise-based normal map - STRONGER NOISE
 					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateNoiseNormalMap(256, 0.03f, 0.8f, 54321));
 					normalMapType = "Noise Texture (STRONG)";
-					
+
 				case 5:
 					// Test pattern normal map (shows multiple effects)
 					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateTestPatternNormalMap(256));
@@ -475,7 +474,7 @@ class SandboxApplication : Application
 
 				var labelEntity = scene.CreateEntity(scope $"NormalLabel{i}");
 				labelEntity.Transform.Position = Vector3(i * 2 - 5, 3.0f, 3); // Above each test object
-				
+
 				var labelRenderer = labelEntity.AddComponent<SpriteRenderer>();
 				labelRenderer.Texture = engine.ResourceSystem.AddResource(TextureResource.CreateSolidColor(128, 32, Color.White));
 				labelRenderer.Color = Color(0.2f, 0.8f, 0.2f, 0.9f); // Semi-transparent green
@@ -508,21 +507,21 @@ class SandboxApplication : Application
 				var normal = testMesh.GetNormal(v);
 				var tangent = testMesh.GetTangent(v);
 				float dot = Math.Abs(Vector3.Dot(normal, tangent));
-				
+
 				if (dot > 0.1f)
 				{
-					Console.WriteLine($"⚠️  Vertex {v}: Tangent not perpendicular to normal (dot = {dot:F3})");
+					Console.WriteLine($"️  Vertex {v}: Tangent not perpendicular to normal (dot = {dot})");
 					tangentsValid = false;
 				}
 			}
 
 			if (tangentsValid)
 			{
-				Console.WriteLine("✅ Tangent generation verified - all tangents are properly perpendicular to normals");
+				Console.WriteLine("Tangent generation verified - all tangents are properly perpendicular to normals");
 			}
 			else
 			{
-				Console.WriteLine("❌ Tangent generation has issues - normal mapping may not work correctly");
+				Console.WriteLine("Tangent generation has issues - normal mapping may not work correctly");
 			}
 
 			delete testMesh;
@@ -581,7 +580,7 @@ class SandboxApplication : Application
 		var scene = info.Engine.SceneGraphSystem.ActiveScenes[0];
 
 		// Camera movement
-			var inputSubsystem = ((Engine)info.Engine).GetSubsystem<InputSubsystem>().Value;
+		var inputSubsystem = ((Engine)info.Engine).GetSubsystem<InputSubsystem>().Value;
 		var cameraEntity = scene.FindEntity("Camera");
 		if (cameraEntity != null)
 		{
@@ -619,11 +618,11 @@ class SandboxApplication : Application
 			}
 			if (keyboard.IsKeyDown(.A))
 			{
-				position -= right * moveSpeed;
+				position += right * moveSpeed;
 			}
 			if (keyboard.IsKeyDown(.D))
 			{
-				position += right * moveSpeed;
+				position -= right * moveSpeed;
 			}
 
 			// Q/E for up/down movement
@@ -675,7 +674,7 @@ class SandboxApplication : Application
 				mLastMousePos = currentMousePos;
 
 				// Update rotation angles
-				mCameraYaw += mouseDelta.X * mouseSensitivity;
+				mCameraYaw -= mouseDelta.X * mouseSensitivity;
 				mCameraPitch += mouseDelta.Y * mouseSensitivity;
 
 				// Clamp pitch to prevent camera flipping
@@ -699,7 +698,7 @@ class SandboxApplication : Application
 				var mouseDelta = mouse.PositionDelta;
 
 				// Pan horizontally and vertically relative to camera orientation
-				position += right * mouseDelta.X * panSpeed * 0.01f; // Removed negative sign
+				position += right * mouseDelta.X * panSpeed * 0.01f;
 				position += up * mouseDelta.Y * panSpeed * 0.01f;
 			}
 
@@ -829,12 +828,12 @@ class SandboxApplication : Application
 			if (keyboard.IsKeyPressed(.F1))
 			{
 				Debug.WriteLine("=== Directional Light Settings ===");
-				Debug.WriteLine("Rotation: Yaw={0:F2}°, Pitch={1:F2}°", 
-					Math.RadiansToDegrees(mSunYaw), 
+				Debug.WriteLine("Rotation: Yaw={0:F2}°, Pitch={1:F2}°",
+					Math.RadiansToDegrees(mSunYaw),
 					Math.RadiansToDegrees(mSunPitch));
-				Debug.WriteLine("Color: R={0:F2}, G={1:F2}, B={2:F2}", 
-					mSunLight.Color.X, 
-					mSunLight.Color.Y, 
+				Debug.WriteLine("Color: R={0:F2}, G={1:F2}, B={2:F2}",
+					mSunLight.Color.X,
+					mSunLight.Color.Y,
 					mSunLight.Color.Z);
 				Debug.WriteLine("Intensity: {0:F2}", mSunLight.Intensity);
 				Debug.WriteLine("Controls:");

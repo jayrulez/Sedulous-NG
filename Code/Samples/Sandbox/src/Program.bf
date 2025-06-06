@@ -693,7 +693,7 @@ class Program
 	{
 		ILogger logger = scope DebugLogger(.Trace);
 
-		var windowSystem = scope SDL3WindowSystem("Sandbox", 1920, 1080);
+		var windowSystem = scope SDL3WindowSystem("Sandbox", 1366, 768);
 		var app = scope SandboxApplication(logger, windowSystem);
 
 		var renderer = scope SDLRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow);

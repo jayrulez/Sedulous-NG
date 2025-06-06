@@ -37,13 +37,13 @@ class RenderModule : SceneModule
 
 	// 3D rendering
 	private List<MeshRenderCommand> mMeshCommands = new .() ~ delete _;
-	private Dictionary<MeshRenderer, GPUMesh> mRendererMeshes = new .() ~ delete _;
-	private Dictionary<MaterialResource, GPUMaterial> mMaterialCache = new .() ~ delete _;
+	private Dictionary<MeshRenderer, GPUResourceHandle<GPUMesh>> mRendererMeshes = new .() ~ delete _;
+	private Dictionary<MaterialResource, GPUResourceHandle<GPUMaterial>> mMaterialCache = new .() ~ delete _;
 
 	// Sprite rendering
 	private List<SpriteRenderCommand> mSpriteCommands = new .() ~ delete _;
 	private Dictionary<TextureResource, GPUResourceHandle<GPUTexture>> mTextureCache = new .() ~ delete _;
-	private GPUMesh mSpriteQuadMesh ~ delete _;
+	private GPUResourceHandle<GPUMesh> mSpriteQuadMesh ~ _.Release();
 
 	// Current frame data
 	private Camera mActiveCamera;
@@ -66,7 +66,7 @@ class RenderModule : SceneModule
 	{
 		for (var entry in mRendererMeshes)
 		{
-			delete entry.value;
+			entry.value.Release();
 		}
 
 		for (var entry in mTextureCache)
@@ -76,7 +76,7 @@ class RenderModule : SceneModule
 
 		for (var entry in mMaterialCache)
 		{
-			delete entry.value;
+			entry.value.Release();
 		}
 
 		if (mDepthTexture != null)
@@ -138,7 +138,7 @@ class RenderModule : SceneModule
 		mesh.Indices.SetIndex(4, 2);
 		mesh.Indices.SetIndex(5, 3);
 
-		mSpriteQuadMesh = new GPUMesh("SpriteSquad", mRenderer.mDevice, mesh);
+		mSpriteQuadMesh = GPUResourceHandle<GPUMesh>(new GPUMesh("SpriteSquad", mRenderer.mDevice, mesh));
 		delete mesh;
 	}
 
@@ -357,7 +357,7 @@ class RenderModule : SceneModule
 		{
 			if (!mRendererMeshes.ContainsKey(command.Renderer))
 			{
-				mRendererMeshes[command.Renderer] = new GPUMesh(scope $"{command.Entity.Name}_Mesh" , mRenderer.mDevice, command.Renderer.Mesh.Resource.Mesh);
+				mRendererMeshes[command.Renderer] = GPUResourceHandle<GPUMesh>(new GPUMesh(scope $"{command.Entity.Name}_Mesh" , mRenderer.mDevice, command.Renderer.Mesh.Resource.Mesh));
 			}
 
 			// Create GPU materials
@@ -383,7 +383,7 @@ class RenderModule : SceneModule
 					}
 
 					// Now create the GPU material with texture cache
-					mMaterialCache[materialResource] = new GPUMaterial(scope $"{command.Entity.Name}_Material_ {materialResource.Id}" , mRenderer.mDevice, materialResource.Material, mTextureCache);
+					mMaterialCache[materialResource] = GPUResourceHandle<GPUMaterial>(new GPUMaterial(scope $"{command.Entity.Name}_Material_ {materialResource.Id}" , mRenderer.mDevice, materialResource.Material, mTextureCache));
 				}
 			}
 		}
@@ -499,9 +499,9 @@ class RenderModule : SceneModule
 		var mesh = mRendererMeshes[command.Renderer];
 
 		// Get mesh data
-		SDL_GPUBuffer* vertexBuffer = mesh.VertexBuffer;
-		SDL_GPUBuffer* indexBuffer = mesh.IndexBuffer;
-		uint32 indexCount = mesh.IndexCount;
+		SDL_GPUBuffer* vertexBuffer = mesh.Resource.VertexBuffer;
+		SDL_GPUBuffer* indexBuffer = mesh.Resource.IndexBuffer;
+		uint32 indexCount = mesh.Resource.IndexCount;
 
 		// Determine which pipeline to use
 		bool useLit = true;
@@ -513,9 +513,9 @@ class RenderModule : SceneModule
 			var materialResource = command.Renderer.Material.Resource;
 			if (mMaterialCache.TryGetValue(materialResource, let material))
 			{
-				gpuMaterial = material;
+				gpuMaterial = material.Resource;
 				// Determine pipeline based on material's shader name
-				switch (material.ShaderName)
+				switch (material.Resource.ShaderName)
 				{
 				case "Unlit":
 					useLit = false;
@@ -868,11 +868,11 @@ class RenderModule : SceneModule
 		// Bind vertex and index buffers from sprite quad
 		var vertexBinding = SDL_GPUBufferBinding()
 			{
-				buffer = mSpriteQuadMesh.VertexBuffer,
+				buffer = mSpriteQuadMesh.Resource.VertexBuffer,
 				offset = 0
 			};
 		SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBinding, 1);
-		SDL_BindGPUIndexBuffer(renderPass, scope .() { buffer = mSpriteQuadMesh.IndexBuffer, offset = 0 }, .SDL_GPU_INDEXELEMENTSIZE_32BIT);
+		SDL_BindGPUIndexBuffer(renderPass, scope .() { buffer = mSpriteQuadMesh.Resource.IndexBuffer, offset = 0 }, .SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
 		// Bind texture and sampler
 		var textureSamplerBinding = SDL_GPUTextureSamplerBinding()

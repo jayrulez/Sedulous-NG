@@ -426,22 +426,22 @@ public class Image
                 float fx = (float)x / width;
                 float fy = (float)y / height;
                 
-                // Create height variations using sine waves
+                // Create height variations using sine waves - MUCH MORE PRONOUNCED
                 float heightValue = Math.Sin(fx * Math.PI_f * waveFrequencyX) * amplitude + 
                                    Math.Sin(fy * Math.PI_f * waveFrequencyY) * amplitude * 0.7f;
                 
-                // Calculate normal from height gradient
+                // Calculate normal from height gradient - INCREASED GRADIENT MULTIPLIER
                 float heightRight = Math.Sin((fx + 1.0f/width) * Math.PI_f * waveFrequencyX) * amplitude + 
                                    Math.Sin(fy * Math.PI_f * waveFrequencyY) * amplitude * 0.7f;
                 float heightDown = Math.Sin(fx * Math.PI_f * waveFrequencyX) * amplitude + 
                                   Math.Sin((fy + 1.0f/height) * Math.PI_f * waveFrequencyY) * amplitude * 0.7f;
                 
-                // Calculate gradients
+                // Calculate gradients - MUCH STRONGER GRADIENTS
                 float dx = heightRight - heightValue;
                 float dy = heightDown - heightValue;
                 
-                // Create normal vector
-                Vector3 normal = Vector3.Normalize(Vector3(-dx * 5, -dy * 5, 1.0f));
+                // Create normal vector - INCREASED MULTIPLIER FROM 5 TO 20
+                Vector3 normal = Vector3.Normalize(Vector3(-dx * 20, -dy * 20, 1.0f));
                 
                 // Convert from [-1,1] to [0,255] range
                 uint8 r = (uint8)((normal.X * 0.5f + 0.5f) * 255);
@@ -464,6 +464,7 @@ public class Image
         
         uint32 brickWidth = width / bricksX;
         uint32 brickHeight = height / bricksY;
+        uint32 mortarWidth = Math.Max(brickWidth / 16, 2); // Mortar width (minimum 2 pixels)
         
         for (uint32 y = 0; y < height; y++)
         {
@@ -474,31 +475,32 @@ public class Image
                 uint32 brickY = y / brickHeight;
                 
                 // Offset every other row for brick pattern
+                uint32 adjustedX = x;
                 if (brickY % 2 == 1)
-                    brickX = (x + brickWidth/2) / brickWidth;
+                    adjustedX = (x + brickWidth/2) % width;
+                
+                brickX = adjustedX / brickWidth;
                 
                 // Distance to brick edge
-                uint32 localX = x % brickWidth;
+                uint32 localX = adjustedX % brickWidth;
                 uint32 localY = y % brickHeight;
                 
-                if (brickY % 2 == 1)
-                    localX = (x + brickWidth/2) % brickWidth;
+                // Check if we're in mortar area
+                bool isHorizontalMortar = localY < mortarWidth || localY >= (brickHeight - mortarWidth);
+                bool isVerticalMortar = localX < mortarWidth || localX >= (brickWidth - mortarWidth);
+                bool isMortar = isHorizontalMortar || isVerticalMortar;
                 
-                float distToEdgeX = Math.Min(localX, brickWidth - localX) / (float)brickWidth;
-                float distToEdgeY = Math.Min(localY, brickHeight - localY) / (float)brickHeight;
-                float distToEdge = Math.Min(distToEdgeX, distToEdgeY);
-                
-                // Create normal based on distance to edge (mortar is depressed)
                 Vector3 normal;
-                if (distToEdge < 0.05f) // Mortar
+                if (isMortar)
                 {
-                    normal = Vector3(0, 0, 1.0f - mortarDepth); // Depressed
+                    // Mortar is significantly depressed
+                    normal = Vector3(0, 0, 1.0f - mortarDepth * 2.0f); // Much deeper mortar
                 }
-                else // Brick surface with slight texture
+                else
                 {
-                    // Add some subtle surface variation to bricks
-                    float variation = Math.Sin(localX * 0.1f) * Math.Sin(localY * 0.1f) * 0.05f;
-                    normal = Vector3(0, 0, 1.0f + variation);
+                    // Brick surface - slightly raised with subtle texture
+                    float brickVariation = Math.Sin(localX * 0.2f) * Math.Sin(localY * 0.15f) * 0.1f;
+                    normal = Vector3(0, 0, 1.0f + brickVariation);
                 }
                 
                 normal = Vector3.Normalize(normal);
@@ -540,12 +542,12 @@ public class Image
                     // Calculate normalized distance [0..1]
                     float normalizedDist = distance / maxRadius;
                     
-                    // Calculate height derivative (how steep the slope is)
+                    // Calculate height derivative (how steep the slope is) - MUCH STRONGER
                     // For height function: h(r) = (1-r)^falloff * bumpHeight
                     // Derivative: dh/dr = -falloff * (1-r)^(falloff-1) * bumpHeight
-                    float heightDerivative = -falloff * Math.Pow(1.0f - normalizedDist, falloff - 1) * bumpHeight / maxRadius;
+                    float heightDerivative = -falloff * Math.Pow(1.0f - normalizedDist, falloff - 1) * bumpHeight * 3.0f / maxRadius;
                     
-                    // Normal components from gradient
+                    // Normal components from gradient - STRONGER EFFECT
                     float nx = (dx / distance) * heightDerivative;
                     float ny = (dy / distance) * heightDerivative;
                     
@@ -633,12 +635,12 @@ public class Image
                 float heightU = heightMap[Math.Max(y - 1, 0) * width + x];
                 float heightD = heightMap[Math.Min(y + 1, height - 1) * width + x];
                 
-                // Calculate gradients
+                // Calculate gradients - MUCH STRONGER GRADIENTS
                 float dx = heightR - heightL;
                 float dy = heightD - heightU;
                 
-                // Create normal
-                Vector3 normal = Vector3.Normalize(Vector3(-dx * 2, -dy * 2, 1.0f));
+                // Create normal - INCREASED MULTIPLIER FROM 2 TO 8
+                Vector3 normal = Vector3.Normalize(Vector3(-dx * 8, -dy * 8, 1.0f));
                 
                 // Convert to texture space
                 uint8 r = (uint8)((normal.X * 0.5f + 0.5f) * 255);

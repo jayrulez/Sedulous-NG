@@ -243,10 +243,6 @@ class SandboxApplication : Application
 		pbrLightMat.Color = Color.White;
 		pbrLightRenderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(pbrLightMat, true));
 		var pbrLightMesh = Mesh.CreateSphere(0.5f, 16, 16);
-		for (int32 v = 0; v < pbrLightMesh.Vertices.VertexCount; v++)
-		{
-			pbrLightMesh.SetColor(v, pbrLightRenderer.Color.PackedValue);
-		}
 		pbrLightRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(pbrLightMesh, true));
 
 		// Optional: Add visual representations for the point lights
@@ -286,7 +282,7 @@ class SandboxApplication : Application
 			var geometry = scene.CreateEntity(scope $"Geometry{i}");
 			geometry.Transform.Position = Vector3(i * 2 - 4, 0, 0);
 			geometry.Transform.Scale = Vector3(1, 1, 1);
-			geometry.AddComponent<RotateComponent>();
+			//geometry.AddComponent<RotateComponent>();
 			var renderer = geometry.AddComponent<MeshRenderer>();
 			renderer.Color = Color.White;
 			Mesh mesh = null;
@@ -361,8 +357,8 @@ class SandboxApplication : Application
 			for (int i = 0; i < 6; i++)
 			{
 				var normalTestEntity = scene.CreateEntity(scope $"NormalTest{i}");
-				normalTestEntity.Transform.Position = Vector3(i * 2 - 5, 0, 3); // Behind main objects
-				normalTestEntity.Transform.Scale = Vector3(1.5f, 1.5f, 1.5f); // Larger for better visibility
+				normalTestEntity.Transform.Position = Vector3(i * 2 - 5, 0, 4); // Behind main objects
+				normalTestEntity.Transform.Scale = Vector3(2f, 2f, 2f); // Larger for better visibility
 				
 				var renderer = normalTestEntity.AddComponent<MeshRenderer>();
 				renderer.Color = Color.White;
@@ -372,9 +368,9 @@ class SandboxApplication : Application
 				if (i % 3 == 0)
 					mesh = Mesh.CreateCube();
 				else if (i % 3 == 1)
-					mesh = Mesh.CreateSphere(0.5f, 64, 64); // Even higher resolution for better normal mapping
+					mesh = Mesh.CreateCube();//Mesh.CreateSphere(0.5f, 64, 64); // Even higher resolution for better normal mapping
 				else
-					mesh = Mesh.CreateCylinder(0.5f, 1.0f, 64); // Even higher resolution
+					mesh = Mesh.CreateCube();//Mesh.CreateCylinder(0.5f, 1.0f, 64); // Even higher resolution
 
 				// Create materials with different normal maps
 				PhongMaterial material = new PhongMaterial();

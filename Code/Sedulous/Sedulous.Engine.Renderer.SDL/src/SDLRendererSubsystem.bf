@@ -224,8 +224,6 @@ class SDLRendererSubsystem : Subsystem
 
 		SDL_ReleaseWindowFromGPUDevice(mDevice, (SDL_Window*)mPrimaryWindow.GetNativePointer("SDL"));
 
-		mGPUResourceManager.Clear();
-
 		SDL_DestroyGPUDevice(mDevice);
 
 		engine.ResourceSystem.RemoveResourceManager(mMeshResourceManager);

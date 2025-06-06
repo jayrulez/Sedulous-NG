@@ -1,22 +1,22 @@
-using System;
-using System.Collections;
+using System.Diagnostics;
 namespace BeefSandbox;
 
-class Application{
+public class Program
+{
+    public static void Main()
+    {
+		var p2 = scope Program2();
 
-	protected virtual void OnInitializing() {}
-	protected virtual void OnInitialized() {}
-	protected virtual void OnShuttingDown() {}
-
-	public void Run()
-	{
-		OnInitializing();
-		OnInitialized();
-		OnShuttingDown();
-	}
+		Debug.WriteLine(typeof(Program2).GetFullName(.. scope .()));
+    }
 }
 
-public class Program
+namespace MyNS
+{
+	
+}
+
+public class Program2
 {
     public static void Main()
     {

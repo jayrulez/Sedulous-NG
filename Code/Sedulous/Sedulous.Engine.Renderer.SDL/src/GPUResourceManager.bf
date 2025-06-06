@@ -26,27 +26,6 @@ class GPUResourceManager
     {
         mDevice = device;
     }
-
-	public void Clear()
-	{
-		/*for(var item in mMeshCache)
-		{
-			item.value.ReleaseRef();
-		}
-		mMeshCache.Clear();
-
-		for(var item in mTextureCache)
-		{
-			item.value.ReleaseRef();
-		}
-		mTextureCache.Clear();
-
-		for(var item in mMaterialCache)
-		{
-			item.value.ReleaseRef();
-		}
-		mMaterialCache.Clear();*/
-	}
     
     // Get or create GPU mesh - returns a new handle (adds ref)
     public GPUResourceHandle<GPUMesh> GetOrCreateMesh(MeshResource meshResource)
@@ -113,7 +92,7 @@ class GPUResourceManager
             textureResource
         );
         
-        // Cache the raw pointer
+        // Cache the raw object
         mTextureCache[textureResource] = gpuTexture;
         
         SDL_Log("Created GPU Texture: %s (Total: %d)", textureResource.Name.Ptr, mTextureCache.Count);

@@ -126,7 +126,7 @@ class SDLRendererSubsystem : Subsystem
 	private readonly TextureResourceManager mTextureResourceManager = new .() ~ delete _;
 	private readonly MaterialResourceManager mMaterialResourceManager = new .() ~ delete _;
 
-	private List<RenderModule> mRenderModules = new .() ~ delete _;
+	private List<RenderModule> mModules = new .() ~ delete _;
 
 	private GPUResourceManager mGPUResourceManager ~ delete _;
 
@@ -249,19 +249,19 @@ class SDLRendererSubsystem : Subsystem
 
 	protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
 	{
-		var renderModule = new RenderModule(this);
-		modules.Add(renderModule);
-		mRenderModules.Add(renderModule);
+		var module = new RenderModule(this);
+		modules.Add(module);
+		mModules.Add(module);
 	}
 
 	protected override void DestroySceneModules(Scene scene)
 	{
-		for (int i = mRenderModules.Count - 1; i >= 0; i--)
+		for (int i = mModules.Count - 1; i >= 0; i--)
 		{
-			if (mRenderModules[i].Scene == scene)
+			if (mModules[i].Scene == scene)
 			{
-				delete mRenderModules[i];
-				mRenderModules.RemoveAt(i);
+				delete mModules[i];
+				mModules.RemoveAt(i);
 			}
 		}
 	}
@@ -572,7 +572,7 @@ class SDLRendererSubsystem : Subsystem
 
 	private void OnRender(IEngine.UpdateInfo info)
 	{
-		for (var module in mRenderModules)
+		for (var module in mModules)
 		{
 			module.RenderFrame();
 		}

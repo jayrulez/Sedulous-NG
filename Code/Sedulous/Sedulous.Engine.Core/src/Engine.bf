@@ -49,6 +49,8 @@ sealed class Engine : IEngine
 
 	public SceneGraphSystem SceneGraphSystem => mSceneGraphSystem;
 
+	private BehaviourSubsystem mBehaviourSubsystem;
+
 	// Current tick state.
 	private static readonly TimeSpan MaxElapsedTime = TimeSpan.FromMilliseconds(500);
 	private readonly TimeTracker mPreUpdateTimeTracker = new .() ~ delete _;
@@ -118,6 +120,8 @@ sealed class Engine : IEngine
 
 	public Result<void> Initialize(EngineInitializer initializer)
 	{
+		initializer.AddSubsystem(mBehaviourSubsystem = new .());
+
 		mLogger.MimimumLogLevel = initializer.LogLevel;
 
 		if (mInitialized)
@@ -198,6 +202,8 @@ sealed class Engine : IEngine
 			subsystem.Uninitialize();
 			mLogger.LogInformation("Subsystem '{0}' uninitialized.", subsystem.Name);
 		}
+
+		delete mBehaviourSubsystem;
 
 		mSubsystems.Clear();
         mMessageBus.Clear();

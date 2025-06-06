@@ -80,6 +80,7 @@ abstract class SceneModule
 	{
 		OnUpdate(time);
 	}
+
 	protected virtual void OnUpdate(Time time) { }
 
 	// Override these for entity tracking

@@ -38,11 +38,11 @@ class RenderModule : SceneModule
 	// 3D rendering
 	private List<MeshRenderCommand> mMeshCommands = new .() ~ delete _;
 	private Dictionary<MeshRenderer, GPUResourceHandle<GPUMesh>> mRendererMeshes = new .() ~ delete _;
-	private Dictionary<MaterialResource, GPUResourceHandle<GPUMaterial>> mMaterialCache = new .() ~ delete _;
+	private Dictionary<MeshRenderer, GPUResourceHandle<GPUMaterial>> mRendererMaterials = new .() ~ delete _;
 
 	// Sprite rendering
 	private List<SpriteRenderCommand> mSpriteCommands = new .() ~ delete _;
-	private Dictionary<TextureResource, GPUResourceHandle<GPUTexture>> mTextureCache = new .() ~ delete _;
+	private Dictionary<SpriteRenderer, GPUResourceHandle<GPUTexture>> mSpriteTextures = new .() ~ delete _;
 	private GPUResourceHandle<GPUMesh> mSpriteQuadMesh ~ _.Release();
 
 	// Current frame data
@@ -64,21 +64,21 @@ class RenderModule : SceneModule
 
 	public ~this()
 	{
-		for (var entry in mRendererMeshes)
+		for(var entry in mSpriteTextures)
 		{
 			entry.value.Release();
 		}
 
-		for (var entry in mTextureCache)
+		for(var entry in mRendererMaterials)
 		{
 			entry.value.Release();
 		}
 
-		for (var entry in mMaterialCache)
+		for(var entry in mRendererMeshes)
 		{
 			entry.value.Release();
 		}
-
+		
 		if (mDepthTexture != null)
 		{
 			SDL_ReleaseGPUTexture(mRenderer.mDevice, mDepthTexture);
@@ -138,7 +138,8 @@ class RenderModule : SceneModule
 		mesh.Indices.SetIndex(4, 2);
 		mesh.Indices.SetIndex(5, 3);
 
-		mSpriteQuadMesh = GPUResourceHandle<GPUMesh>(new GPUMesh("SpriteSquad", mRenderer.mDevice, mesh));
+		var gpuMesh = new GPUMesh("SpriteQuad", mRenderer.mDevice, mesh);
+		mSpriteQuadMesh = GPUResourceHandle<GPUMesh>(gpuMesh);
 		delete mesh;
 	}
 
@@ -182,6 +183,28 @@ class RenderModule : SceneModule
 		// Render the frame
 		// RenderFrame();
 	}
+
+	/*protected override void OnEntityRemoved(Entity entity)
+	{
+		base.OnEntityRemoved(entity);
+		
+		// Clean up any cached resources for this entity
+		if (entity.HasComponent<MeshRenderer>())
+		{
+			var renderer = entity.GetComponent<MeshRenderer>();
+			if (mRendererMeshes.GetAndRemove(renderer) case .Ok(let handle))
+				handle.Release();
+			if (mRendererMaterials.GetAndRemove(renderer) case .Ok(let handle))
+				handle.Release();
+		}
+		
+		if (entity.HasComponent<SpriteRenderer>())
+		{
+			var renderer = entity.GetComponent<SpriteRenderer>();
+			if (mSpriteTextures.GetAndRemove(renderer) case .Ok(let handle))
+				handle.Release();
+		}
+	}*/
 
 	private void UpdateActiveCameraAndLights()
 	{
@@ -352,49 +375,54 @@ class RenderModule : SceneModule
 
 	private void PrepareGPUResources()
 	{
-		// Create GPU meshes for any new mesh renderers
+		var resourceManager = mRenderer.GPUResources;
+		
+		// Create GPU resources for any new mesh renderers
 		for (var command in mMeshCommands)
 		{
+			// Get or create GPU mesh
 			if (!mRendererMeshes.ContainsKey(command.Renderer))
 			{
-				mRendererMeshes[command.Renderer] = GPUResourceHandle<GPUMesh>(new GPUMesh(scope $"{command.Entity.Name}_Mesh" , mRenderer.mDevice, command.Renderer.Mesh.Resource.Mesh));
-			}
-
-			// Create GPU materials
-			if (command.Renderer.Material.IsValid && command.Renderer.Material.Resource != null)
-			{
-				var materialResource = command.Renderer.Material.Resource;
-				if (!mMaterialCache.ContainsKey(materialResource))
+				if (command.Renderer.Mesh.IsValid && command.Renderer.Mesh.Resource != null)
 				{
-					// First ensure all textures used by the material are in GPU cache
-					var textureList = scope List<ResourceHandle<TextureResource>>();
-					materialResource.Material.GetTextureResources(textureList);
-
-					for (var textureHandle in textureList)
+					// This returns a new handle (adds ref)
+					var gpuMesh = resourceManager.GetOrCreateMesh(command.Renderer.Mesh.Resource);
+					if (gpuMesh.IsValid)
 					{
-						if (textureHandle.IsValid && textureHandle.Resource != null)
-						{
-							var textureResource = textureHandle.Resource;
-							if (!mTextureCache.ContainsKey(textureResource))
-							{
-								mTextureCache[textureResource] = GPUResourceHandle<GPUTexture>(new GPUTexture(scope $"{command.Entity.Name}_Mesh_Texture_ {textureResource.Id}" , mRenderer.mDevice, textureResource));
-							}
-						}
+						mRendererMeshes[command.Renderer] = gpuMesh;
 					}
-
-					// Now create the GPU material with texture cache
-					mMaterialCache[materialResource] = GPUResourceHandle<GPUMaterial>(new GPUMaterial(scope $"{command.Entity.Name}_Material_ {materialResource.Id}" , mRenderer.mDevice, materialResource.Material, mTextureCache));
+				}
+			}
+			
+			// Get or create GPU material
+			if (!mRendererMaterials.ContainsKey(command.Renderer))
+			{
+				if (command.Renderer.Material.IsValid && command.Renderer.Material.Resource != null)
+				{
+					// This returns a new handle (adds ref)
+					var gpuMaterial = resourceManager.GetOrCreateMaterial(command.Renderer.Material.Resource);
+					if (gpuMaterial.IsValid)
+					{
+						mRendererMaterials[command.Renderer] = gpuMaterial;
+					}
 				}
 			}
 		}
-
-		// Create GPU textures for any new sprite textures
+		
+		// Create GPU textures for sprites
 		for (var command in mSpriteCommands)
 		{
-			var textureResource = command.Renderer.Texture.Resource;
-			if (!mTextureCache.ContainsKey(textureResource))
+			if (!mSpriteTextures.ContainsKey(command.Renderer))
 			{
-				mTextureCache[textureResource] = GPUResourceHandle<GPUTexture>(new GPUTexture(scope $"{command.Entity.Name}_Sprite_Texture_ {textureResource.Id}" , mRenderer.mDevice, textureResource));
+				if (command.Renderer.Texture.IsValid && command.Renderer.Texture.Resource != null)
+				{
+					// This returns a new handle (adds ref)
+					var gpuTexture = resourceManager.GetOrCreateTexture(command.Renderer.Texture.Resource);
+					if (gpuTexture.IsValid)
+					{
+						mSpriteTextures[command.Renderer] = gpuTexture;
+					}
+				}
 			}
 		}
 	}
@@ -493,40 +521,36 @@ class RenderModule : SceneModule
 
 	private void RenderObject(SDL_GPUCommandBuffer* commandBuffer, SDL_GPURenderPass* renderPass, MeshRenderCommand command)
 	{
-		if (!mRendererMeshes.ContainsKey(command.Renderer))
+		if (!mRendererMeshes.TryGetValue(command.Renderer, let meshHandle) || !meshHandle.IsValid)
 			return;
 
-		var mesh = mRendererMeshes[command.Renderer];
+		var mesh = meshHandle.Resource;
 
 		// Get mesh data
-		SDL_GPUBuffer* vertexBuffer = mesh.Resource.VertexBuffer;
-		SDL_GPUBuffer* indexBuffer = mesh.Resource.IndexBuffer;
-		uint32 indexCount = mesh.Resource.IndexCount;
+		SDL_GPUBuffer* vertexBuffer = mesh.VertexBuffer;
+		SDL_GPUBuffer* indexBuffer = mesh.IndexBuffer;
+		uint32 indexCount = mesh.IndexCount;
 
 		// Determine which pipeline to use
 		bool useLit = true;
 		bool usePBR = false;
 		GPUMaterial gpuMaterial = null;
 
-		if (command.Renderer.Material.IsValid && command.Renderer.Material.Resource != null)
+		if (mRendererMaterials.TryGetValue(command.Renderer, let materialHandle) && materialHandle.IsValid)
 		{
-			var materialResource = command.Renderer.Material.Resource;
-			if (mMaterialCache.TryGetValue(materialResource, let material))
+			gpuMaterial = materialHandle.Resource;
+			// Determine pipeline based on material's shader name
+			switch (gpuMaterial.ShaderName)
 			{
-				gpuMaterial = material.Resource;
-				// Determine pipeline based on material's shader name
-				switch (material.Resource.ShaderName)
-				{
-				case "Unlit":
-					useLit = false;
-					usePBR = false;
-				case "PBR":
-					useLit = false;
-					usePBR = true;
-				default: // "Phong" or others
-					useLit = true;
-					usePBR = false;
-				}
+			case "Unlit":
+				useLit = false;
+				usePBR = false;
+			case "PBR":
+				useLit = false;
+				usePBR = true;
+			default: // "Phong" or others
+				useLit = true;
+				usePBR = false;
 			}
 		}
 
@@ -857,8 +881,7 @@ class RenderModule : SceneModule
 
 	private void RenderSprite(SDL_GPUCommandBuffer* commandBuffer, SDL_GPURenderPass* renderPass, SpriteRenderCommand command)
 	{
-		var gpuTexture = mTextureCache[command.Renderer.Texture.Resource];
-		if (!gpuTexture.IsValid)
+		if (!mSpriteTextures.TryGetValue(command.Renderer, let gpuTexture) || !gpuTexture.IsValid)
 			return;
 
 		// Get sprite pipeline

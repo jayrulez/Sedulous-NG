@@ -128,6 +128,10 @@ class SDLRendererSubsystem : Subsystem
 
 	private List<RenderModule> mRenderModules = new .() ~ delete _;
 
+	private GPUResourceManager mGPUResourceManager ~ delete _;
+
+	public GPUResourceManager GPUResources => mGPUResourceManager;
+
 	// Pipelines
 	private SDL_GPUGraphicsPipeline* mLitPipeline;
 	private SDL_GPUGraphicsPipeline* mUnlitPipeline;
@@ -185,6 +189,8 @@ class SDLRendererSubsystem : Subsystem
 			SDL_Log("GPUClaimWindow failed");
 			return .Err;
 		}
+
+		mGPUResourceManager = new GPUResourceManager(mDevice);
 
 		GetGPUShaderFormat();
 

@@ -9,6 +9,8 @@ abstract class Resource : IResource
 
 	public Guid Id { get; protected set; }
 
+	public String Name { get; protected set; } = new .() ~ delete _;
+
 	public ~this()
 	{
 		Debug.Assert(mRefCount == 0);

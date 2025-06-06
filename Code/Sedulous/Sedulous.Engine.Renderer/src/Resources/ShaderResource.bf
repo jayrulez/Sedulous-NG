@@ -14,14 +14,11 @@ class ShaderResource : Resource
     }
 
     private Dictionary<ShaderStage, uint8[]> mShaderCode = new .() ~ delete _;
-    private String mName = new .() ~ delete _;
-
-    public StringView Name => mName;
 
     public this(StringView name)
     {
         Id = Guid.Create();
-        mName.Set(name);
+        Name.Set(name);
     }
 
     public ~this()

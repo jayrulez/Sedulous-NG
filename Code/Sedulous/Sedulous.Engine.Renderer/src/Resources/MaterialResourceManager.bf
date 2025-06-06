@@ -5,7 +5,7 @@ namespace Sedulous.Engine.Renderer;
 
 class MaterialResourceManager : ResourceManager<MaterialResource>
 {
-    protected override Result<ResourceHandle<MaterialResource>, ResourceLoadError> LoadFromMemory(MemoryStream memory)
+    protected override Result<MaterialResource, ResourceLoadError> LoadFromMemory(MemoryStream memory)
     {
         // TODO: Implement material loading from file
         // This would parse material definitions (JSON, XML, custom format)

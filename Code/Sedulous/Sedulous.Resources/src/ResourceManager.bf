@@ -12,7 +12,7 @@ abstract class ResourceManager<T> : IResourceManager where T : IResource
 		var handle = LoadFromFile(path);
 		if (handle case .Err(let error))
 			return .Err(error);
-		return ResourceHandle<IResource>(handle.Value.Resource);
+		return ResourceHandle<IResource>(handle.Value);
 	}
 
 	public Result<ResourceHandle<IResource>, ResourceLoadError> Load(MemoryStream stream)
@@ -20,7 +20,7 @@ abstract class ResourceManager<T> : IResourceManager where T : IResource
 		var handle = LoadFromMemory(stream);
 		if (handle case .Err(let error))
 			return .Err(error);
-		return ResourceHandle<IResource>(handle.Value.Resource);
+		return ResourceHandle<IResource>(handle.Value);
 	}
 
 	protected virtual Result<void, FileOpenError> ReadFile(StringView path, List<uint8> buffer)
@@ -42,7 +42,7 @@ abstract class ResourceManager<T> : IResourceManager where T : IResource
 		return .Ok;
 	}
 
-	protected virtual Result<ResourceHandle<T>, ResourceLoadError> LoadFromFile(StringView path)
+	protected virtual Result<T, ResourceLoadError> LoadFromFile(StringView path)
 	{
 		var memory = scope List<uint8>();
 		var readFile = ReadFile(path, memory);
@@ -61,7 +61,7 @@ abstract class ResourceManager<T> : IResourceManager where T : IResource
 		return LoadFromMemory(scope MemoryStream(memory, false));
 	}
 
-	protected abstract Result<ResourceHandle<T>, ResourceLoadError> LoadFromMemory(MemoryStream memory);
+	protected abstract Result<T, ResourceLoadError> LoadFromMemory(MemoryStream memory);
 
 	public abstract void Unload(T resource);
 

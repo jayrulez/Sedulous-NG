@@ -1,9 +1,10 @@
 using Sedulous.Resources;
+using System;
 namespace Sedulous.Engine.Renderer;
 
 class TextureResourceManager : ResourceManager<TextureResource>
 {
-	protected override System.Result<ResourceHandle<TextureResource>, ResourceLoadError> LoadFromMemory(System.IO.MemoryStream memory)
+	protected override Result<TextureResource, ResourceLoadError> LoadFromMemory(System.IO.MemoryStream memory)
 	{
 		return default;
 	}

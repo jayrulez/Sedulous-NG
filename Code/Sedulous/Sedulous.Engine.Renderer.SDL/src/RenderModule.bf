@@ -591,7 +591,7 @@ class RenderModule : SceneModule
 	            var defaultWhite = mRenderer.GetDefaultWhiteTexture();
 	            var defaultNormal = mRenderer.GetDefaultNormalTexture();
 
-	            // Albedo texture
+	            // Albedo texture (slot 0)
 	            var albedoBinding = SDL_GPUTextureSamplerBinding()
 	                {
 	                    texture = defaultWhite.Resource.Texture,
@@ -599,7 +599,7 @@ class RenderModule : SceneModule
 	                };
 	            SDL_BindGPUFragmentSamplers(renderPass, 0, &albedoBinding, 1);
 
-	            // Normal texture
+	            // Normal texture (slot 1)
 	            var normalBinding = SDL_GPUTextureSamplerBinding()
 	                {
 	                    texture = defaultNormal.Resource.Texture,
@@ -607,7 +607,7 @@ class RenderModule : SceneModule
 	                };
 	            SDL_BindGPUFragmentSamplers(renderPass, 1, &normalBinding, 1);
 
-	            // Metallic/Roughness texture (use white)
+	            // Metallic/Roughness texture (slot 2)
 	            var metallicBinding = SDL_GPUTextureSamplerBinding()
 	                {
 	                    texture = defaultWhite.Resource.Texture,
@@ -621,7 +621,7 @@ class RenderModule : SceneModule
 	            var defaultWhite = mRenderer.GetDefaultWhiteTexture();
 	            var defaultNormal = mRenderer.GetDefaultNormalTexture();
 	            
-	            // Diffuse texture
+	            // Diffuse texture (slot 0)
 	            var diffuseBinding = SDL_GPUTextureSamplerBinding()
 	                {
 	                    texture = defaultWhite.Resource.Texture,
@@ -629,7 +629,7 @@ class RenderModule : SceneModule
 	                };
 	            SDL_BindGPUFragmentSamplers(renderPass, 0, &diffuseBinding, 1);
 	            
-	            // Normal texture
+	            // Normal texture (slot 1)
 	            var normalBinding = SDL_GPUTextureSamplerBinding()
 	                {
 	                    texture = defaultNormal.Resource.Texture,
@@ -639,7 +639,7 @@ class RenderModule : SceneModule
 	        }
 	        else
 	        {
-	            // For unlit without material, bind default white texture
+	            // For unlit without material, bind default white texture only
 	            var defaultWhite = mRenderer.GetDefaultWhiteTexture();
 	            var textureSamplerBinding = SDL_GPUTextureSamplerBinding()
 	                {
@@ -655,18 +655,247 @@ class RenderModule : SceneModule
 	    {
 	        if (usePBR)
 	        {
-	            // PBR rendering code remains the same...
-	            // [Previous PBR rendering code here]
+	            // PBR rendering
+	            Matrix normalMatrix = command.WorldMatrix;
+	            normalMatrix = Matrix.Invert(normalMatrix);
+	            normalMatrix = Matrix.Transpose(normalMatrix);
+
+	            var vertexUniforms = PBRVertexUniforms()
+	                {
+	                    MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+	                    ModelMatrix = command.WorldMatrix,
+	                    NormalMatrix = normalMatrix
+	                };
+
+	            SDL_PushGPUVertexUniformData(commandBuffer, 0, &vertexUniforms, sizeof(PBRVertexUniforms));
+
+	            // Prepare PBR fragment uniforms with light array
+	            var fragmentUniforms = PBRFragmentUniforms();
+
+	            // Default PBR values
+	            var albedoColor = command.Renderer.Color.ToVector4();
+	            var emissiveColor = Vector4.Zero;
+	            float metallic = 0.0f;
+	            float roughness = 0.5f;
+	            float ao = 1.0f;
+
+	            if (gpuMaterial != null && command.Renderer.Material.Resource?.Material is PBRMaterial)
+	            {
+	                var pbrMat = command.Renderer.Material.Resource?.Material as PBRMaterial;
+	                albedoColor = pbrMat.AlbedoColor.ToVector4();
+	                emissiveColor = Vector4(
+	                    pbrMat.EmissiveColor.R / 255.0f,
+	                    pbrMat.EmissiveColor.G / 255.0f,
+	                    pbrMat.EmissiveColor.B / 255.0f,
+	                    pbrMat.EmissiveIntensity
+	                    );
+	                metallic = pbrMat.Metallic;
+	                roughness = pbrMat.Roughness;
+	                ao = pbrMat.AmbientOcclusion;
+	            }
+
+	            fragmentUniforms.AlbedoColor = albedoColor;
+	            fragmentUniforms.EmissiveColor = emissiveColor;
+	            fragmentUniforms.MetallicRoughnessAO = Vector4(metallic, roughness, ao, 0);
+	            fragmentUniforms.CameraPos = Vector4(mActiveCameraTransform.Position.X, mActiveCameraTransform.Position.Y, mActiveCameraTransform.Position.Z, 0);
+
+	            // Fill light array
+	            int lightCount = Math.Min(mLights.Count, MAX_LIGHTS);
+	            for (int i = 0; i < lightCount; i++)
+	            {
+	                var (light, transform) = mLights[i];
+
+	                // Position and type
+	                float lightType = 0.0f; // Default to directional
+	                if (light is PointLight)
+	                    lightType = 1.0f;
+	                else if (light is SpotLight)
+	                    lightType = 2.0f;
+
+	                fragmentUniforms.Lights[i].PositionType = Vector4(
+	                    transform.Position.X,
+	                    transform.Position.Y,
+	                    transform.Position.Z,
+	                    lightType
+	                    );
+
+	                // Direction and range
+	                var direction = transform.Forward;
+	                float range = 10.0f; // Default range for point/spot lights
+	                if (light is PointLight)
+	                {
+	                    range = ((PointLight)light).Range;
+	                }
+	                else if (light is SpotLight)
+	                {
+	                    range = ((SpotLight)light).Range;
+	                }
+
+	                fragmentUniforms.Lights[i].DirectionRange = Vector4(
+	                    direction.X,
+	                    direction.Y,
+	                    direction.Z,
+	                    range
+	                    );
+
+	                // Color and intensity
+	                fragmentUniforms.Lights[i].ColorIntensity = Vector4(
+	                    light.Color.X,
+	                    light.Color.Y,
+	                    light.Color.Z,
+	                    light.Intensity
+	                    );
+
+	                // Spot angles (for spot lights)
+	                float innerCos = 1.0f;
+	                float outerCos = 0.0f;
+	                if (light is SpotLight)
+	                {
+	                    var spotLight = (SpotLight)light;
+	                    innerCos = Math.Cos(Math.DegreesToRadians(spotLight.InnerConeAngle));
+	                    outerCos = Math.Cos(Math.DegreesToRadians(spotLight.OuterConeAngle));
+	                }
+
+	                fragmentUniforms.Lights[i].SpotAngles = Vector4(innerCos, outerCos, 1.0f, 0.0f);
+	            }
+
+	            fragmentUniforms.LightCount = Vector4((float)lightCount, 0, 0, 0);
+
+	            SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragmentUniforms, sizeof(PBRFragmentUniforms));
 	        }
 	        else if (useLit)
 	        {
-	            // Lit rendering code remains the same...
-	            // [Previous lit rendering code here]
+	            // Prepare vertex uniforms
+	            Matrix normalMatrix = command.WorldMatrix;
+	            normalMatrix = Matrix.Invert(normalMatrix);
+	            normalMatrix = Matrix.Transpose(normalMatrix);
+
+	            var vertexUniforms = LitVertexUniforms()
+	                {
+	                    MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+	                    ModelMatrix = command.WorldMatrix,
+	                    NormalMatrix = normalMatrix
+	                };
+
+	            // Push vertex uniform data
+	            SDL_PushGPUVertexUniformData(commandBuffer, 0, &vertexUniforms, sizeof(LitVertexUniforms));
+
+	            // Prepare fragment uniforms with light array
+	            var fragmentUniforms = LitFragmentUniforms();
+
+	            // Use material color if available, otherwise use renderer's color
+	            var materialColor = command.Renderer.Color.ToVector4();
+	            var specularColor = Vector4(0.5f, 0.5f, 0.5f, 32.0f); // Default specular with shininess
+	            var ambientColor = Vector4(0.2f, 0.2f, 0.2f, 1.0f); // Default ambient
+
+	            if (gpuMaterial != null && command.Renderer.Material.Resource?.Material is PhongMaterial)
+	            {
+	                var phongMat = command.Renderer.Material.Resource?.Material as PhongMaterial;
+	                materialColor = phongMat.DiffuseColor.ToVector4();
+	                specularColor = Vector4(
+	                    phongMat.SpecularColor.R / 255.0f,
+	                    phongMat.SpecularColor.G / 255.0f,
+	                    phongMat.SpecularColor.B / 255.0f,
+	                    phongMat.Shininess
+	                    );
+	                ambientColor = phongMat.AmbientColor.ToVector4();
+	            }
+
+	            fragmentUniforms.MaterialColor = materialColor;
+	            fragmentUniforms.SpecularColorShininess = specularColor;
+	            fragmentUniforms.AmbientColor = ambientColor;
+	            fragmentUniforms.CameraPos = Vector4(mActiveCameraTransform.Position.X, mActiveCameraTransform.Position.Y, mActiveCameraTransform.Position.Z, 0);
+
+	            // Fill light array
+	            int lightCount = Math.Min(mLights.Count, MAX_LIGHTS);
+	            for (int i = 0; i < lightCount; i++)
+	            {
+	                var (light, transform) = mLights[i];
+
+	                // Position and type
+	                float lightType = 0.0f; // Default to directional
+	                if (light is PointLight)
+	                    lightType = 1.0f;
+	                else if (light is SpotLight)
+	                    lightType = 2.0f;
+
+	                fragmentUniforms.Lights[i].PositionType = Vector4(
+	                    transform.Position.X,
+	                    transform.Position.Y,
+	                    transform.Position.Z,
+	                    lightType
+	                    );
+
+	                // Direction and range
+	                var direction = transform.Forward;
+	                float range = 10.0f; // Default range for point/spot lights
+	                if (light is PointLight)
+	                {
+	                    range = ((PointLight)light).Range;
+	                }
+	                else if (light is SpotLight)
+	                {
+	                    range = ((SpotLight)light).Range;
+	                }
+
+	                fragmentUniforms.Lights[i].DirectionRange = Vector4(
+	                    direction.X,
+	                    direction.Y,
+	                    direction.Z,
+	                    range
+	                    );
+
+	                // Color and intensity
+	                fragmentUniforms.Lights[i].ColorIntensity = Vector4(
+	                    light.Color.X,
+	                    light.Color.Y,
+	                    light.Color.Z,
+	                    light.Intensity
+	                    );
+
+	                // Spot angles (for spot lights)
+	                float innerCos = 1.0f;
+	                float outerCos = 0.0f;
+	                if (light is SpotLight)
+	                {
+	                    var spotLight = (SpotLight)light;
+	                    innerCos = Math.Cos(Math.DegreesToRadians(spotLight.InnerConeAngle));
+	                    outerCos = Math.Cos(Math.DegreesToRadians(spotLight.OuterConeAngle));
+	                }
+
+	                fragmentUniforms.Lights[i].SpotAngles = Vector4(innerCos, outerCos, 1.0f, 0.0f);
+	            }
+
+	            fragmentUniforms.LightCount = Vector4((float)lightCount, 0, 0, 0);
+
+	            // Push fragment uniform data
+	            SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragmentUniforms, sizeof(LitFragmentUniforms));
 	        }
 	        else
 	        {
-	            // Unlit rendering code remains the same...
-	            // [Previous unlit rendering code here]
+	            // Unlit rendering
+	            var vertexUniforms = UnlitVertexUniforms()
+	                {
+	                    MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+	                    ModelMatrix = command.WorldMatrix
+	                };
+
+	            // Use material color if available
+	            var materialColor = command.Renderer.Color.ToVector4();
+	            if (gpuMaterial != null && command.Renderer.Material.Resource?.Material is UnlitMaterial)
+	            {
+	                var unlitMat = command.Renderer.Material.Resource?.Material as UnlitMaterial;
+	                materialColor = unlitMat.Color.ToVector4();
+	            }
+
+	            var fragmentUniforms = UnlitFragmentUniforms()
+	                {
+	                    MaterialColor = materialColor
+	                };
+
+	            // Push uniform data
+	            SDL_PushGPUVertexUniformData(commandBuffer, 0, &vertexUniforms, sizeof(UnlitVertexUniforms));
+	            SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragmentUniforms, sizeof(UnlitFragmentUniforms));
 	        }
 	    }
 

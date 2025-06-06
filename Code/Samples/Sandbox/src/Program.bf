@@ -386,7 +386,7 @@ class SandboxApplication : Application
 				// Create diffuse texture
 				material.DiffuseTexture = engine.ResourceSystem.AddResource(TextureResource.CreateWhite(64));
 
-				// Create different normal maps for each object - REORDERED FOR BETTER VISIBILITY
+				// Create different normal maps for each object
 				String normalMapType = "";
 				switch (i)
 				{

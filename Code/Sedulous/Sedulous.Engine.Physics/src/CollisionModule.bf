@@ -8,16 +8,19 @@ class CollisionModule : SceneModule
     public override StringView Name => "Collision";
     
     private PhysicsSubsystem mPhysicsSubsystem;
+
+	private EntityQuery mCollidersQuery;
     
     public this(PhysicsSubsystem physicsSubsystem)
     {
         mPhysicsSubsystem = physicsSubsystem;
+		mCollidersQuery = CreateQuery().With<Collider>();
     }
-    
-    protected override void RegisterComponentInterests()
-    {
-        RegisterComponentInterest<Collider>();
-    }
+
+	public ~this()
+	{
+		delete mCollidersQuery;
+	}
     
     protected override void OnUpdate(Time time)
     {

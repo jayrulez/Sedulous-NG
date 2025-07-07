@@ -3,26 +3,32 @@ using System.Collections;
 using Sedulous.Utilities;
 namespace Sedulous.SceneGraph;
 
+using internal Sedulous.SceneGraph;
+
 abstract class SceneModule
 {
 	public Scene Scene { get; internal set; }
 	public abstract StringView Name { get; }
 
-	private List<ComponentTypeId> mInterestedComponents = new .() ~ delete _;
-	private List<Entity> mTrackedEntities = new .() ~ delete _;
+	private List<EntityQuery> mQueries = new .() ~ delete _;
 
 	protected this()
 	{
-		RegisterComponentInterests();
 	}
 
-	// Override to register which components this module cares about
-	protected virtual void RegisterComponentInterests() { }
-
-	// Helper to register interest in a component type
-	protected void RegisterComponentInterest<T>() where T : Component
+	protected EntityQuery CreateQuery()
 	{
-		mInterestedComponents.Add(ComponentRegistry.GetTypeId<T>());
+	    var query = new EntityQuery();
+	    mQueries.Add(query);
+	    return query;
+	}
+
+	protected void DestroyQuery(EntityQuery query)
+	{
+		if(mQueries.Remove(query))
+		{
+			delete query;
+		}
 	}
 
 	// Lifecycle
@@ -47,13 +53,14 @@ abstract class SceneModule
 
 	protected virtual void OnEntityCreated(Entity entity)
 	{
-		CheckEntityInterest(entity);
+		for (var query in mQueries)
+			query.CheckEntity(entity);
 	}
 
 	protected virtual void OnEntityDestroyed(Entity entity)
 	{
-		mTrackedEntities.Remove(entity);
-		OnEntityRemovedFromTracking(entity);
+		for (var query in mQueries)
+			query.RemoveEntity(entity);
 	}
 
 	protected virtual void OnEntityHierarchyChanged(Entity entity) { }
@@ -61,18 +68,14 @@ abstract class SceneModule
 	// Component events
 	protected virtual void OnComponentAdded(Entity entity, IComponent component)
 	{
-		if (mInterestedComponents.Contains(component.TypeId))
-		{
-			CheckEntityInterest(entity);
-		}
+		for (var query in mQueries)
+			query.CheckEntity(entity);
 	}
 
 	protected virtual void OnComponentRemoved(Entity entity, IComponent component)
 	{
-		if (mInterestedComponents.Contains(component.TypeId))
-		{
-			CheckEntityInterest(entity);
-		}
+		for (var query in mQueries)
+			query.CheckEntity(entity);
 	}
 
 	// Update
@@ -82,40 +85,4 @@ abstract class SceneModule
 	}
 
 	protected virtual void OnUpdate(Time time) { }
-
-	// Override these for entity tracking
-	protected virtual void OnEntityAddedToTracking(Entity entity) { }
-	protected virtual void OnEntityRemovedFromTracking(Entity entity) { }
-
-	// Check if entity should be tracked based on component interests
-	private void CheckEntityInterest(Entity entity)
-	{
-		bool shouldTrack = ShouldTrackEntity(entity);
-		bool isTracked = mTrackedEntities.Contains(entity);
-
-		if (shouldTrack && !isTracked)
-		{
-			mTrackedEntities.Add(entity);
-			OnEntityAddedToTracking(entity);
-		}
-		else if (!shouldTrack && isTracked)
-		{
-			mTrackedEntities.Remove(entity);
-			OnEntityRemovedFromTracking(entity);
-		}
-	}
-
-	// Override for custom tracking logic
-	protected virtual bool ShouldTrackEntity(Entity entity)
-	{
-		// Default: track if entity has ANY of the interested components
-		for (var componentType in mInterestedComponents)
-		{
-			if (entity.HasComponent(componentType))
-				return true;
-		}
-		return false;
-	}
-
-	protected Span<Entity> TrackedEntities => mTrackedEntities;
 }

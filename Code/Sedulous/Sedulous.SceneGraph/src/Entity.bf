@@ -109,6 +109,12 @@ class Entity
         return mComponents.ContainsKey(typeId);
     }
 
+	public bool HasComponent(Type componentType)
+	{
+	    var typeId = ComponentRegistry.GetTypeId(componentType);
+	    return mComponents.ContainsKey(typeId);
+	}
+
     public IComponent GetComponent(ComponentTypeId typeId)
     {
         return mComponents.TryGetValue(typeId, var component) ? component : null;

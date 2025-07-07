@@ -7,6 +7,7 @@ namespace Sedulous.IO.Compression;
 // Deflate decompressor (the complex part needed for PNG)
 internal class DeflateDecompressor
 {
+	[CRepr]
     private struct HuffmanTable
     {
         public uint16[16] CodeCounts;   // Number of codes of each length
@@ -256,7 +257,8 @@ internal class DeflateDecompressor
         // Assign codes to symbols
         for (int i = 0; i < table.SymbolCount; i++)
         {
-            int len = table.CodeLengths[i];
+			Console.WriteLine(i);
+            int len = (uint16)table.CodeLengths[i];
             if (len > 0)
             {
                 table.Codes[i] = code[len];

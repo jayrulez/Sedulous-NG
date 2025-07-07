@@ -14,15 +14,18 @@ class InputModule : SceneModule
     private InputSubsystem mInputSubsystem;
     private List<InputContext> mSceneContexts = new .() ~ delete _;
 
+	private EntityQuery mInputComponentsQuery;
+
     public this(InputSubsystem inputSubsystem)
     {
         mInputSubsystem = inputSubsystem;
+		mInputComponentsQuery = CreateQuery().With<InputComponent>();
     }
 
-    protected override void RegisterComponentInterests()
-    {
-        RegisterComponentInterest<InputComponent>();
-    }
+    public ~this()
+	{
+		DestroyQuery(mInputComponentsQuery);
+	}
 
     protected override void OnUpdate(Time time)
     {
@@ -33,10 +36,9 @@ class InputModule : SceneModule
         }
 
         // Update input components
-        for (var entity in TrackedEntities)
+        for (var entity in mInputComponentsQuery.GetEntities(Scene, .. scope .()))
         {
-            var inputComponent = entity.GetComponent<InputComponent>();
-            if (inputComponent != null)
+            if (let inputComponent = entity.GetComponent<InputComponent>())
             {
                 UpdateInputComponent(entity, inputComponent, time);
             }

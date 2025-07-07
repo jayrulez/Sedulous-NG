@@ -18,6 +18,7 @@ using Sedulous.SceneGraph;
 using Sedulous.Utilities;
 using System.Collections;
 using System.Diagnostics;
+using Sedulous.Imaging;
 namespace Sandbox;
 
 public class RotateComponent : Component
@@ -38,29 +39,36 @@ public class AppSceneModule : SceneModule
 {
 	public override StringView Name => nameof(AppSceneModule);
 	private readonly AppSubsystem mSubsystem;
+
+	private EntityQuery mRotatingQuery;
+	private EntityQuery mControllerQuery;
+
 	public this(AppSubsystem subsystem)
 	{
 		mSubsystem = subsystem;
-	}
-	protected override void RegisterComponentInterests()
-	{
-		RegisterComponentInterest<RotateComponent>();
-		RegisterComponentInterest<ControllerComponent>();
+
+		mRotatingQuery = CreateQuery().With<RotateComponent>();
+		mControllerQuery = CreateQuery().With<ControllerComponent>();
 	}
 
-	protected override bool ShouldTrackEntity(Entity entity)
+	public ~this()
 	{
-		return entity.HasComponent<RotateComponent>() || entity.HasComponent<ControllerComponent>();
+		DestroyQuery(mRotatingQuery);
+		DestroyQuery(mControllerQuery);
 	}
 
 	protected override void OnUpdate(Time time)
 	{
-		for (var entity in TrackedEntities)
+		for(var entity in mRotatingQuery.GetEntities(Scene, .. scope .()))
 		{
 			if (entity.HasComponent<RotateComponent>() && entity.HasComponent<MeshRenderer>())
 			{
 				entity.Transform.Rotation = Quaternion.CreateFromRotationMatrix(Matrix.CreateRotationY((float)time.TotalTime.TotalMilliseconds * 0.001f));
 			}
+		}
+
+		for (var entity in mControllerQuery.GetEntities(Scene, .. scope .()))
+		{
 			if (entity.HasComponent<ControllerComponent>())
 			{
 				if (((Engine)mSubsystem.Engine).GetSubsystem<InputSubsystem>() case .Ok(var input))
@@ -553,7 +561,7 @@ class SandboxApplication : Application
 		spriteEntity.AddComponent<ControllerComponent>();
 
 		var spriteRenderer = spriteEntity.AddComponent<SpriteRenderer>();
-		spriteRenderer.Texture = engine.ResourceSystem.AddResource(TextureResource.CreateCheckerboard(256, 32));
+		spriteRenderer.Texture = engine.ResourceSystem.AddResource(/*new TextureResource(ImageLoaderFactory.LoadImage("images/ball.png"), true)*/TextureResource.CreateCheckerboard(256, 32));
 		spriteRenderer.Color = .White;
 		spriteRenderer.Size = Vector2(2, 2); // 2x2 world units
 		spriteRenderer.Billboard = .AxisAligned;

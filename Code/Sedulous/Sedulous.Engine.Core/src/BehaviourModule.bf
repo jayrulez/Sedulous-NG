@@ -10,14 +10,16 @@ class BehaviourModule : SceneModule
 
 	public override StringView Name => nameof(BehaviourModule);
 
-	protected override void RegisterComponentInterests()
+	private EntityQuery mbehaviours;
+
+	public this()
 	{
-		RegisterComponentInterest<Behaviour>();
+		mbehaviours = CreateQuery().With<Behaviour>();
 	}
 
-	protected override bool ShouldTrackEntity(Entity entity)
+	public ~this()
 	{
-		return entity.HasComponent<Behaviour>();
+		DestroyQuery(mbehaviours);
 	}
 
 	internal void OnVariableUpdate(Time time){}

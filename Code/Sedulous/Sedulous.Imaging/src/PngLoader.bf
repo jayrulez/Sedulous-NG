@@ -101,7 +101,7 @@ public class PngLoader : ImageLoader
 
 		// Read entire file into memory
 		var fileSize = fileStream.Length;
-		if (fileSize <= 0 || fileSize > int.MaxValue)
+		if (fileSize <= 0 || fileSize >= int.MaxValue)
 		{
 			var loadInfo = LoadInfo();
 			loadInfo.Result = .InvalidDimensions;
@@ -236,6 +236,8 @@ public class PngLoader : ImageLoader
 
 		// Parse transparency info (tRNS chunk)
 		var transparency = scope TransparencyInfo();
+		defer { delete transparency.PaletteAlpha;
+		}
 		for (var chunk in chunks)
 		{
 			if (chunk.Type == 0x74524E53) // "tRNS"

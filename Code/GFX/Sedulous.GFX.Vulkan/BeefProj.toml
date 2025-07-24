@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.GFX" = "*"}
+
+[Project]
+Name = "Sedulous.GFX.Vulkan"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.GFX.Vulkan.Program"

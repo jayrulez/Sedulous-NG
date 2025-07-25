@@ -10,6 +10,7 @@ using Sedulous.Logging.Abstractions;
 using Sedulous.Platform.SDL3;
 using System.Collections;
 using System.IO;
+using Sedulous.RHI.HLSLShaderCompiler;
 
 class Program
 {
@@ -43,25 +44,28 @@ class Program
 
 		var viewports = scope Viewport[1](.(0, 0, window.Width, window.Height));
 		var scissors = scope Rectangle[1]();
-		window.OnResized.Add(scope (width, height) => {
-			commandQueue.WaitIdle();
-			viewports[0] = Viewport(0, 0, width, height);
-			scissors[0] = Rectangle(0, 0, (.)width, (.)height);
-			swapChain.ResizeSwapChain((.)width, (.)height);
-		});
+		window.OnResized.Add(scope (width, height) =>
+			{
+				commandQueue.WaitIdle();
+				viewports[0] = Viewport(0, 0, width, height);
+				scissors[0] = Rectangle(0, 0, (.)width, (.)height);
+				swapChain.ResizeSwapChain((.)width, (.)height);
+			});
 
 		// Compile Vertex and Pixel shaders
 		uint8[] psBytes = null;
 		uint8[] vsBytes = null;
 
-		if (graphicsContext.BackendType == .Vulkan)
+		bool compileShaders = true;
+
+		if (graphicsContext.BackendType == .Vulkan && !compileShaders)
 		{
 			List<uint8> shaderBytes = scope .();
 			if (File.ReadAll("Shaders/FragmentShader.spirv", shaderBytes) case .Err)
 			{
 				Runtime.FatalError("Failed to load pixel shader.");
 			}
-			psBytes = scope :: .[shaderBytes.Count];
+			psBytes = scope:: .[shaderBytes.Count];
 			shaderBytes.CopyTo(psBytes);
 
 			shaderBytes.Clear();
@@ -69,8 +73,29 @@ class Program
 			{
 				Runtime.FatalError("Failed to load vertex shader.");
 			}
-			vsBytes = scope :: .[shaderBytes.Count];
+			vsBytes = scope:: .[shaderBytes.Count];
 			shaderBytes.CopyTo(vsBytes);
+		}
+
+		if (graphicsContext.BackendType == .Vulkan && compileShaders)
+		{
+			String shaderSource = scope .();
+			String shaderPath = "Shaders/HLSL.fx";
+			if (File.ReadAllText(shaderPath, shaderSource) case .Err)
+			{
+				Runtime.FatalError(scope $"Failed to load shader source '{shaderPath}'.");
+			}
+			{
+				List<uint8> compiledBytes = CompileShader(graphicsContext, shaderPath, .Pixel, "PS", .. scope .());
+
+				psBytes = scope:: .[compiledBytes.Count];
+				compiledBytes.CopyTo(psBytes);
+			}
+			{
+				List<uint8> compiledBytes = CompileShader(graphicsContext, shaderPath, .Vertex, "VS", .. scope .());
+				vsBytes = scope:: .[compiledBytes.Count];
+				compiledBytes.CopyTo(vsBytes);
+			}
 		}
 
 		ShaderDescription vertexShaderDescription = ShaderDescription(.Vertex, "VS", vsBytes);
@@ -118,36 +143,37 @@ class Program
 		windowSystem.StartMainLoop();
 		while (windowSystem.IsRunning)
 		{
-			windowSystem.RunOneFrame(scope (elapsedTime) => {
-				CommandBuffer commandBuffer = commandQueue.CommandBuffer();
+			windowSystem.RunOneFrame(scope (elapsedTime) =>
+				{
+					CommandBuffer commandBuffer = commandQueue.CommandBuffer();
 
-				commandBuffer.Begin();
+					commandBuffer.Begin();
 
-				ClearValue clearValue = .(ClearFlags.All, 1, 0);
-				clearValue.ColorValues.Count = swapChain.FrameBuffer.ColorTargets.Count;
-				for(int i = 0; i < clearValue.ColorValues.Count; i++)
-					clearValue.ColorValues[i] = Color.CornflowerBlue.ToVector4();
+					ClearValue clearValue = .(ClearFlags.All, 1, 0);
+					clearValue.ColorValues.Count = swapChain.FrameBuffer.ColorTargets.Count;
+					for (int i = 0; i < clearValue.ColorValues.Count; i++)
+						clearValue.ColorValues[i] = Color.CornflowerBlue.ToVector4();
 
-				RenderPassDescription renderPassDescription = RenderPassDescription(swapChain.FrameBuffer, clearValue);
-				commandBuffer.BeginRenderPass(renderPassDescription);
+					RenderPassDescription renderPassDescription = RenderPassDescription(swapChain.FrameBuffer, clearValue);
+					commandBuffer.BeginRenderPass(renderPassDescription);
 
-				commandBuffer.SetViewports(viewports);
-				commandBuffer.SetScissorRectangles(scissors);
-				commandBuffer.SetGraphicsPipelineState(graphicsPipelineState);
-				commandBuffer.SetVertexBuffers(scope Buffer[1](vertexBuffer));
+					commandBuffer.SetViewports(viewports);
+					commandBuffer.SetScissorRectangles(scissors);
+					commandBuffer.SetGraphicsPipelineState(graphicsPipelineState);
+					commandBuffer.SetVertexBuffers(scope Buffer[1](vertexBuffer));
 
-				commandBuffer.Draw((.)VertexData.Count / 2);
+					commandBuffer.Draw((.)VertexData.Count / 2);
 
-				commandBuffer.EndRenderPass();
-				commandBuffer.End();
+					commandBuffer.EndRenderPass();
+					commandBuffer.End();
 
-				commandBuffer.Commit();
+					commandBuffer.Commit();
 
-				commandQueue.Submit();
-				commandQueue.WaitIdle();
+					commandQueue.Submit();
+					commandQueue.WaitIdle();
 
-				swapChain.Present();
-			});
+					swapChain.Present();
+				});
 		}
 		commandQueue.WaitIdle();
 		windowSystem.StopMainLoop();
@@ -170,5 +196,20 @@ class Program
 				IsWindowed = true,
 				RefreshRate = 60
 			};
+	}
+
+	private static void CompileShader(GraphicsContext graphicsContext, String shaderPath, ShaderStages stage, String entrypoint, List<uint8> byteCode)
+	{
+		String error = scope .();
+		String shaderSource = scope .();
+		if (File.ReadAllText(shaderPath, shaderSource) case .Err)
+		{
+			Runtime.FatalError(scope $"Failed to read shader: {shaderPath}.");
+		}
+
+		if (DxcShaderCompiler.CompileShader(graphicsContext, shaderSource, entrypoint, stage, CompilerParameters.Default, byteCode, ref error) case .Err)
+		{
+			Runtime.FatalError(scope $"Shader compilation fail: {shaderPath} - {error}");
+		}
 	}
 }

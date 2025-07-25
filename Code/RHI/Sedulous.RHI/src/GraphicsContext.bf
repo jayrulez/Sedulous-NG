@@ -25,7 +25,7 @@ public abstract class GraphicsContext : IDisposable
 	/// <summary>
 	/// Gets the default Sampler state used when a sampler is missing in a resource set.
 	/// </summary>
-	public SamplerState DefaultSampler { get; private set; }
+	public ref SamplerState DefaultSampler { get; private set; }
 
 	/// <summary>
 	/// Gets the graphics validation layer pointer.
@@ -313,7 +313,10 @@ public abstract class GraphicsContext : IDisposable
 	/// </summary>
 	public void Dispose()
 	{
-		DefaultSampler?.Dispose();
+		if(DefaultSampler != null)
+		{
+			Factory.DestroySampler(ref DefaultSampler);
+		}
 		Dispose(disposing: true);
 	}
 

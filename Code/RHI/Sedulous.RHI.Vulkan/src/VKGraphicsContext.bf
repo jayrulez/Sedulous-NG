@@ -466,7 +466,7 @@ public class VKGraphicsContext : GraphicsContext
 		VkApplicationInfo appInfo = VkApplicationInfo()
 			{
 				sType = VkStructureType.VK_STRUCTURE_TYPE_APPLICATION_INFO,
-				apiVersion = Version_1_2,
+				apiVersion = Version_1_3,
 				applicationVersion = Version_1_0,
 				engineVersion = Version_1_0,
 				pEngineName = "Sedulous",

@@ -25,8 +25,6 @@ public abstract class ImageLoader
         public uint32 Height;
         public Image.PixelFormat Format;
         public uint8[] Data;
-        public LoadResult Result;
-        public String ErrorMessage;
         
         public this()
         {
@@ -34,36 +32,31 @@ public abstract class ImageLoader
             Height = 0;
             Format = .RGBA8;
             Data = null;
-            Result = .UnknownError;
-            ErrorMessage = null;
         }
         
-        // Manual cleanup method since structs can't have destructors
         public void Dispose() mut
         {
             delete Data;
-            delete ErrorMessage;
             Data = null;
-            ErrorMessage = null;
         }
     }
     
     // Load image from file path
-    public abstract Result<LoadInfo> LoadFromFile(StringView filePath);
+    public abstract Result<LoadInfo, LoadResult> LoadFromFile(StringView filePath);
     
     // Load image from memory buffer
-    public abstract Result<LoadInfo> LoadFromMemory(Span<uint8> data);
+    public abstract Result<LoadInfo, LoadResult> LoadFromMemory(Span<uint8> data);
     
     // Check if this loader supports the file extension
     public abstract bool SupportsExtension(StringView @extension);
     
     // Get supported file extensions
-    public abstract void GetSupportedExtensions(List<String> outExtensions);
+    public abstract void GetSupportedExtensions(List<StringView> outExtensions);
     
     // Helper method to create Image from LoadInfo
     public static Result<Image> CreateImageFromLoadInfo(LoadInfo loadInfo)
     {
-        if (loadInfo.Result != .Success || loadInfo.Data == null)
+        if (loadInfo.Data == null)
             return .Err;
             
         var image = new Image(loadInfo.Width, loadInfo.Height, loadInfo.Format, loadInfo.Data);

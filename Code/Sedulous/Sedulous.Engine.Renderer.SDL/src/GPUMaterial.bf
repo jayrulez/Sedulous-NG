@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Resources;
+using Sedulous.Engine.Renderer.GPU;
 
 namespace Sedulous.Engine.Renderer.SDL;
 

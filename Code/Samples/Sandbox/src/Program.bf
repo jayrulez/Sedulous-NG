@@ -19,6 +19,8 @@ using Sedulous.Utilities;
 using System.Collections;
 using System.Diagnostics;
 using Sedulous.Imaging;
+using Sedulous.Engine.Renderer.RHI;
+using Sedulous.RHI.Vulkan;
 namespace Sandbox;
 
 public class RotateComponent : Component
@@ -865,7 +867,10 @@ class Program
 		var windowSystem = scope SDL3WindowSystem("Sandbox", 1366, 768);
 		var app = scope SandboxApplication(logger, windowSystem);
 
-		var renderer = scope SDLRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow);
+		//var renderer = scope SDLRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow);
+		var graphicsContext = scope VKGraphicsContext(logger);
+		defer graphicsContext.Dispose();
+		var renderer = scope RHIRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow, graphicsContext);
 		var inputSubsystem = scope InputSubsystem(windowSystem.InputSystem);
 		var audioSubsystem = scope OpenALAudioSubsystem();
 		var navigationSubsystem = scope NavigationSubsystem();

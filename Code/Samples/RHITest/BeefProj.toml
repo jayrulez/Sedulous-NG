@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", SDL3Native = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Platform.SDL3" = "*"}
+
+[Project]
+Name = "RHITest"
+StartupObject = "RHITest.Program"
+DefaultNamespace = "RHITest"

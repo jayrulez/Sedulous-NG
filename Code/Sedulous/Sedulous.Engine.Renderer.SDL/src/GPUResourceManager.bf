@@ -4,6 +4,7 @@ using Sedulous.Resources;
 using Sedulous.Geometry;
 using Sedulous.Engine.Renderer;
 using SDL3Native;
+using Sedulous.Engine.Renderer.GPU;
 
 namespace Sedulous.Engine.Renderer.SDL;
 

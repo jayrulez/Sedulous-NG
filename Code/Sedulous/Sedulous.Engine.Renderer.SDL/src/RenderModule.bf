@@ -7,6 +7,7 @@ using Sedulous.Resources;
 using Sedulous.SceneGraph;
 using Sedulous.Utilities;
 using Sedulous.Geometry;
+using Sedulous.Engine.Renderer.GPU;
 
 namespace Sedulous.Engine.Renderer.SDL;
 
@@ -66,7 +67,6 @@ class RenderModule : SceneModule
 		mSpritesQuery = CreateQuery().With<SpriteRenderer>();
 		mCamerasQuery = CreateQuery().With<Camera>();
 		mLightsQuery = CreateQuery().WithAnyOf(typeof(DirectionalLight), typeof(PointLight), typeof(SpotLight));
-
 
 		mRenderer = renderer;
 		CreateDepthBuffer();

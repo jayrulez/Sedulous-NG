@@ -1,6 +1,7 @@
 using SDL3Native;
 using System;
 using Sedulous.Geometry;
+using Sedulous.Engine.Renderer.GPU;
 namespace Sedulous.Engine.Renderer.SDL;
 
 class GPUMesh : GPUResource

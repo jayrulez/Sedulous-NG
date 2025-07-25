@@ -9,6 +9,7 @@ using Sedulous.Platform.Core;
 using Sedulous.Platform.SDL3;
 using Sedulous.SceneGraph;
 using Sedulous.Geometry;
+using Sedulous.Engine.Renderer.GPU;
 
 namespace Sedulous.Engine.Renderer.SDL;
 

@@ -11,7 +11,7 @@ public static class ImageLoaderFactory
     static this()
     {
         // Register default loaders
-        RegisterLoader(new PngLoader());
+        RegisterLoader(new SDLImageLoader());
     }
     
     public static void RegisterLoader(ImageLoader loader)
@@ -47,9 +47,6 @@ public static class ImageLoaderFactory
             
         var loadInfo = loadResult.Value;
         defer loadInfo.Dispose(); // Clean up the LoadInfo
-        
-        if (loadInfo.Result != .Success)
-            return .Err;
             
         return ImageLoader.CreateImageFromLoadInfo(loadInfo);
     }
@@ -70,17 +67,14 @@ public static class ImageLoaderFactory
             {
                 defer loadInfo.Dispose(); // Clean up the LoadInfo
                 
-                if (loadInfo.Result == .Success)
-                {
-                    return ImageLoader.CreateImageFromLoadInfo(loadInfo);
-                }
+				return ImageLoader.CreateImageFromLoadInfo(loadInfo);
             }
         }
         
         return .Err;
     }
     
-    public static void GetSupportedExtensions(List<String> outExtensions)
+    public static void GetSupportedExtensions(List<StringView> outExtensions)
     {
         for (var loader in sLoaders)
         {

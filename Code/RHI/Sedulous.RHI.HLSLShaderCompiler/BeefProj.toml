@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.RHI" = "*", Dxc-Beef = "*"}
+
+[Project]
+Name = "Sedulous.RHI.HLSLShaderCompiler"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.RHI.HLSLShaderCompiler.Program"

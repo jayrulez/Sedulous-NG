@@ -1,0 +1,8 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", corlib = "*", "Sedulous.Logging" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Collections" = "*"}
+
+[Project]
+Name = "Sedulous.RHI"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Graphics.Program"
+DefaultNamespace = "Sedulous.Graphics"

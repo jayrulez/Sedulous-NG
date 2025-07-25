@@ -1,0 +1,45 @@
+using Sedulous.Mathematics;
+
+namespace Sedulous.RHI.VertexFormats;
+
+/// <summary>
+/// Represents a vertex with a position and a normal.
+/// </summary>
+public struct VertexPositionNormal
+{
+	/// <summary>
+	/// Vertex's position.
+	/// </summary>
+	public Vector3 Position;
+
+	/// <summary>
+	/// Vertex Normal.
+	/// </summary>
+	public Vector3 Normal;
+
+	/// <summary>
+	/// Vertex format.
+	/// </summary>
+	public static readonly LayoutDescription VertexFormat ~ delete _;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="T:Sedulous.RHI.VertexFormats.VertexPositionNormal" /> struct.
+	/// </summary>
+	/// <param name="position">The position.</param>
+	/// <param name="normal">The normal.</param>
+	public this(Vector3 position, Vector3 normal)
+	{
+		Position = position;
+		Normal = normal;
+	}
+
+	/// <summary>
+	/// Initializes static members of the <see cref="T:Sedulous.RHI.VertexFormats.VertexPositionNormal" /> struct.
+	/// </summary>
+	static this()
+	{
+		VertexFormat = new LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal));
+	}
+}

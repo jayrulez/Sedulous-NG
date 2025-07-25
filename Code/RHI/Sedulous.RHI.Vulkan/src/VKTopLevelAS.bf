@@ -1,0 +1,203 @@
+using System;
+using Bulkan;
+using Sedulous.RHI.Raytracing;
+
+namespace Sedulous.RHI.Vulkan;
+
+using internal Sedulous.RHI.Vulkan;
+using static Sedulous.RHI.Vulkan.VKExtensionsMethods;
+using static Sedulous.RHI.Vulkan.VKHelpers;
+
+/// <summary>
+/// Implementation of Vulkan Top-Level Acceleration Structure.
+/// </summary>
+public class VKTopLevelAS : TopLevelAS
+{
+	/// <summary>
+	/// The top-level acceleration structure instance.
+	/// </summary>
+	public VkAccelerationStructureKHR TopLevelAS;
+
+	private uint64 topLevelASHandle;
+
+	private VKRaytracingHelpers.BufferData instanceBuffer;
+
+	private VkBuffer scratchBuffer;
+
+	private VKGraphicsContext vkContext;
+
+	/// <inheritdoc />
+	public override void* NativePointer => (void*)(int)topLevelASHandle;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="T:Sedulous.RHI.Vulkan.VKTopLevelAS" /> class.
+	/// </summary>
+	/// <param name="context">DirectX 12 context.</param>
+	/// <param name="commandBuffer">Command buffer.</param>
+	/// <param name="description">Top-level description.</param>
+	public this(VKGraphicsContext context, VkCommandBuffer commandBuffer, in TopLevelASDescription description)
+		: base(context, description)
+	{
+		vkContext = context;
+		VkAccelerationStructureInstanceKHR* instanceDescriptions = scope VkAccelerationStructureInstanceKHR[description.Instances.Count]*;
+		for (int32 i = 0; i < description.Instances.Count; i++)
+		{
+			AccelerationStructureInstance instance = description.Instances[i];
+			instanceDescriptions[i] = VkAccelerationStructureInstanceKHR()
+				{
+					transform = instance.Transform4x4.ToTransformMatrix(),
+					instanceCustomIndex = instance.InstanceID,
+					mask = instance.InstanceMask,
+					instanceShaderBindingTableRecordOffset = instance.InstanceContributionToHitGroupIndex,
+					flags = instance.Flags.ToVulkan(),
+					accelerationStructureReference = (uint64)(int)(instance.BottonLevel as VKBottomLevelAS).NativePointer
+				};
+		}
+		instanceBuffer = VKRaytracingHelpers.CreateMappedBuffer(vkContext, instanceDescriptions, (uint64)sizeof(VkAccelerationStructureInstanceKHR) * (uint64)description.Instances.Count, VkBufferUsageFlags.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+		VkAccelerationStructureGeometryKHR geometryInfo = VkAccelerationStructureGeometryKHR()
+			{
+				sType = VkStructureType.VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+				flags = VkGeometryFlagsKHR.VK_GEOMETRY_OPAQUE_BIT_KHR,
+				geometryType = VkGeometryTypeKHR.VK_GEOMETRY_TYPE_INSTANCES_KHR,
+				geometry = VkAccelerationStructureGeometryDataKHR()
+					{
+						instances = VkAccelerationStructureGeometryInstancesDataKHR()
+							{
+								sType = VkStructureType.VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+								arrayOfPointers = false,
+								data = VkDeviceOrHostAddressConstKHR()
+									{
+										deviceAddress = instanceBuffer.Buffer.GetBufferAddress(vkContext.VkDevice)
+									}
+							}
+					}
+			};
+		VkAccelerationStructureBuildGeometryInfoKHR buildInfoSize = VkAccelerationStructureBuildGeometryInfoKHR()
+			{
+				sType = VkStructureType.VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+				type = VkAccelerationStructureTypeKHR.VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+				mode = VkBuildAccelerationStructureModeKHR.VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+				flags = description.Flags.ToVulkan(),
+				geometryCount = 1,
+				pGeometries = &geometryInfo
+			};
+		VkAccelerationStructureBuildRangeInfoKHR* ranges = scope VkAccelerationStructureBuildRangeInfoKHR[1]*;
+		ranges.primitiveCount = (uint32)description.Instances.Count;
+		ranges.primitiveOffset = description.Offset;
+		ranges.firstVertex = 0;
+		ranges.transformOffset = 0;
+		uint32 primitiveCount = (uint32)description.Instances.Count;
+		VkAccelerationStructureBuildSizesInfoKHR sizeInfo = default(VkAccelerationStructureBuildSizesInfoKHR);
+		sizeInfo.sType = VkStructureType.VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+		VulkanNative.vkGetAccelerationStructureBuildSizesKHR(vkContext.VkDevice, VkAccelerationStructureBuildTypeKHR.VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfoSize, &primitiveCount, &sizeInfo);
+		VkBuffer resultBuffer = VKRaytracingHelpers.CreateBuffer(vkContext, sizeInfo.accelerationStructureSize, VkBufferUsageFlags.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR).Buffer;
+		VkAccelerationStructureCreateInfoKHR asInfo = VkAccelerationStructureCreateInfoKHR()
+			{
+				sType = VkStructureType.VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+				buffer = resultBuffer,
+				size = sizeInfo.accelerationStructureSize,
+				type = VkAccelerationStructureTypeKHR.VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR
+			};
+		VkAccelerationStructureKHR newTopLevelAS = default(VkAccelerationStructureKHR);
+		VulkanNative.vkCreateAccelerationStructureKHR(vkContext.VkDevice, &asInfo, null, &newTopLevelAS);
+		TopLevelAS = newTopLevelAS;
+		topLevelASHandle = TopLevelAS.GetAccelerationStructureAddress(vkContext.VkDevice);
+		scratchBuffer = VKRaytracingHelpers.CreateBuffer(vkContext, sizeInfo.buildScratchSize, VkBufferUsageFlags.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT).Buffer;
+		VkAccelerationStructureBuildGeometryInfoKHR buildInfo = VkAccelerationStructureBuildGeometryInfoKHR()
+			{
+				sType = VkStructureType.VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+				type = VkAccelerationStructureTypeKHR.VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+				flags = description.Flags.ToVulkan(),
+				dstAccelerationStructure = TopLevelAS,
+				geometryCount = 1,
+				pGeometries = &geometryInfo,
+				scratchData = VkDeviceOrHostAddressKHR()
+					{
+						deviceAddress = scratchBuffer.GetBufferAddress(vkContext.VkDevice)
+					}
+			};
+		VulkanNative.vkCmdBuildAccelerationStructuresKHR(commandBuffer, buildInfo.geometryCount, &buildInfo, &ranges);
+		VkMemoryBarrier memoryBarrier = VkMemoryBarrier()
+			{
+				sType = VkStructureType.VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+				pNext = null,
+				srcAccessMask = (VkAccessFlags.VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VkAccessFlags.VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR),
+				dstAccessMask = (VkAccessFlags.VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VkAccessFlags.VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR)
+			};
+		VulkanNative.vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VkPipelineStageFlags.VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VkDependencyFlags.None, 1, &memoryBarrier, 0, null, 0, null);
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="T:Sedulous.RHI.Vulkan.VKTopLevelAS" /> class.
+	/// </summary>
+	/// <param name="commandBuffer">Command buffer instance.</param>
+	/// <param name="description">New top-level description.</param>
+	public void UpdateAccelerationStructure(VkCommandBuffer commandBuffer, in TopLevelASDescription description)
+	{
+		Description = description;
+		VkAccelerationStructureInstanceKHR[] instanceDescriptions = new VkAccelerationStructureInstanceKHR[description.Instances.Count];
+		for (int i = 0; i < description.Instances.Count; i++)
+		{
+			AccelerationStructureInstance instance = description.Instances[i];
+			instanceDescriptions[i] = VkAccelerationStructureInstanceKHR()
+				{
+					transform = instance.Transform4x4.ToTransformMatrix(),
+					instanceCustomIndex = instance.InstanceID,
+					mask = instance.InstanceMask,
+					instanceShaderBindingTableRecordOffset = instance.InstanceContributionToHitGroupIndex,
+					flags = instance.Flags.ToVulkan(),
+					accelerationStructureReference = (uint64)(int)(instance.BottonLevel as VKBottomLevelAS).NativePointer
+				};
+		}
+		uint32 instanceSize = (uint32)(sizeof(VkAccelerationStructureInstanceKHR) * instanceDescriptions.Count);
+		void* instanceBufferPointer = default(void*);
+		VulkanNative.vkMapMemory(vkContext.VkDevice, instanceBuffer.Memory, 0uL, instanceSize, VkMemoryMapFlags.None, &instanceBufferPointer);
+		Internal.MemCpy(instanceBufferPointer, (void*)instanceDescriptions.Ptr, instanceSize);
+		VulkanNative.vkUnmapMemory(vkContext.VkDevice, instanceBuffer.Memory);
+		VkAccelerationStructureGeometryKHR geometryInfo = VkAccelerationStructureGeometryKHR()
+			{
+				sType = VkStructureType.VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+				flags = VkGeometryFlagsKHR.VK_GEOMETRY_OPAQUE_BIT_KHR,
+				geometryType = VkGeometryTypeKHR.VK_GEOMETRY_TYPE_INSTANCES_KHR,
+				geometry = VkAccelerationStructureGeometryDataKHR()
+					{
+						instances = VkAccelerationStructureGeometryInstancesDataKHR()
+							{
+								sType = VkStructureType.VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+								arrayOfPointers = false,
+								data = VkDeviceOrHostAddressConstKHR()
+									{
+										deviceAddress = instanceBuffer.Buffer.GetBufferAddress(vkContext.VkDevice)
+									}
+							}
+					}
+			};
+		VkAccelerationStructureBuildGeometryInfoKHR buildInfo = VkAccelerationStructureBuildGeometryInfoKHR()
+			{
+				sType = VkStructureType.VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+				type = VkAccelerationStructureTypeKHR.VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+				flags = description.Flags.ToVulkan(),
+				mode = VkBuildAccelerationStructureModeKHR.VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR,
+				dstAccelerationStructure = TopLevelAS,
+				srcAccelerationStructure = TopLevelAS,
+				geometryCount = 1,
+				pGeometries = &geometryInfo,
+				scratchData = VkDeviceOrHostAddressKHR()
+					{
+						deviceAddress = scratchBuffer.GetBufferAddress(vkContext.VkDevice)
+					}
+			};
+		VkAccelerationStructureBuildRangeInfoKHR* ranges = scope VkAccelerationStructureBuildRangeInfoKHR[1]*;
+		ranges.primitiveCount = (uint32)description.Instances.Count;
+		ranges.primitiveOffset = description.Offset;
+		ranges.firstVertex = 0;
+		ranges.transformOffset = 0;
+		VulkanNative.vkCmdBuildAccelerationStructuresKHR(commandBuffer, buildInfo.geometryCount, &buildInfo, &ranges);
+	}
+
+	/// <inheritdoc />
+	protected override void Destroy()
+	{
+		VulkanNative.vkDestroyAccelerationStructureKHR(vkContext.VkDevice, TopLevelAS, null);
+	}
+}

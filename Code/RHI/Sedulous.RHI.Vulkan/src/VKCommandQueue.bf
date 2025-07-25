@@ -1,0 +1,180 @@
+using System;
+using Bulkan;
+using Sedulous.RHI;
+using System.Collections;
+
+namespace Sedulous.RHI.Vulkan;
+
+using internal Sedulous.RHI.Vulkan;
+
+/// <summary>
+/// This class represents a queue where command buffers wait to be executed by the GPU.
+/// </summary>
+public class VKCommandQueue : CommandQueue
+{
+	private bool disposed;
+
+	private VKGraphicsContext vkContext;
+
+	private String name = new .() ~ delete _;
+
+	private Queue<VKCommandBuffer> queue;
+
+	private VKCommandBuffer[] executionArray;
+
+	internal VkQueue CommandQueue;
+
+	internal CommandQueueType QueueType;
+
+	private int32 executionArraySize;
+
+	/// <inheritdoc />
+	public override String Name
+	{
+		get
+		{
+			return name;
+		}
+		set
+		{
+			name.Set(value);
+			vkContext?.SetDebugName(VkObjectType.VK_OBJECT_TYPE_QUEUE, (uint64)(int)CommandQueue.Handle, name);
+		}
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="T:Sedulous.RHI.Vulkan.VKCommandQueue" /> class.
+	/// </summary>
+	/// <param name="context">The graphics context instance.</param>
+	/// <param name="queueType">The command queue elements' type.</param>
+	public this(VKGraphicsContext context, CommandQueueType queueType)
+	{
+		vkContext = context;
+		queue = new Queue<VKCommandBuffer>();
+		executionArray = new VKCommandBuffer[64];
+		executionArraySize = 0;
+		QueueType = queueType;
+		uint32 familyIndex = 0;
+		switch (queueType)
+		{
+		case CommandQueueType.Graphics:
+			familyIndex = vkContext.QueueIndices.GraphicsFamily;
+			break;
+		case CommandQueueType.Compute:
+			familyIndex = vkContext.QueueIndices.ComputeFamily;
+			break;
+		case CommandQueueType.Copy:
+			familyIndex = vkContext.QueueIndices.CopyFamily;
+			break;
+		}
+		VkQueue newQueue = default(VkQueue);
+		VulkanNative.vkGetDeviceQueue(vkContext.VkDevice, familyIndex, 0, &newQueue);
+		CommandQueue = newQueue;
+	}
+
+	public ~this()
+	{
+		delete executionArray;
+	}
+
+	/// <inheritdoc />
+	public override CommandBuffer CommandBuffer()
+	{
+		VKCommandBuffer commandBuffer;
+		if (queue.Count == 0)
+		{
+			commandBuffer = new VKCommandBuffer(vkContext, this);
+		}
+		else
+		{
+			commandBuffer = queue.PopFront();
+			VulkanNative.vkResetCommandBuffer(commandBuffer.CommandBuffer, VkCommandBufferResetFlags.None);
+			commandBuffer.Reset();
+		}
+		return commandBuffer;
+	}
+
+	/// <inheritdoc />
+	public override void Submit()
+	{
+		if (vkContext.BufferUploader.Count != 0 || vkContext.TextureUploader.Count != 0)
+		{
+			vkContext.SyncUpcopyQueue();
+		}
+		for (int i = 0; i < executionArraySize; i++)
+		{
+			VKCommandBuffer commandBuffer = executionArray[i];
+			VkCommandBuffer nativeCommandBuffer = commandBuffer.CommandBuffer;
+			VkPipelineStageFlags stateMask = VkPipelineStageFlags.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			VkSubmitInfo submitInfo = VkSubmitInfo()
+				{
+					sType = VkStructureType.VK_STRUCTURE_TYPE_SUBMIT_INFO,
+					commandBufferCount = 1,
+					pCommandBuffers = &nativeCommandBuffer,
+					pWaitDstStageMask = &stateMask
+				};
+			VulkanNative.vkQueueSubmit(CommandQueue, 1, &submitInfo, VkFence.Null);
+			queue.Add(commandBuffer);
+		}
+		ClearExecutionArray();
+	}
+
+	/// <inheritdoc />
+	public override void WaitIdle()
+	{
+		VulkanNative.vkQueueWaitIdle(CommandQueue);
+	}
+
+	/// <summary>
+	/// Adds a new command buffer ready to be executed.
+	/// </summary>
+	/// <param name="commandBuffer">The new command buffer.</param>
+	internal void CommitCommandBuffer(VKCommandBuffer commandBuffer)
+	{
+		if (executionArray.Count == executionArraySize)
+		{
+			Array.Resize(ref executionArray, executionArray.Count + 64);
+		}
+		executionArray[executionArraySize++] = commandBuffer;
+	}
+
+	/// <inheritdoc />
+	public override void Dispose()
+	{
+		Dispose(disposing: true);
+	}
+
+	/// <summary>
+	/// Clears the execution command buffer array.
+	/// </summary>
+	private void ClearExecutionArray()
+	{
+		for (int32 i = 0; i < executionArraySize; i++)
+		{
+			executionArray[i] = null;
+		}
+		executionArraySize = 0;
+	}
+
+	/// <summary>
+	/// Releases unmanaged and optionally managed resources.
+	/// </summary>
+	/// <param name="disposing">
+	/// <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.
+	/// </param>
+	protected virtual void Dispose(bool disposing)
+	{
+		if (!disposed && disposing)
+		{
+			WaitIdle();
+			while (queue.Count > 0)
+			{
+				var commandBuffer = queue.PopFront();
+				commandBuffer.Dispose();
+				delete commandBuffer;
+			}
+			delete queue;
+			disposed = true;
+		}
+	}
+}

@@ -1,0 +1,5 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.RHI.Renderer"
+StartupObject = "Sedulous.RHI.Renderer.Program"

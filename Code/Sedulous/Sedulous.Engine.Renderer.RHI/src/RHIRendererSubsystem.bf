@@ -6,9 +6,25 @@ using Sedulous.Platform.Core;
 using Sedulous.Engine.Renderer.GPU;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.RHI.VertexFormats;
 namespace Sedulous.Engine.Renderer.RHI;
 
 using internal Sedulous.Engine.Renderer.RHI;
+
+[CRepr, Packed]
+struct PerFrameData
+{
+	public Matrix ViewMatrix;
+	public Matrix ProjectionMatrix;
+	public Matrix ViewProjectionMatrix;
+}
+
+[CRepr, Packed]
+struct PerObjectData
+{
+	public Matrix WorldMatrix;
+	public Matrix WorldInverseTranspose;
+}
 
 class RHIRendererSubsystem : Subsystem
 {
@@ -45,7 +61,25 @@ class RHIRendererSubsystem : Subsystem
 
 	private SwapChain mSwapChain;
 
+	public FrameBuffer SwapChainFrameBuffer => mSwapChain.FrameBuffer;
+
 	private CommandQueue mCommandQueue;
+
+	private GraphicsPipelineState mUnlitPipeline;
+	public GraphicsPipelineState UnlitPipeline => mUnlitPipeline;
+
+	private ResourceLayout mUnlitResourceLayout;
+
+	private ResourceSet mUnlitResourceSet;
+	public ResourceSet UnlitResourceSet => mUnlitResourceSet;
+
+	private Buffer mPerFrameConstantBuffer;
+	public Buffer PerFrameConstantBuffer => mPerFrameConstantBuffer;
+	private Buffer mPerObjectConstantBuffer;
+	public Buffer PerObjectConstantBuffer => mPerObjectConstantBuffer;
+
+	private Shader mVertexShader;
+	private Shader mPixelShader;
 
 	private delegate void(uint32, uint32) mResizeDelegate ~ delete _;
 	private Viewport[] WindowViewports = new .[1] ~ delete _;
@@ -94,12 +128,25 @@ class RHIRendererSubsystem : Subsystem
 		mGPUResourceManager = new GPUResourceManager(mGraphicsContext);
 		CreateDefaultTextures();
 
+		CreateShaders();
+
+		CreateBuffers();
+
+		CreatePipelines();
+
 		return base.OnInitializing(engine);
 	}
 
 	protected override void OnUnitializing(IEngine engine)
 	{
 		// Cleanup
+
+		DestroyPipelines();
+
+		DestroyBuffers();
+
+		DestroyShaders();
+
 		mDefaultWhiteTexture.Release();
 		mDefaultBlackTexture.Release();
 		mDefaultNormalTexture.Release();
@@ -133,6 +180,7 @@ class RHIRendererSubsystem : Subsystem
 	protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
 	{
 		var module = new RenderModule(this);
+		scene.AddModule(module);
 		modules.Add(module);
 		mModules.Add(module);
 	}
@@ -143,6 +191,7 @@ class RHIRendererSubsystem : Subsystem
 		{
 			if (mModules[i].Scene == scene)
 			{
+				scene.RemoveModule(mModules[i]);
 				delete mModules[i];
 				mModules.RemoveAt(i);
 			}
@@ -172,7 +221,7 @@ class RHIRendererSubsystem : Subsystem
 		{
 			for (var module in mModules)
 			{
-				module.RenderFrame(info);
+				module.RenderFrame(info, commandBuffer);
 			}
 		}
 
@@ -216,6 +265,92 @@ class RHIRendererSubsystem : Subsystem
 			normalImage.SetPixel(0, 0, Color(128, 128, 255, 255)); // Normal pointing up
 			mDefaultNormalTexture = GPUResourceHandle<GPUTexture>(new GPUTexture("DefaultNormal", mGraphicsContext, normalImage));
 		}
+	}
+
+	private void CreatePipelines()
+	{
+		var vertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
+			.Add(ElementDescription(ElementFormat.Float4, ElementSemanticType.Color))     
+			.Add(ElementDescription(ElementFormat.Float4, ElementSemanticType.Tangent));  
+		var vertexLayouts = scope InputLayouts();
+		vertexLayouts.Add(vertexFormat);
+
+		LayoutElementDescription[] layoutElementDescs = scope LayoutElementDescription[](
+			LayoutElementDescription(0, .ConstantBuffer, .Vertex, false, sizeof(PerFrameData)),
+			LayoutElementDescription(1, .ConstantBuffer, .Vertex, false, sizeof(PerObjectData))
+			);
+
+		ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
+
+		mUnlitResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
+
+		var meshPipelineDescription = GraphicsPipelineDescription
+			{
+				RenderStates = RenderStateDescription.Default,
+				Shaders = .()
+					{
+						VertexShader = mVertexShader,
+						PixelShader = mPixelShader
+					},
+				InputLayouts = vertexLayouts,
+				ResourceLayouts = scope ResourceLayout[](mUnlitResourceLayout),
+				PrimitiveTopology = .TriangleList,
+				Outputs = .CreateFromFrameBuffer(mSwapChain.FrameBuffer)
+			};
+
+		mUnlitPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(meshPipelineDescription);
+
+		ResourceSetDescription resourceSetDesc = .(mUnlitResourceLayout, mPerFrameConstantBuffer, mPerObjectConstantBuffer);
+		mUnlitResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
+	}
+
+	private void DestroyPipelines()
+	{
+		mGraphicsContext.Factory.DestroyResourceSet(ref mUnlitResourceSet);
+		mGraphicsContext.Factory.DestroyResourceLayout(ref mUnlitResourceLayout);
+		mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mUnlitPipeline);
+	}
+
+	private void CreateBuffers()
+	{
+		var perFrameCBDesc = BufferDescription(sizeof(PerFrameData), .ConstantBuffer, .Dynamic);
+		mPerFrameConstantBuffer = mGraphicsContext.Factory.CreateBuffer(perFrameCBDesc);
+
+		var perObjectCBDesc = BufferDescription(sizeof(PerObjectData), .ConstantBuffer, .Dynamic);
+		mPerObjectConstantBuffer = mGraphicsContext.Factory.CreateBuffer(perObjectCBDesc);
+	}
+
+	private void DestroyBuffers()
+	{
+		mGraphicsContext.Factory.DestroyBuffer(ref mPerObjectConstantBuffer);
+		mGraphicsContext.Factory.DestroyBuffer(ref mPerFrameConstantBuffer);
+	}
+
+	private void CreateShaders()
+	{
+		{
+			var byteCode = CompileShaderSource(mGraphicsContext, ShaderSources.UnlitShadersVS, .Vertex, "VS", .. scope .());
+			var shaderBytes = scope uint8[byteCode.Count];
+			byteCode.CopyTo(shaderBytes);
+			var vsDesc = ShaderDescription(.Vertex, "VS", shaderBytes);
+			mVertexShader = mGraphicsContext.Factory.CreateShader(vsDesc);
+		}
+		{
+			var byteCode = CompileShaderSource(mGraphicsContext, ShaderSources.UnlitShadersPS, .Pixel, "PS", .. scope .());
+			var shaderBytes = scope uint8[byteCode.Count];
+			byteCode.CopyTo(shaderBytes);
+			var psDesc = ShaderDescription(.Pixel, "PS", shaderBytes);
+			mPixelShader = mGraphicsContext.Factory.CreateShader(psDesc);
+		}
+	}
+
+	private void DestroyShaders()
+	{
+		mGraphicsContext.Factory.DestroyShader(ref mPixelShader);
+		mGraphicsContext.Factory.DestroyShader(ref mVertexShader);
 	}
 
 	private static TextureSampleCount SampleCount = TextureSampleCount.None;

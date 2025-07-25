@@ -869,7 +869,7 @@ class Program
 
 		//var renderer = scope SDLRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow);
 		var graphicsContext = scope VKGraphicsContext(logger);
-		defer graphicsContext.Dispose();
+		//defer graphicsContext.Dispose();
 		var renderer = scope RHIRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow, graphicsContext);
 		var inputSubsystem = scope InputSubsystem(windowSystem.InputSystem);
 		var audioSubsystem = scope OpenALAudioSubsystem();
@@ -895,5 +895,6 @@ class Program
 				// Can do something here when engine is shutting down
 			}
 			);
+		graphicsContext.Dispose();
 	}
 }

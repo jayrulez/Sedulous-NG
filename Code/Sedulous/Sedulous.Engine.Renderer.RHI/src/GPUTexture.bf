@@ -8,7 +8,6 @@ namespace Sedulous.Engine.Renderer.RHI;
 class GPUTexture : GPUResource
 {
 	public Texture Texture;
-	public SamplerState Sampler;
 
 	private GraphicsContext mGraphicsContext;
 
@@ -42,11 +41,6 @@ class GPUTexture : GPUResource
 			{
 				mGraphicsContext.Factory.DestroyTexture(ref Texture);
 				Texture = null;
-			}
-			if (Sampler != null)
-			{
-				mGraphicsContext.Factory.DestroySampler(ref Sampler);
-				Sampler = null;
 			}
 		}
 	}

@@ -562,7 +562,8 @@ public class VKGraphicsContext : GraphicsContext
 		if (messageSeverity == VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
 		{
 			var context = (VKGraphicsContext)Internal.UnsafeCastToObject(pUserData);
-			context?.ValidationLayer?.Notify("Vulkan", fullMessage);
+			//context?.ValidationLayer?.Notify("Vulkan", fullMessage);
+			System.Diagnostics.Debug.WriteLine(fullMessage);
 		}
 		return false;
 	}

@@ -1,7 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.GFX" = "*"}
-
-[Project]
-Name = "Sedulous.GFX.DX12"
-TargetType = "BeefLib"
-StartupObject = "Sedulous.GFX.DX12.Program"

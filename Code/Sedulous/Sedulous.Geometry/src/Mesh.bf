@@ -361,80 +361,80 @@ public class Mesh
 	// Create a cube mesh
 	public static Mesh CreateCube(float size = 1.0f)
 	{
-		let mesh = new Mesh();
-		mesh.SetupCommonVertexFormat();
-		
-		// 24 vertices (4 per face, no sharing due to different normals)
-		mesh.Vertices.Resize(24);
-		mesh.Indices.Resize(36);
-		
-		float h = size * 0.5f;
-		
-		// Positions and normals for each face
-		Vector3[24] positions = .( 
-			// Front face
-			.(-h, -h, h), .(h, -h, h), .(h, h, h), .(-h, h, h), 
-			// Back face
-			.(h, -h, -h), .(-h, -h, -h), .(-h, h, -h), .(h, h, -h), 
-			// Top face
-			.(-h, h, h), .(h, h, h), .(h, h, -h), .(-h, h, -h), 
-			// Bottom face
-			.(-h, -h, -h), .(h, -h, -h), .(h, -h, h), .(-h, -h, h), 
-			// Right face
-			.(h, -h, h), .(h, -h, -h), .(h, h, -h), .(h, h, h), 
-			// Left face
-			.(-h, -h, -h), .(-h, -h, h), .(-h, h, h), .(-h, h, -h)
-		);
-		
-		Vector3[6] normals = .(
-			.(0, 0, 1),   // Front
-			.(0, 0, -1),  // Back
-			.(0, 1, 0),   // Top
-			.(0, -1, 0),  // Bottom
-			.(1, 0, 0),   // Right
-			.(-1, 0, 0)   // Left
-		);
-		
-		// Set vertices
-		for (int32 i = 0; i < 24; i++)
-		{
-			mesh.SetPosition(i, positions[i]);
-			mesh.SetNormal(i, normals[i / 4]);
-			mesh.SetColor(i, 0xFFFFFFFF);
-			
-			// Simple UV mapping
-			int32 faceVertex = i % 4;
-			switch (faceVertex)
-			{
-			case 0: mesh.SetUV(i, .(0, 1));
-			case 1: mesh.SetUV(i, .(1, 1));
-			case 2: mesh.SetUV(i, .(1, 0));
-			case 3: mesh.SetUV(i, .(0, 0));
-			}
-		}
-		
-		// Set indices with REVERSED winding order
-		int32 idx = 0;
-		for (int32 face = 0; face < 6; face++)
-		{
-			int32 baseVertex = face * 4;
-			
-			// Reversed winding: 0,2,1 instead of 0,1,2
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 1));
-			
-			// Reversed winding: 0,3,2 instead of 0,2,3
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 3));
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
-		}
-		
-		// Generate tangents
-		mesh.GenerateTangents();
-		
-		mesh.AddSubMesh(SubMesh(0, 36));
-		return mesh;
+	    let mesh = new Mesh();
+	    mesh.SetupCommonVertexFormat();
+	    
+	    // 24 vertices (4 per face, no sharing due to different normals)
+	    mesh.Vertices.Resize(24);
+	    mesh.Indices.Resize(36);
+	    
+	    float h = size * 0.5f;
+	    
+	    // Positions and normals for each face
+	    Vector3[24] positions = .( 
+	        // Front face
+	        .(-h, -h, h), .(h, -h, h), .(h, h, h), .(-h, h, h), 
+	        // Back face
+	        .(h, -h, -h), .(-h, -h, -h), .(-h, h, -h), .(h, h, -h), 
+	        // Top face
+	        .(-h, h, h), .(h, h, h), .(h, h, -h), .(-h, h, -h), 
+	        // Bottom face
+	        .(-h, -h, -h), .(h, -h, -h), .(h, -h, h), .(-h, -h, h), 
+	        // Right face
+	        .(h, -h, h), .(h, -h, -h), .(h, h, -h), .(h, h, h), 
+	        // Left face
+	        .(-h, -h, -h), .(-h, -h, h), .(-h, h, h), .(-h, h, -h)
+	    );
+	    
+	    Vector3[6] normals = .(
+	        .(0, 0, 1),   // Front
+	        .(0, 0, -1),  // Back
+	        .(0, 1, 0),   // Top
+	        .(0, -1, 0),  // Bottom
+	        .(1, 0, 0),   // Right
+	        .(-1, 0, 0)   // Left
+	    );
+	    
+	    // Set vertices
+	    for (int32 i = 0; i < 24; i++)
+	    {
+	        mesh.SetPosition(i, positions[i]);
+	        mesh.SetNormal(i, normals[i / 4]);
+	        mesh.SetColor(i, 0xFFFFFFFF);
+	        
+	        // Simple UV mapping
+	        int32 faceVertex = i % 4;
+	        switch (faceVertex)
+	        {
+	        case 0: mesh.SetUV(i, .(0, 1));
+	        case 1: mesh.SetUV(i, .(1, 1));
+	        case 2: mesh.SetUV(i, .(1, 0));
+	        case 3: mesh.SetUV(i, .(0, 0));
+	        }
+	    }
+	    
+	    // Set indices with CLOCKWISE winding order
+	    int32 idx = 0;
+	    for (int32 face = 0; face < 6; face++)
+	    {
+	        int32 baseVertex = face * 4;
+	        
+	        // Clockwise winding: 0,1,2 (was 0,2,1)
+	        mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
+	        mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 1));
+	        mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
+	        
+	        // Clockwise winding: 0,2,3 (was 0,3,2)
+	        mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
+	        mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
+	        mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 3));
+	    }
+	    
+	    // Generate tangents
+	    mesh.GenerateTangents();
+	    
+	    mesh.AddSubMesh(SubMesh(0, 36));
+	    return mesh;
 	}
 
 	// Create a sphere mesh

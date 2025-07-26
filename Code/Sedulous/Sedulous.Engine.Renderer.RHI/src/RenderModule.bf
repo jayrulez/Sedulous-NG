@@ -79,14 +79,14 @@ class RenderModule: SceneModule
 	{
 		PrepareGPUResources();
 
-		var perFrameData = PerFrameData()
+		/*var perFrameData = PerFrameData()
 			{
 				ViewMatrix = mViewMatrix,
 				ProjectionMatrix = mProjectionMatrix,
 				ViewProjectionMatrix = mViewMatrix * mProjectionMatrix
 			};
 
-		commandBuffer.UpdateBufferData<PerFrameData>(mRenderer.PerFrameConstantBuffer, scope PerFrameData[](perFrameData));
+		mRenderer.GraphicsContext.UpdateBufferData<PerFrameData>(mRenderer.PerFrameConstantBuffer, scope PerFrameData[](perFrameData));*/
 
 		RenderMeshes(commandBuffer);
 	}
@@ -160,12 +160,39 @@ class RenderModule: SceneModule
 		if (mMeshCommands.IsEmpty)
 			return;
 
+		// Update all object data at once
+		var mapped = mRenderer.GraphicsContext.MapMemory(mRenderer.PerObjectConstantBuffer, MapMode.Write);
+
+		const int32 ALIGNMENT = 256;
+		int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+		for (int i = 0; i < mMeshCommands.Count; i++)
+		{
+		    var command = mMeshCommands[i];
+		    var vertexUniforms = UnlitVertexUniforms()
+		    {
+		        MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+		        ModelMatrix = command.WorldMatrix
+		    };
+		    
+		    // Write to the aligned offset
+		    UnlitVertexUniforms* dest = (UnlitVertexUniforms*)((uint8*)mapped.Data + i * alignedSize);
+		    *dest = vertexUniforms;
+		}
+
+		mRenderer.GraphicsContext.UnmapMemory(mRenderer.PerObjectConstantBuffer);
+
 		RenderPassDescription renderPass = RenderPassDescription(mRenderer.SwapChainFrameBuffer, ClearValue.None);
 		commandBuffer.BeginRenderPass(renderPass);
 		commandBuffer.SetGraphicsPipelineState(mRenderer.UnlitPipeline);
-		commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet);
-		for (var command in mMeshCommands)
+		//commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet);
+		for (int i = 0; i < mMeshCommands.Count; i++)
 		{
+			var command = mMeshCommands[i];
+			// Set resource set with dynamic offset
+			uint32 dynamicOffset = (uint32)(i * alignedSize);
+			commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet, 0, scope .(dynamicOffset));
+
 			RenderMesh(command, commandBuffer);
 		}
 		commandBuffer.EndRenderPass();
@@ -183,16 +210,19 @@ class RenderModule: SceneModule
 		Buffer indexBuffer = mesh.IndexBuffer;
 		uint32 indexCount = mesh.IndexCount;
 
-		var perObjectData = PerObjectData()
+		/*var vertexUniforms = UnlitVertexUniforms()
 			{
-				WorldMatrix = command.WorldMatrix,
-				WorldInverseTranspose = command.WorldMatrix * mViewMatrix * mProjectionMatrix
+				MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+				//MVPMatrix =  mProjectionMatrix * mViewMatrix *command.WorldMatrix,
+				ModelMatrix = command.WorldMatrix
 			};
 
-		//commandBuffer.UpdateBufferData<PerObjectData>(mRenderer.PerObjectConstantBuffer, scope PerObjectData[](perObjectData));
+		mRenderer.GraphicsContext.UpdateBufferData<UnlitVertexUniforms>(mRenderer.PerObjectConstantBuffer, scope UnlitVertexUniforms[](vertexUniforms));
+		mRenderer.GraphicsContext.SyncUpcopyQueue();*/
+
 
 		commandBuffer.SetVertexBuffers(scope Buffer[](vertexBuffer));
-		commandBuffer.SetIndexBuffer(indexBuffer);
+		commandBuffer.SetIndexBuffer(indexBuffer, .UInt32);
 
 		commandBuffer.DrawIndexed(indexCount);
 	}

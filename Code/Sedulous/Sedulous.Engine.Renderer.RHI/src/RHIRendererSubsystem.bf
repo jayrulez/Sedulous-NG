@@ -12,18 +12,11 @@ namespace Sedulous.Engine.Renderer.RHI;
 using internal Sedulous.Engine.Renderer.RHI;
 
 [CRepr, Packed]
-struct PerFrameData
+struct UnlitVertexUniforms
 {
-	public Matrix ViewMatrix;
-	public Matrix ProjectionMatrix;
-	public Matrix ViewProjectionMatrix;
-}
-
-[CRepr, Packed]
-struct PerObjectData
-{
-	public Matrix WorldMatrix;
-	public Matrix WorldInverseTranspose;
+	public Matrix MVPMatrix; // 64 bytes (4x float4)
+	public Matrix ModelMatrix; // 64 bytes (4x float4)
+	// Total: 128 bytes (multiple of 16)
 }
 
 class RHIRendererSubsystem : Subsystem
@@ -59,6 +52,8 @@ class RHIRendererSubsystem : Subsystem
 
 	private GraphicsContext mGraphicsContext;
 
+	public GraphicsContext GraphicsContext => mGraphicsContext;
+
 	private SwapChain mSwapChain;
 
 	public FrameBuffer SwapChainFrameBuffer => mSwapChain.FrameBuffer;
@@ -73,8 +68,6 @@ class RHIRendererSubsystem : Subsystem
 	private ResourceSet mUnlitResourceSet;
 	public ResourceSet UnlitResourceSet => mUnlitResourceSet;
 
-	private Buffer mPerFrameConstantBuffer;
-	public Buffer PerFrameConstantBuffer => mPerFrameConstantBuffer;
 	private Buffer mPerObjectConstantBuffer;
 	public Buffer PerObjectConstantBuffer => mPerObjectConstantBuffer;
 
@@ -273,14 +266,14 @@ class RHIRendererSubsystem : Subsystem
 			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
 			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
 			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
-			.Add(ElementDescription(ElementFormat.Float4, ElementSemanticType.Color))     
-			.Add(ElementDescription(ElementFormat.Float4, ElementSemanticType.Tangent));  
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent));
 		var vertexLayouts = scope InputLayouts();
 		vertexLayouts.Add(vertexFormat);
 
 		LayoutElementDescription[] layoutElementDescs = scope LayoutElementDescription[](
-			LayoutElementDescription(0, .ConstantBuffer, .Vertex, false, sizeof(PerFrameData)),
-			LayoutElementDescription(1, .ConstantBuffer, .Vertex, false, sizeof(PerObjectData))
+			//LayoutElementDescription(0, .ConstantBuffer, .Vertex, false, sizeof(PerFrameData)),
+			LayoutElementDescription(0, .ConstantBuffer, .Vertex, true, sizeof(UnlitVertexUniforms))
 			);
 
 		ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
@@ -301,9 +294,12 @@ class RHIRendererSubsystem : Subsystem
 				Outputs = .CreateFromFrameBuffer(mSwapChain.FrameBuffer)
 			};
 
+		//meshPipelineDescription.RenderStates.RasterizerState.FrontCounterClockwise = false;
+		meshPipelineDescription.RenderStates.RasterizerState.CullMode = .None;
+
 		mUnlitPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(meshPipelineDescription);
 
-		ResourceSetDescription resourceSetDesc = .(mUnlitResourceLayout, mPerFrameConstantBuffer, mPerObjectConstantBuffer);
+		ResourceSetDescription resourceSetDesc = .(mUnlitResourceLayout, /*mPerFrameConstantBuffer,*/ mPerObjectConstantBuffer);
 		mUnlitResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
 	}
 
@@ -316,17 +312,26 @@ class RHIRendererSubsystem : Subsystem
 
 	private void CreateBuffers()
 	{
-		var perFrameCBDesc = BufferDescription(sizeof(PerFrameData), .ConstantBuffer, .Dynamic);
-		mPerFrameConstantBuffer = mGraphicsContext.Factory.CreateBuffer(perFrameCBDesc);
-
-		var perObjectCBDesc = BufferDescription(sizeof(PerObjectData), .ConstantBuffer, .Dynamic);
-		mPerObjectConstantBuffer = mGraphicsContext.Factory.CreateBuffer(perObjectCBDesc);
+	    // Create a larger buffer for multiple objects
+	    const int32 MAX_OBJECTS = 1000;
+	    const int32 ALIGNMENT = 256; // Typical uniform buffer alignment requirement
+	    
+	    // Align each object's data to 256 bytes
+	    int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+	    
+	    var perObjectCBDesc = BufferDescription(
+	        (uint32)(alignedSize * MAX_OBJECTS), 
+	        .ConstantBuffer, 
+	        .Dynamic,
+	        .Write
+	    );
+	    mPerObjectConstantBuffer = mGraphicsContext.Factory.CreateBuffer(perObjectCBDesc);
 	}
 
 	private void DestroyBuffers()
 	{
 		mGraphicsContext.Factory.DestroyBuffer(ref mPerObjectConstantBuffer);
-		mGraphicsContext.Factory.DestroyBuffer(ref mPerFrameConstantBuffer);
+		//mGraphicsContext.Factory.DestroyBuffer(ref mPerFrameConstantBuffer);
 	}
 
 	private void CreateShaders()

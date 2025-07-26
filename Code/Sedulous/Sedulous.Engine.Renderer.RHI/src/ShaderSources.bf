@@ -5,16 +5,10 @@ static class ShaderSources
 {
 	public const String UnlitShadersVS = """
 	    // Constant buffers
-	    cbuffer PerFrame : register(b0)
+	    cbuffer UniformBlock : register(b0)
 	    {
-	        float4x4 ViewMatrix;
-	        float4x4 ProjectionMatrix;
-	        float4x4 ViewProjectionMatrix;
-	    }
-	    cbuffer PerObject : register(b1)
-	    {
-	        float4x4 WorldMatrix;
-	        float4x4 WorldInverseTranspose;  // For transforming normals
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
 	    }
 	    // Vertex input structure
 	    struct VSInput
@@ -22,45 +16,32 @@ static class ShaderSources
 	        float3 Position : POSITION;
 	        float3 Normal : NORMAL;
 	        float2 TexCoord : TEXCOORD0;
-	        float4 Color : COLOR;
-	        float4 Tangent : TANGENT;  // xyz = tangent direction, w = handedness
+	        uint Color : COLOR; // converted automatically
+	        float3 Tangent : TANGENT; 
 	    };
 	    // Vertex output structure
 	    struct VSOutput
 	    {
 	        float4 Position : SV_POSITION;
-	        float3 WorldPos : POSITION;
-	        float3 Normal : NORMAL;
 	        float2 TexCoord : TEXCOORD0;
 	        float4 Color : COLOR;
-	        float3 Tangent : TANGENT;
-	        float3 Bitangent : BITANGENT;
 	    };
+	    float4 UnpackColor(uint packedColor)
+	    {
+	    	float4 color;
+	    	color.r = float((packedColor >> 0) & 0xFF) / 255.0;
+	    	color.g = float((packedColor >> 8) & 0xFF) / 255.0;
+	    	color.b = float((packedColor >> 16) & 0xFF) / 255.0;
+	    	color.a = float((packedColor >> 24) & 0xFF) / 255.0;
+	    	return color;
+	    }
 	    VSOutput VS(VSInput input)
 	    {
-	        VSOutput output;
-	        
-	        // Transform position to world space
-	        float4 worldPos = mul(float4(input.Position, 1.0), WorldMatrix);
-	        output.WorldPos = worldPos.xyz;
-	        
-	        // Transform position to clip space
-	        output.Position = mul(worldPos, ViewProjectionMatrix);
-	        
-	        // Transform normal to world space
-	        output.Normal = normalize(mul(input.Normal, (float3x3)WorldInverseTranspose));
-	        
-	        // Pass through texture coordinates and vertex color
-	        output.TexCoord = input.TexCoord;
-	        output.Color = input.Color;
-	        
-	        // Transform tangent to world space
-	        output.Tangent = normalize(mul(input.Tangent.xyz, (float3x3)WorldMatrix));
-	        
-	        // Calculate bitangent using cross product and handedness
-	        output.Bitangent = cross(output.Normal, output.Tangent) * input.Tangent.w;
-	        
-	        return output;
+	    	VSOutput output;
+	    	output.Position = mul(float4(input.Position, 1.0), MVPMatrix);
+	    	output.TexCoord = input.TexCoord;
+	    	output.Color = input.Color;//UnpackColor(input.Color);
+	    	return output;
 	    }
 	    """;
 
@@ -68,12 +49,8 @@ static class ShaderSources
 	    struct PSInput
 	    {
 	        float4 Position : SV_POSITION;
-	        float3 WorldPos : POSITION;
-	        float3 Normal : NORMAL;
 	        float2 TexCoord : TEXCOORD0;
 	        float4 Color : COLOR;
-	        float3 Tangent : TANGENT;
-	        float3 Bitangent : BITANGENT;
 	    };
 	    float4 PS(PSInput input) : SV_TARGET
 	    {

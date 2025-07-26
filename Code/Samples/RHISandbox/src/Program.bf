@@ -4,7 +4,6 @@ using Sedulous.Mathematics;
 using Sedulous.Logging.Debug;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Engine.Core;
-using Sedulous.Engine.Renderer.SDL;
 using Sedulous.Engine.Audio.OpenAL;
 using Sedulous.Engine.Navigation;
 using Sedulous.Engine.Physics;
@@ -21,7 +20,7 @@ using System.Diagnostics;
 using Sedulous.Imaging;
 using Sedulous.Engine.Renderer.RHI;
 using Sedulous.RHI.Vulkan;
-namespace Sandbox;
+namespace RHISandbox;
 
 public class RotateComponent : Component
 {
@@ -192,349 +191,18 @@ class SandboxApplication : Application
 			mCameraPitch = Math.Asin(lookDir.Y);
 		}
 
-		// Create main directional light (sun)
-		mSunLightEntity = scene.CreateEntity("SunLight");
-		mSunLightEntity.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(mSunYaw, mSunPitch, 0);
-		mSunLight = mSunLightEntity.AddComponent<DirectionalLight>();
-		mSunLight.Color = Vector3(1.0f, 0.95f, 0.8f); // Warm white
-		mSunLight.Intensity = 0.8f; // Reduced from 1.0 since we'll have multiple lights
-
-		// Create point light 1 (red) - positioned to the left
-		var pointLight1Entity = scene.CreateEntity("PointLight1");
-		pointLight1Entity.Transform.Position = Vector3(-5, 2, -2);
-		var pointLight1 = pointLight1Entity.AddComponent<PointLight>();
-		pointLight1.Color = Vector3(1.0f, 0.2f, 0.2f); // Red
-		pointLight1.Intensity = 2.0f;
-		pointLight1.Range = 10.0f;
-
-		// Create point light 2 (green) - positioned to the right
-		var pointLight2Entity = scene.CreateEntity("PointLight2");
-		pointLight2Entity.Transform.Position = Vector3(5, 2, -2);
-		var pointLight2 = pointLight2Entity.AddComponent<PointLight>();
-		pointLight2.Color = Vector3(0.2f, 1.0f, 0.2f); // Green
-		pointLight2.Intensity = 2.0f;
-		pointLight2.Range = 10.0f;
-
-		// Create point light 3 (blue) - positioned behind
-		var pointLight3Entity = scene.CreateEntity("PointLight3");
-		pointLight3Entity.Transform.Position = Vector3(0, 2, 5);
-		var pointLight3 = pointLight3Entity.AddComponent<PointLight>();
-		pointLight3.Color = Vector3(0.2f, 0.2f, 1.0f); // Blue
-		pointLight3.Intensity = 2.0f;
-		pointLight3.Range = 10.0f;
-
-		// Create spot light (white) - pointing down from above
-		var spotLightEntity = scene.CreateEntity("SpotLight");
-		spotLightEntity.Transform.Position = Vector3(0, 5, 0);
-		spotLightEntity.Transform.LookAt(Vector3.Zero); // Point down at origin
-		var spotLight = spotLightEntity.AddComponent<SpotLight>();
-		spotLight.Color = Vector3(1.0f, 1.0f, 0.8f); // Slightly warm white
-		spotLight.Intensity = 3.0f;
-		spotLight.Range = 15.0f;
-		spotLight.InnerConeAngle = 25.0f;
-		spotLight.OuterConeAngle = 35.0f;
-
-		// Add a dedicated white point light for testing PBR materials
-		// Position it in front and slightly above the PBR objects (cylinder and cone)
-		var pbrTestLightEntity = scene.CreateEntity("PBRTestLight");
-		pbrTestLightEntity.Transform.Position = Vector3(1, 2, -4); // Front of the PBR objects
-		var pbrTestLight = pbrTestLightEntity.AddComponent<PointLight>();
-		pbrTestLight.Color = Vector3(1.0f, 1.0f, 1.0f); // Pure white
-		pbrTestLight.Intensity = 3.0f;
-		pbrTestLight.Range = 8.0f;
-
-		// Add visual representation for the PBR test light
-		var pbrLightVisual = scene.CreateEntity("PBRTestLightVisual");
-		pbrLightVisual.Transform.Position = pbrTestLightEntity.Transform.Position;
-		pbrLightVisual.Transform.Scale = Vector3(0.15f, 0.15f, 0.15f);
-		var pbrLightRenderer = pbrLightVisual.AddComponent<MeshRenderer>();
-		pbrLightRenderer.Color = Color.White;
-		var pbrLightMat = new UnlitMaterial();
-		pbrLightMat.Color = Color.White;
-		pbrLightRenderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(pbrLightMat, true));
-		var pbrLightMesh = Mesh.CreateSphere(0.5f, 16, 16);
-		pbrLightRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(pbrLightMesh, true));
-
-		// Optional: Add visual representations for the point lights
-		// These are small emissive spheres to show where the lights are
-		for (int i = 1; i <= 3; i++)
-		{
-			var lightVisual = scene.CreateEntity(scope $"LightVisual{i}");
-			var lightEntity = scene.FindEntity(scope $"PointLight{i}");
-			if (lightEntity != null)
-			{
-				lightVisual.Transform.Position = lightEntity.Transform.Position;
-				lightVisual.Transform.Scale = Vector3(0.2f, 0.2f, 0.2f);
-
-				var renderer = lightVisual.AddComponent<MeshRenderer>();
-				renderer.Color = Color.White;
-
-				// Create unlit material with the light's color
-				var unlitMat = new UnlitMaterial();
-				var lightComp = lightEntity.GetComponent<PointLight>();
-				unlitMat.Color = Color(
-					lightComp.Color.X,
-					lightComp.Color.Y,
-					lightComp.Color.Z,
-					1.0f
-					);
-
-				renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(unlitMat, true));
-
-				var mesh = Mesh.CreateSphere(0.5f, 16, 16);
-				renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
-			}
-		}
-
 		// Create objects
 		for (int i = 0; i < 5; i++)
 		{
 			var geometry = scene.CreateEntity(scope $"Geometry{i}");
 			geometry.Transform.Position = Vector3(i * 2 - 4, 0, 0);
 			geometry.Transform.Scale = Vector3(1, 1, 1);
-			//geometry.AddComponent<RotateComponent>();
+			geometry.AddComponent<RotateComponent>();
 			var renderer = geometry.AddComponent<MeshRenderer>();
 			renderer.Color = Color.White;
-			Mesh mesh = null;
-			Material material = null;
-
-			String materialType = "Phong";
-
-			if (i == 0)
-			{
-				mesh = Mesh.CreateCube();
-				materialType = "Phong";
-			} else if (i == 1)
-			{
-				mesh = Mesh.CreateSphere();
-				materialType = "Phong";
-			} else if (i == 2)
-			{
-				mesh = Mesh.CreateCylinder();
-				materialType = "PBR";
-			} else if (i == 3)
-			{
-				mesh = Mesh.CreateCone();
-				materialType = "PBR";
-			} else if (i == 4)
-			{
-				mesh = Mesh.CreateTorus();
-				materialType = "Unlit";
-			} else
-			{
-				mesh = Mesh.CreatePlane();
-				materialType = "Unlit";
-			}
-
-			if (materialType == "Phong")
-			{
-				var shinyMat = new PhongMaterial();
-				shinyMat.DiffuseColor = Color(0.8f, 0.8f, 0.8f, 1.0f); // Light gray to show light colors
-				shinyMat.SpecularColor = Color(1.0f, 1.0f, 1.0f, 1.0f);
-				shinyMat.Shininess = 128.0f;
-				shinyMat.AmbientColor = Color(0.1f, 0.1f, 0.1f, 1.0f);
-
-				material = shinyMat;
-			}
-
-			if (materialType == "PBR")
-			{
-				// Shiny green metal
-				var metalMat = new PBRMaterial();
-				metalMat.AlbedoColor = Color(0.1f, 0.8f, 0.2f, 1.0f); // Green
-				metalMat.Metallic = 0.5f;
-				metalMat.Roughness = 0.3f; // Very glossy (was 0.1f)
-				metalMat.EmissiveColor = Color.Green;
-
-				material = metalMat;
-			}
-
-			if (materialType == "Unlit")
-			{
-				var unlit = new UnlitMaterial();
-				unlit.Color = Color(0.5f, 0.5f, 1.0f, 1.0f); // Light blue
-				material = unlit;
-			}
+			Mesh mesh = Mesh.CreateCube();
 
 			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
-			renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
-		}
-		{
-			Console.WriteLine("=== Setting up Normal Mapping Test ===");
-
-			// Create normal mapping test row - positioned behind the main objects
-			for (int i = 0; i < 6; i++)
-			{
-				var normalTestEntity = scene.CreateEntity(scope $"NormalTest{i}");
-				normalTestEntity.Transform.Position = Vector3(i * 2 - 10, 0, 4); // Behind main objects
-				normalTestEntity.Transform.Scale = Vector3(4f, 4f, 4f); // Larger for better visibility
-
-				var renderer = normalTestEntity.AddComponent<MeshRenderer>();
-				renderer.Color = Color.White;
-
-				// Create mesh - use different shapes for variety
-				Mesh mesh = null;
-				if (i % 3 == 0)
-					mesh = Mesh.CreateCube();
-				else if (i % 3 == 1)
-					mesh = Mesh.CreateCube(); //Mesh.CreateSphere(0.5f, 64, 64); // Even higher resolution for better normal mapping
-				else
-					mesh = Mesh.CreateCube(); //Mesh.CreateCylinder(0.5f, 1.0f, 64); // Even higher resolution
-
-				// Create materials with different normal maps
-				PhongMaterial material = new PhongMaterial();
-				material.DiffuseColor = Color(0.7f, 0.7f, 0.7f, 1.0f); // Slightly darker to show normal effects better
-				material.SpecularColor = Color(0.8f, 0.8f, 0.8f, 1.0f); // Higher specular
-				material.Shininess = 128.0f; // Very high shininess shows normal mapping better
-				material.AmbientColor = Color(0.05f, 0.05f, 0.05f, 1.0f); // Lower ambient
-
-				// Create diffuse texture
-				material.DiffuseTexture = engine.ResourceSystem.AddResource(TextureResource.CreateWhite(64));
-
-				// Create different normal maps for each object
-				String normalMapType = "";
-				switch (i)
-				{
-				case 0:
-					// Flat normal map (baseline - should look like no normal mapping)
-					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateFlatNormalMap(256));
-					normalMapType = "Flat (Baseline)";
-
-				case 1:
-					// Wave pattern normal map - MUCH STRONGER for sphere
-					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateWaveNormalMap(256, 3.0f, 3.0f, 1.5f));
-					normalMapType = "Wave Pattern (STRONG)";
-
-				case 2:
-					// Circular bump normal map - good for cylinder
-					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateCircularBumpNormalMap(256, 1.5f, 1.2f));
-					normalMapType = "Circular Bump";
-
-				case 3:
-					// Brick pattern normal map - FEWER, LARGER BRICKS
-					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateBrickNormalMap(256, 3, 2, 1.0f));
-					normalMapType = "Brick Pattern (LARGE)";
-
-				case 4:
-					// Noise-based normal map - STRONGER NOISE
-					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateNoiseNormalMap(256, 0.03f, 0.8f, 54321));
-					normalMapType = "Noise Texture (STRONG)";
-
-				case 5:
-					// Test pattern normal map (shows multiple effects)
-					material.NormalTexture = engine.ResourceSystem.AddResource(TextureResource.CreateTestPatternNormalMap(256));
-					normalMapType = "Test Pattern";
-				}
-
-				Console.WriteLine($"Created normal mapping test {i}: {normalMapType}");
-
-				renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
-				renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
-			}
-
-			// Create MULTIPLE dedicated lights for the normal mapping test area
-			// Main light - strong white light from front-right
-			var normalTestLightEntity = scene.CreateEntity("NormalTestLight");
-			normalTestLightEntity.Transform.Position = Vector3(2, 4, 1); // Front-right of test objects
-			var normalTestLight = normalTestLightEntity.AddComponent<PointLight>();
-			normalTestLight.Color = Vector3(1.0f, 1.0f, 1.0f); // Pure white to show normal details clearly
-			normalTestLight.Intensity = 6.0f; // Very bright to emphasize normal mapping
-			normalTestLight.Range = 15.0f;
-
-			// Secondary light - softer from the left
-			var normalTestLight2Entity = scene.CreateEntity("NormalTestLight2");
-			normalTestLight2Entity.Transform.Position = Vector3(-3, 3, 1); // Front-left of test objects
-			var normalTestLight2 = normalTestLight2Entity.AddComponent<PointLight>();
-			normalTestLight2.Color = Vector3(0.8f, 0.9f, 1.0f); // Slightly blue-tinted
-			normalTestLight2.Intensity = 4.0f;
-			normalTestLight2.Range = 12.0f;
-
-			// Add visual representations for the normal test lights
-			for (int lightIdx = 1; lightIdx <= 2; lightIdx++)
-			{
-				var normalTestLightVisual = scene.CreateEntity(scope $"NormalTestLightVisual{lightIdx}");
-				var lightEntity = scene.FindEntity(scope $"NormalTestLight{lightIdx == 1 ? "" : "2"}");
-				if (lightEntity != null)
-				{
-					normalTestLightVisual.Transform.Position = lightEntity.Transform.Position;
-					normalTestLightVisual.Transform.Scale = Vector3(0.15f, 0.15f, 0.15f);
-					var normalTestLightRenderer = normalTestLightVisual.AddComponent<MeshRenderer>();
-					normalTestLightRenderer.Color = Color.White;
-					var normalTestLightMat = new UnlitMaterial();
-					normalTestLightMat.Color = Color.White;
-					normalTestLightRenderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(normalTestLightMat, true));
-					var normalTestLightMesh = Mesh.CreateSphere(0.5f, 16, 16);
-					normalTestLightRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(normalTestLightMesh, true));
-				}
-			}
-
-			// Create information labels (as sprites) above each normal test object
-			for (int i = 0; i < 6; i++)
-			{
-				String labelText = "";
-				switch (i)
-				{
-				case 0: labelText = "Flat";
-				case 1: labelText = "WAVE";
-				case 2: labelText = "Bump";
-				case 3: labelText = "Brick";
-				case 4: labelText = "Noise";
-				case 5: labelText = "Test";
-				}
-
-				var labelEntity = scene.CreateEntity(scope $"NormalLabel{i}");
-				labelEntity.Transform.Position = Vector3(i * 2 - 5, 3.0f, 3); // Above each test object
-
-				var labelRenderer = labelEntity.AddComponent<SpriteRenderer>();
-				labelRenderer.Texture = engine.ResourceSystem.AddResource(TextureResource.CreateSolidColor(128, 32, Color.White));
-				labelRenderer.Color = Color(0.2f, 0.8f, 0.2f, 0.9f); // Semi-transparent green
-				labelRenderer.Size = Vector2(1.8f, 0.6f); // Larger labels
-				labelRenderer.Billboard = .Full; // Always face camera
-			}
-
-			// Add some explanatory text as console output
-			Console.WriteLine("=== Normal Mapping Test Setup Complete ===");
-			Console.WriteLine("Look at the back row of objects (behind the main demo objects):");
-			Console.WriteLine("- Object 0 (Flat): Baseline - should look like regular lighting");
-			Console.WriteLine("- Object 1 (WAVE): Should show VERY STRONG wavy bumps on SPHERE");
-			Console.WriteLine("- Object 2 (Bump): Should show a PROMINENT circular bump on CYLINDER");
-			Console.WriteLine("- Object 3 (Brick): Should show LARGE brick pattern with deep mortar on CUBE");
-			Console.WriteLine("- Object 4 (Noise): Should show STRONG organic rough surface texture");
-			Console.WriteLine("- Object 5 (Test): Shows multiple patterns in quadrants");
-			Console.WriteLine("");
-			Console.WriteLine("The effects should be MUCH more visible now from a distance!");
-			Console.WriteLine("Move the camera around to see how the lighting changes with normal mapping!");
-			Console.WriteLine("Use right-click + mouse drag to look around.");
-			Console.WriteLine("Use WASD to move, Q/E for up/down.");
-			Console.WriteLine("");
-
-			// Add a test to verify tangent generation
-			Console.WriteLine("=== Verifying Tangent Generation ===");
-			var testMesh = Mesh.CreateCube();
-			bool tangentsValid = true;
-			for (int32 v = 0; v < Math.Min(testMesh.Vertices.VertexCount, 8); v++)
-			{
-				var normal = testMesh.GetNormal(v);
-				var tangent = testMesh.GetTangent(v);
-				float dot = Math.Abs(Vector3.Dot(normal, tangent));
-
-				if (dot > 0.1f)
-				{
-					Console.WriteLine($"️  Vertex {v}: Tangent not perpendicular to normal (dot = {dot})");
-					tangentsValid = false;
-				}
-			}
-
-			if (tangentsValid)
-			{
-				Console.WriteLine("Tangent generation verified - all tangents are properly perpendicular to normals");
-			}
-			else
-			{
-				Console.WriteLine("Tangent generation has issues - normal mapping may not work correctly");
-			}
-
-			delete testMesh;
 		}
 
 		/*// Create floor plane
@@ -555,18 +223,6 @@ class SandboxApplication : Application
 		var planeMesh = Mesh.CreatePlane();
 
 		planeRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(planeMesh, true));*/
-
-		// Create a sprite entity
-		var spriteEntity = scene.CreateEntity("TestSprite");
-		spriteEntity.Transform.Position = Vector3(-6, 6, 0);
-
-		spriteEntity.AddComponent<ControllerComponent>();
-
-		var spriteRenderer = spriteEntity.AddComponent<SpriteRenderer>();
-		spriteRenderer.Texture = engine.ResourceSystem.AddResource(/*new TextureResource(ImageLoaderFactory.LoadImage("images/ball.png"), true)*/TextureResource.CreateCheckerboard(256, 32));
-		spriteRenderer.Color = .White;
-		spriteRenderer.Size = Vector2(2, 2); // 2x2 world units
-		spriteRenderer.Billboard = .AxisAligned;
 
 		base.OnEngineInitialized(engine);
 	}
@@ -867,7 +523,10 @@ class Program
 		var windowSystem = scope SDL3WindowSystem("Sandbox", 1366, 768);
 		var app = scope SandboxApplication(logger, windowSystem);
 
-		var renderer = scope SDLRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow);
+		//var renderer = scope SDLRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow);
+		var graphicsContext = scope VKGraphicsContext(logger);
+		//defer graphicsContext.Dispose();
+		var renderer = scope RHIRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow, graphicsContext);
 		var inputSubsystem = scope InputSubsystem(windowSystem.InputSystem);
 		var audioSubsystem = scope OpenALAudioSubsystem();
 		var navigationSubsystem = scope NavigationSubsystem();
@@ -892,5 +551,6 @@ class Program
 				// Can do something here when engine is shutting down
 			}
 			);
+		graphicsContext.Dispose();
 	}
 }

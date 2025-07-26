@@ -294,12 +294,9 @@ class RHIRendererSubsystem : Subsystem
 				Outputs = .CreateFromFrameBuffer(mSwapChain.FrameBuffer)
 			};
 
-		//meshPipelineDescription.RenderStates.RasterizerState.FrontCounterClockwise = false;
-		meshPipelineDescription.RenderStates.RasterizerState.CullMode = .None;
-
 		mUnlitPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(meshPipelineDescription);
 
-		ResourceSetDescription resourceSetDesc = .(mUnlitResourceLayout, /*mPerFrameConstantBuffer,*/ mPerObjectConstantBuffer);
+		ResourceSetDescription resourceSetDesc = .(mUnlitResourceLayout, mPerObjectConstantBuffer);
 		mUnlitResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
 	}
 

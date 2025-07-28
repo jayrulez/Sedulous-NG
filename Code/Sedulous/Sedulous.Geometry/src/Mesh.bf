@@ -371,18 +371,19 @@ public class Mesh
 		float h = size * 0.5f;
 		
 		// Positions and normals for each face
+		// Vertices ordered consistently for clockwise winding when viewed from outside
 		Vector3[24] positions = .( 
-			// Front face
+			// Front face (+Z)
 			.(-h, -h, h), .(h, -h, h), .(h, h, h), .(-h, h, h), 
-			// Back face
+			// Back face (-Z)
 			.(h, -h, -h), .(-h, -h, -h), .(-h, h, -h), .(h, h, -h), 
-			// Top face
+			// Top face (+Y)
 			.(-h, h, h), .(h, h, h), .(h, h, -h), .(-h, h, -h), 
-			// Bottom face
+			// Bottom face (-Y)
 			.(-h, -h, -h), .(h, -h, -h), .(h, -h, h), .(-h, -h, h), 
-			// Right face
+			// Right face (+X)
 			.(h, -h, h), .(h, -h, -h), .(h, h, -h), .(h, h, h), 
-			// Left face
+			// Left face (-X)
 			.(-h, -h, -h), .(-h, -h, h), .(-h, h, h), .(-h, h, -h)
 		);
 		
@@ -413,18 +414,18 @@ public class Mesh
 			}
 		}
 		
-		// Set indices with REVERSED winding order
+		// Set indices with REVERSED winding order (clockwise when viewed from outside)
 		int32 idx = 0;
 		for (int32 face = 0; face < 6; face++)
 		{
 			int32 baseVertex = face * 4;
 			
-			// Reversed winding: 0,2,1 instead of 0,1,2
+			// Clockwise winding: 0,2,1 (reversed from standard 0,1,2)
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 1));
 			
-			// Reversed winding: 0,3,2 instead of 0,2,3
+			// Clockwise winding: 0,3,2 (reversed from standard 0,2,3)
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 3));
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
@@ -488,13 +489,13 @@ public class Mesh
 				
 				// First triangle (reversed: a,b,c -> a,c,b)
 				mesh.Indices.SetIndex(idx++, (uint32)a);
-				mesh.Indices.SetIndex(idx++, (uint32)b);
 				mesh.Indices.SetIndex(idx++, (uint32)c);
+				mesh.Indices.SetIndex(idx++, (uint32)b);
 				
-				// Second triangle (reversed: b,c,d -> b,d,c)
+				// Second triangle (reversed: b,d,c -> b,c,d)
 				mesh.Indices.SetIndex(idx++, (uint32)b);
-				mesh.Indices.SetIndex(idx++, (uint32)d);
 				mesh.Indices.SetIndex(idx++, (uint32)c);
+				mesh.Indices.SetIndex(idx++, (uint32)d);
 			}
 		}
 		
@@ -595,23 +596,23 @@ public class Mesh
 	    // Generate indices
 	    int32 idx = 0;
 	    
-	    // Top cap (counter-clockwise when viewed from above)
+	    // Top cap (clockwise when viewed from above)
 	    for (int32 i = 0; i < segments; i++)
 	    {
 	        mesh.Indices.SetIndex(idx++, (uint32)topCenterIdx);
-	        mesh.Indices.SetIndex(idx++, (uint32)(topRingStart + i));
 	        mesh.Indices.SetIndex(idx++, (uint32)(topRingStart + (i + 1) % segments));
+	        mesh.Indices.SetIndex(idx++, (uint32)(topRingStart + i));
 	    }
 	    
-	    // Bottom cap (clockwise when viewed from above, counter-clockwise from below)
+	    // Bottom cap (counter-clockwise when viewed from above, clockwise from below)
 	    for (int32 i = 0; i < segments; i++)
 	    {
 	        mesh.Indices.SetIndex(idx++, (uint32)bottomCenterIdx);
-	        mesh.Indices.SetIndex(idx++, (uint32)(bottomRingStart + (i + 1) % segments));
 	        mesh.Indices.SetIndex(idx++, (uint32)(bottomRingStart + i));
+	        mesh.Indices.SetIndex(idx++, (uint32)(bottomRingStart + (i + 1) % segments));
 	    }
 	    
-	    // Sides
+	    // Sides (reversed for clockwise)
 	    for (int32 i = 0; i < segments; i++)
 	    {
 	        int32 topLeft = sideStart + i * 2;
@@ -619,15 +620,15 @@ public class Mesh
 	        int32 topRight = topLeft + 2;
 	        int32 bottomRight = topRight + 1;
 	        
-	        // First triangle
+	        // First triangle (reversed)
 	        mesh.Indices.SetIndex(idx++, (uint32)topLeft);
-	        mesh.Indices.SetIndex(idx++, (uint32)bottomLeft);
 	        mesh.Indices.SetIndex(idx++, (uint32)topRight);
+	        mesh.Indices.SetIndex(idx++, (uint32)bottomLeft);
 	        
-	        // Second triangle
+	        // Second triangle (reversed)
 	        mesh.Indices.SetIndex(idx++, (uint32)topRight);
-	        mesh.Indices.SetIndex(idx++, (uint32)bottomLeft);
 	        mesh.Indices.SetIndex(idx++, (uint32)bottomRight);
+	        mesh.Indices.SetIndex(idx++, (uint32)bottomLeft);
 	    }
 	    
 	    // Generate tangents
@@ -705,20 +706,20 @@ public class Mesh
 		// Generate indices with REVERSED winding order
 		int32 idx = 0;
 		
-		// Cone sides (reversed)
+		// Cone sides (reversed winding)
 		for (int32 i = 0; i < segments; i++)
 		{
 			mesh.Indices.SetIndex(idx++, 0); // tip
-			mesh.Indices.SetIndex(idx++, (uint32)(1 + (uint32)i));
 			mesh.Indices.SetIndex(idx++, (uint32)(1 + ((uint32)i + 1) % (uint32)segments));
+			mesh.Indices.SetIndex(idx++, (uint32)(1 + (uint32)i));
 		}
 		
-		// Base (reversed)
+		// Base (reversed winding)
 		for (int32 i = 0; i < segments; i++)
 		{
 			mesh.Indices.SetIndex(idx++, (uint32)baseCenterIdx);
-			mesh.Indices.SetIndex(idx++, (uint32)(baseCenterIdx + 1 + (i + 1) % segments));
 			mesh.Indices.SetIndex(idx++, (uint32)(baseCenterIdx + 1 + i));
+			mesh.Indices.SetIndex(idx++, (uint32)(baseCenterIdx + 1 + (i + 1) % segments));
 		}
 		
 		// Generate tangents
@@ -731,141 +732,136 @@ public class Mesh
 	// Create a torus mesh
 	public static Mesh CreateTorus(float radius = 1.0f, float tubeRadius = 0.3f, int32 segments = 32, int32 tubeSegments = 16)
 	{
-		let mesh = new Mesh();
-		mesh.SetupCommonVertexFormat();
-
-		int32 vertexCount = (segments + 1) * (tubeSegments + 1);
-		int32 indexCount = segments * tubeSegments * 6;
-
-		mesh.Vertices.Resize(vertexCount);
-		mesh.Indices.Resize(indexCount);
-
-		// Generate vertices
-		int32 v = 0;
-		for (int32 i = 0; i <= segments; i++)
-		{
-			float u = (float)i / segments;
-			float theta = u * 2.0f * Math.PI_f;
-			float cosTheta = Math.Cos(theta);
-			float sinTheta = Math.Sin(theta);
-
-			for (int32 j = 0; j <= tubeSegments; j++)
-			{
-				float v2 = (float)j / tubeSegments;
-				float phi = v2 * 2.0f * Math.PI_f;
-				float cosPhi = Math.Cos(phi);
-				float sinPhi = Math.Sin(phi);
-
-				float x = (radius + tubeRadius * cosPhi) * cosTheta;
-				float y = tubeRadius * sinPhi;
-				float z = (radius + tubeRadius * cosPhi) * sinTheta;
-
-				Vector3 position = .(x, y, z);
-				Vector3 center = .(radius * cosTheta, 0, radius * sinTheta);
-				Vector3 normal = position - center;
-				float len = Math.Sqrt(normal.X * normal.X + normal.Y * normal.Y + normal.Z * normal.Z);
-				normal.X /= len;
-				normal.Y /= len;
-				normal.Z /= len;
-
-				mesh.SetPosition(v, position);
-				mesh.SetNormal(v, normal);
-				mesh.SetUV(v, .(u, v2));
-				mesh.SetColor(v, 0xFFFFFFFF);
-				v++;
-			}
-		}
-
-		// Generate indices
-		int32 idx = 0;
-		for (int32 i = 0; i < segments; i++)
-		{
-			for (int32 j = 0; j < tubeSegments; j++)
-			{
-				int32 a = i * (tubeSegments + 1) + j;
-				int32 b = a + 1;
-				int32 c = a + tubeSegments + 1;
-				int32 d = c + 1;
-
-				mesh.Indices.SetIndex(idx++, (uint32)a);
-				mesh.Indices.SetIndex(idx++, (uint32)c);
-				mesh.Indices.SetIndex(idx++, (uint32)b);
-				mesh.Indices.SetIndex(idx++, (uint32)b);
-				mesh.Indices.SetIndex(idx++, (uint32)c);
-				mesh.Indices.SetIndex(idx++, (uint32)d);
-			}
-		}
-
-		// Generate tangents
-		mesh.GenerateTangents();
-
-		mesh.AddSubMesh(SubMesh(0, indexCount));
-
-		return mesh;
+	    let mesh = new Mesh();
+	    mesh.SetupCommonVertexFormat();
+	    int32 vertexCount = (segments + 1) * (tubeSegments + 1);
+	    int32 indexCount = segments * tubeSegments * 6;
+	    mesh.Vertices.Resize(vertexCount);
+	    mesh.Indices.Resize(indexCount);
+	    
+	    // Generate vertices
+	    int32 v = 0;
+	    for (int32 i = 0; i <= segments; i++)
+	    {
+	        float u = (float)i / segments;
+	        float theta = u * 2.0f * Math.PI_f;
+	        float cosTheta = Math.Cos(theta);
+	        float sinTheta = Math.Sin(theta);
+	        for (int32 j = 0; j <= tubeSegments; j++)
+	        {
+	            float v2 = (float)j / tubeSegments;
+	            float phi = v2 * 2.0f * Math.PI_f;
+	            float cosPhi = Math.Cos(phi);
+	            float sinPhi = Math.Sin(phi);
+	            float x = (radius + tubeRadius * cosPhi) * cosTheta;
+	            float y = tubeRadius * sinPhi;
+	            float z = (radius + tubeRadius * cosPhi) * sinTheta;
+	            Vector3 position = .(x, y, z);
+	            Vector3 center = .(radius * cosTheta, 0, radius * sinTheta);
+	            Vector3 normal = position - center;
+	            float len = Math.Sqrt(normal.X * normal.X + normal.Y * normal.Y + normal.Z * normal.Z);
+	            normal.X /= len;
+	            normal.Y /= len;
+	            normal.Z /= len;
+	            mesh.SetPosition(v, position);
+	            mesh.SetNormal(v, normal);
+	            mesh.SetUV(v, .(u, v2));
+	            mesh.SetColor(v, 0xFFFFFFFF);
+	            v++;
+	        }
+	    }
+	    
+	    // Generate indices with REVERSED winding order
+	    int32 idx = 0;
+	    for (int32 i = 0; i < segments; i++)
+	    {
+	        for (int32 j = 0; j < tubeSegments; j++)
+	        {
+	            int32 a = i * (tubeSegments + 1) + j;
+	            int32 b = a + 1;
+	            int32 c = a + tubeSegments + 1;
+	            int32 d = c + 1;
+	            
+	            // Reversed winding: a,b,c instead of a,c,b
+	            mesh.Indices.SetIndex(idx++, (uint32)a);
+	            mesh.Indices.SetIndex(idx++, (uint32)b);
+	            mesh.Indices.SetIndex(idx++, (uint32)c);
+	            
+	            // Reversed winding: b,d,c instead of b,c,d
+	            mesh.Indices.SetIndex(idx++, (uint32)b);
+	            mesh.Indices.SetIndex(idx++, (uint32)d);
+	            mesh.Indices.SetIndex(idx++, (uint32)c);
+	        }
+	    }
+	    
+	    // Generate tangents
+	    mesh.GenerateTangents();
+	    mesh.AddSubMesh(SubMesh(0, indexCount));
+	    return mesh;
 	}
 
 	// Create a plane mesh with subdivisions
 	public static Mesh CreatePlane(float width = 10.0f, float depth = 10.0f, int32 widthSegments = 10, int32 depthSegments = 10)
 	{
-		let mesh = new Mesh();
-		mesh.SetupCommonVertexFormat();
-		
-		int32 vertexCount = (widthSegments + 1) * (depthSegments + 1);
-		int32 indexCount = widthSegments * depthSegments * 6;
-		
-		mesh.Vertices.Resize(vertexCount);
-		mesh.Indices.Resize(indexCount);
-		
-		float halfWidth = width * 0.5f;
-		float halfDepth = depth * 0.5f;
-		float segmentWidth = width / widthSegments;
-		float segmentDepth = depth / depthSegments;
-		
-		// Generate vertices
-		int32 v = 0;
-		for (int32 z = 0; z <= depthSegments; z++)
-		{
-			for (int32 x = 0; x <= widthSegments; x++)
-			{
-				float xPos = -halfWidth + x * segmentWidth;
-				float zPos = -halfDepth + z * segmentDepth;
-				
-				mesh.SetPosition(v, .(xPos, 0, zPos));
-				mesh.SetNormal(v, .(0, 1, 0));
-				mesh.SetUV(v, .((float)x / widthSegments, (float)z / depthSegments));
-				mesh.SetColor(v, 0xFFFFFFFF);
-				v++;
-			}
-		}
-		
-		// Generate indices with REVERSED winding order
-		int32 idx = 0;
-		for (int32 z = 0; z < depthSegments; z++)
-		{
-			for (int32 x = 0; x < widthSegments; x++)
-			{
-				int32 a = z * (widthSegments + 1) + x;
-				int32 b = a + 1;
-				int32 c = a + widthSegments + 1;
-				int32 d = c + 1;
-				
-				// First triangle (reversed: a,c,b -> a,b,c)
-				mesh.Indices.SetIndex(idx++, (uint32)a);
-				mesh.Indices.SetIndex(idx++, (uint32)b);
-				mesh.Indices.SetIndex(idx++, (uint32)c);
-				
-				// Second triangle (reversed: b,c,d -> b,d,c)
-				mesh.Indices.SetIndex(idx++, (uint32)b);
-				mesh.Indices.SetIndex(idx++, (uint32)d);
-				mesh.Indices.SetIndex(idx++, (uint32)c);
-			}
-		}
-		
-		// Generate tangents
-		mesh.GenerateTangents();
-		
-		mesh.AddSubMesh(SubMesh(0, indexCount));
-		return mesh;
+	    let mesh = new Mesh();
+	    mesh.SetupCommonVertexFormat();
+	    
+	    int32 vertexCount = (widthSegments + 1) * (depthSegments + 1);
+	    int32 indexCount = widthSegments * depthSegments * 6;
+	    
+	    mesh.Vertices.Resize(vertexCount);
+	    mesh.Indices.Resize(indexCount);
+	    
+	    float halfWidth = width * 0.5f;
+	    float halfDepth = depth * 0.5f;
+	    float segmentWidth = width / widthSegments;
+	    float segmentDepth = depth / depthSegments;
+	    
+	    // Generate vertices
+	    int32 v = 0;
+	    for (int32 z = 0; z <= depthSegments; z++)
+	    {
+	        for (int32 x = 0; x <= widthSegments; x++)
+	        {
+	            float xPos = -halfWidth + x * segmentWidth;
+	            float zPos = -halfDepth + z * segmentDepth;
+	            
+	            mesh.SetPosition(v, .(xPos, 0, zPos));
+	            mesh.SetNormal(v, .(0, 1, 0));  // Points up
+	            mesh.SetUV(v, .((float)x / widthSegments, (float)z / depthSegments));
+	            mesh.SetColor(v, 0xFFFFFFFF);
+	            v++;
+	        }
+	    }
+	    
+	    // Generate indices with correct clockwise winding order when viewed from above
+	    int32 idx = 0;
+	    for (int32 z = 0; z < depthSegments; z++)
+	    {
+	        for (int32 x = 0; x < widthSegments; x++)
+	        {
+	            int32 a = z * (widthSegments + 1) + x;
+	            int32 b = a + 1;
+	            int32 c = a + widthSegments + 1;
+	            int32 d = c + 1;
+	            
+	            // First triangle - reversed to clockwise
+	            mesh.Indices.SetIndex(idx++, (uint32)a);
+	            mesh.Indices.SetIndex(idx++, (uint32)c);
+	            mesh.Indices.SetIndex(idx++, (uint32)b);
+	            
+	            // Second triangle - reversed to clockwise
+	            mesh.Indices.SetIndex(idx++, (uint32)b);
+	            mesh.Indices.SetIndex(idx++, (uint32)c);
+	            mesh.Indices.SetIndex(idx++, (uint32)d);
+	        }
+	    }
+	    
+	    // Generate tangents
+	    mesh.GenerateTangents();
+	    
+	    mesh.AddSubMesh(SubMesh(0, indexCount));
+	    return mesh;
 	}
 
 	// Example: Create mesh with custom vertex format

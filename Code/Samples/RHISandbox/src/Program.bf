@@ -200,38 +200,43 @@ class SandboxApplication : Application
 			geometry.AddComponent<RotateComponent>();
 			var renderer = geometry.AddComponent<MeshRenderer>();
 			renderer.Color = Color.White;
-			Mesh mesh = Mesh.CreateCube();
-			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
-
-			UnlitMaterial unlit = new UnlitMaterial();
-			unlit.Color = .White;
+			
+			Mesh mesh = null;
 			TextureResource texture = null;
 			switch (i)
 			{
 			case 0:
+				mesh = Mesh.CreateCube();
 				texture = TextureResource.CreateCheckerboard();
 				break;
 			case 1:
+				mesh = Mesh.CreateSphere();
 				texture = TextureResource.CreateGradient(256, 256, .Red, .Green);
 				break;
 			case 2:
-				texture = TextureResource.CreateSolidColor(256, 256, .Red);
+				mesh = Mesh.CreateCylinder();
+				texture = TextureResource.CreateGradient(256, 256, .Red, .Yellow);
 				break;
 			case 3:
-				texture = TextureResource.CreateSolidColor(256, 256, .Green);
+				mesh = Mesh.CreateCone();
+				texture = TextureResource.CreateGradient(256, 256, .Green, .Blue);
 				break;
 			case 4:
-				texture = TextureResource.CreateSolidColor(256, 256, .Blue);
+				mesh = Mesh.CreateTorus();
+				texture = TextureResource.CreateGradient(256, 256, .Blue, .Coral);
 				break;
 			}
-			if (texture != null)
-				unlit.MainTexture = engine.ResourceSystem.AddResource(texture);
+			
+			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh ?? Mesh.CreateCube(), true));
+			UnlitMaterial unlit = new UnlitMaterial();
+			unlit.Color = .White;
+			unlit.MainTexture = engine.ResourceSystem.AddResource(texture ?? TextureResource.CreateSolidColor(256, 256, .Turquoise));
 
 			var material = new MaterialResource(unlit, true);
 			renderer.Material = engine.ResourceSystem.AddResource(material);
 		}
 
-		/*// Create floor plane
+		// Create floor plane
 		var plane = scene.CreateEntity("Floor");
 		plane.Transform.Position = Vector3(0, -1.5f, 0);
 		plane.Transform.Scale = Vector3(10, 1, 10);
@@ -239,16 +244,17 @@ class SandboxApplication : Application
 		planeRenderer.Color = Color.White;
 
 		// Use a neutral gray material for the floor to show light colors
-		var floorMat = new PhongMaterial();
-		floorMat.DiffuseColor = Color(0.7f, 0.7f, 0.7f, 1.0f);
+		var floorMat = new UnlitMaterial();
+		floorMat.Color = .White;
+		/*floorMat.DiffuseColor = Color(0.7f, 0.7f, 0.7f, 1.0f);
 		floorMat.SpecularColor = Color(0.3f, 0.3f, 0.3f, 1.0f);
 		floorMat.Shininess = 32.0f;
-		floorMat.AmbientColor = Color(0.05f, 0.05f, 0.05f, 1.0f);
+		floorMat.AmbientColor = Color(0.05f, 0.05f, 0.05f, 1.0f);*/
 
 		planeRenderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(floorMat, true));
 		var planeMesh = Mesh.CreatePlane();
 
-		planeRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(planeMesh, true));*/
+		planeRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(planeMesh, true));
 
 		base.OnEngineInitialized(engine);
 	}

@@ -467,7 +467,7 @@ class SDLRendererSubsystem : Subsystem
 	        {
 	            fill_mode = .SDL_GPU_FILLMODE_FILL,
 	            cull_mode = .SDL_GPU_CULLMODE_BACK,
-	            front_face = .SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+	            front_face = .SDL_GPU_FRONTFACE_CLOCKWISE,
 	            depth_bias_constant_factor = 0,
 	            depth_bias_clamp = 0,
 	            depth_bias_slope_factor = 0,

@@ -60,7 +60,7 @@ public class AppSceneModule : SceneModule
 
 	protected override void OnUpdate(Time time)
 	{
-		for(var entity in mRotatingQuery.GetEntities(Scene, .. scope .()))
+		for (var entity in mRotatingQuery.GetEntities(Scene, .. scope .()))
 		{
 			if (entity.HasComponent<RotateComponent>() && entity.HasComponent<MeshRenderer>())
 			{
@@ -203,7 +203,31 @@ class SandboxApplication : Application
 			Mesh mesh = Mesh.CreateCube();
 			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
 
-			var material = MaterialResource.CreateUnlit(.Red);
+			UnlitMaterial unlit = new UnlitMaterial();
+			unlit.Color = .White;
+			TextureResource texture = null;
+			switch (i)
+			{
+			case 0:
+				texture = TextureResource.CreateCheckerboard();
+				break;
+			case 1:
+				texture = TextureResource.CreateGradient(256, 256, .Red, .Green);
+				break;
+			case 2:
+				texture = TextureResource.CreateSolidColor(256, 256, .Red);
+				break;
+			case 3:
+				texture = TextureResource.CreateSolidColor(256, 256, .Green);
+				break;
+			case 4:
+				texture = TextureResource.CreateSolidColor(256, 256, .Blue);
+				break;
+			}
+			if (texture != null)
+				unlit.MainTexture = engine.ResourceSystem.AddResource(texture);
+
+			var material = new MaterialResource(unlit, true);
 			renderer.Material = engine.ResourceSystem.AddResource(material);
 		}
 

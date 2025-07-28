@@ -57,6 +57,7 @@ class RHIRendererSubsystem : Subsystem
 
 	private ResourceLayout mUnlitPerObjectResourceLayout;
 
+	private LayoutElementDescription[] mUnlitMaterialLayoutElements ~ delete _;
 	private ResourceLayout mUnlitMaterialResourceLayout;
 	public ResourceLayout UnlitMaterialResourceLayout => mUnlitMaterialResourceLayout;
 
@@ -329,13 +330,13 @@ class RHIRendererSubsystem : Subsystem
 
 		// Unlit Material ResourceLayout
 		{
-			LayoutElementDescription[] layoutElementDescs = new LayoutElementDescription[](
+			mUnlitMaterialLayoutElements = new LayoutElementDescription[](
 				LayoutElementDescription(0, .ConstantBuffer, .Pixel, false, sizeof(UnlitFragmentUniforms)),
-				LayoutElementDescription(0, .Texture, .Pixel), // Diffuse texture - binding 60 in SPIR-V
-				LayoutElementDescription(0, .Sampler, .Pixel) // Sampler - binding 40 in SPIR-V
+				LayoutElementDescription(0, .Texture, .Pixel), 
+				LayoutElementDescription(0, .Sampler, .Pixel)
 				);
 
-			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params mUnlitMaterialLayoutElements);
 
 			mUnlitMaterialResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
 		}

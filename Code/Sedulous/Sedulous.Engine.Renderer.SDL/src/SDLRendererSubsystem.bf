@@ -68,7 +68,8 @@ struct UnlitVertexUniforms
 struct UnlitFragmentUniforms
 {
 	public Vector4 MaterialColor; // 16 bytes
-	// Total: 16 bytes (multiple of 16)
+	public Vector4 MaterialProperties; // 16 bytes
+	// Total: 32 bytes (multiple of 16)
 }
 
 [CRepr, Packed]

@@ -302,6 +302,7 @@ class ShaderSources
 		cbuffer UniformBlock : register(b0, space3)
 		{
 			float4 MaterialColor;
+			float4 MaterialProperties;
 		};
 		
 		Texture2D MainTexture : register(t0, space2);

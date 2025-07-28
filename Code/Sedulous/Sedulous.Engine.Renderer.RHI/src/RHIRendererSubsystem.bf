@@ -11,14 +11,6 @@ namespace Sedulous.Engine.Renderer.RHI;
 
 using internal Sedulous.Engine.Renderer.RHI;
 
-[CRepr, Packed]
-struct UnlitVertexUniforms
-{
-	public Matrix MVPMatrix; // 64 bytes (4x float4)
-	public Matrix ModelMatrix; // 64 bytes (4x float4)
-	// Total: 128 bytes (multiple of 16)
-}
-
 class RHIRendererSubsystem : Subsystem
 {
 	public override StringView Name => "RHIRenderer";
@@ -63,13 +55,25 @@ class RHIRendererSubsystem : Subsystem
 	private GraphicsPipelineState mUnlitPipeline;
 	public GraphicsPipelineState UnlitPipeline => mUnlitPipeline;
 
-	private ResourceLayout mUnlitResourceLayout;
+	private ResourceLayout mUnlitPerObjectResourceLayout;
 
-	private ResourceSet mUnlitResourceSet;
-	public ResourceSet UnlitResourceSet => mUnlitResourceSet;
+	private ResourceLayout mUnlitMaterialResourceLayout;
+	public ResourceLayout UnlitMaterialResourceLayout => mUnlitMaterialResourceLayout;
 
-	private Buffer mPerObjectConstantBuffer;
-	public Buffer PerObjectConstantBuffer => mPerObjectConstantBuffer;
+	private ResourceSet mDefaultUnlitMaterialResourceSet;
+	public ResourceSet DefaultUnlitMaterialResourceSet => mDefaultUnlitMaterialResourceSet;
+
+	private ResourceSet mUnlitPerObjectResourceSet;
+	public ResourceSet UnlitResourceSet => mUnlitPerObjectResourceSet;
+
+	private Buffer mUnlitVertexCB;
+	public Buffer UnlitVertexCB => mUnlitVertexCB;
+
+	private Buffer mDefaultUnlitMaterialCB;
+	public Buffer DefaultUnlitMaterialCB => mDefaultUnlitMaterialCB;
+
+	/*private Buffer mUnlitPixelCB;
+	public Buffer UnlitPixelCB => mUnlitPixelCB;*/
 
 	private Shader mVertexShader;
 	private Shader mPixelShader;
@@ -121,11 +125,7 @@ class RHIRendererSubsystem : Subsystem
 		mGPUResourceManager = new GPUResourceManager(mGraphicsContext);
 		CreateDefaultTextures();
 
-		CreateShaders();
-
-		CreateBuffers();
-
-		CreatePipelines();
+		CreateUnlitPipeline();
 
 		return base.OnInitializing(engine);
 	}
@@ -134,11 +134,7 @@ class RHIRendererSubsystem : Subsystem
 	{
 		// Cleanup
 
-		DestroyPipelines();
-
-		DestroyBuffers();
-
-		DestroyShaders();
+		DestroyUnlitPipeline();
 
 		mDefaultWhiteTexture.Release();
 		mDefaultBlackTexture.Release();
@@ -258,80 +254,11 @@ class RHIRendererSubsystem : Subsystem
 			normalImage.SetPixel(0, 0, Color(128, 128, 255, 255)); // Normal pointing up
 			mDefaultNormalTexture = GPUResourceHandle<GPUTexture>(new GPUTexture("DefaultNormal", mGraphicsContext, normalImage));
 		}
+
+		mGraphicsContext.SyncUpcopyQueue();
 	}
 
-	private void CreatePipelines()
-	{
-		var vertexFormat = scope LayoutDescription()
-			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
-			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
-			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
-			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))
-			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent));
-		var vertexLayouts = scope InputLayouts();
-		vertexLayouts.Add(vertexFormat);
-
-		LayoutElementDescription[] layoutElementDescs = scope LayoutElementDescription[](
-			//LayoutElementDescription(0, .ConstantBuffer, .Vertex, false, sizeof(PerFrameData)),
-			LayoutElementDescription(0, .ConstantBuffer, .Vertex, true, sizeof(UnlitVertexUniforms))
-			);
-
-		ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
-
-		mUnlitResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
-
-		var meshPipelineDescription = GraphicsPipelineDescription
-			{
-				RenderStates = RenderStateDescription.Default,
-				Shaders = .()
-					{
-						VertexShader = mVertexShader,
-						PixelShader = mPixelShader
-					},
-				InputLayouts = vertexLayouts,
-				ResourceLayouts = scope ResourceLayout[](mUnlitResourceLayout),
-				PrimitiveTopology = .TriangleList,
-				Outputs = .CreateFromFrameBuffer(mSwapChain.FrameBuffer)
-			};
-
-		mUnlitPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(meshPipelineDescription);
-
-		ResourceSetDescription resourceSetDesc = .(mUnlitResourceLayout, mPerObjectConstantBuffer);
-		mUnlitResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
-	}
-
-	private void DestroyPipelines()
-	{
-		mGraphicsContext.Factory.DestroyResourceSet(ref mUnlitResourceSet);
-		mGraphicsContext.Factory.DestroyResourceLayout(ref mUnlitResourceLayout);
-		mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mUnlitPipeline);
-	}
-
-	private void CreateBuffers()
-	{
-	    // Create a larger buffer for multiple objects
-	    const int32 MAX_OBJECTS = 1000;
-	    const int32 ALIGNMENT = 256; // Typical uniform buffer alignment requirement
-	    
-	    // Align each object's data to 256 bytes
-	    int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
-	    
-	    var perObjectCBDesc = BufferDescription(
-	        (uint32)(alignedSize * MAX_OBJECTS), 
-	        .ConstantBuffer, 
-	        .Dynamic,
-	        .Write
-	    );
-	    mPerObjectConstantBuffer = mGraphicsContext.Factory.CreateBuffer(perObjectCBDesc);
-	}
-
-	private void DestroyBuffers()
-	{
-		mGraphicsContext.Factory.DestroyBuffer(ref mPerObjectConstantBuffer);
-		//mGraphicsContext.Factory.DestroyBuffer(ref mPerFrameConstantBuffer);
-	}
-
-	private void CreateShaders()
+	private void CreateUnlitPipeline()
 	{
 		{
 			var byteCode = CompileShaderSource(mGraphicsContext, ShaderSources.UnlitShadersVS, .Vertex, "VS", .. scope .());
@@ -347,12 +274,123 @@ class RHIRendererSubsystem : Subsystem
 			var psDesc = ShaderDescription(.Pixel, "PS", shaderBytes);
 			mPixelShader = mGraphicsContext.Factory.CreateShader(psDesc);
 		}
+		{
+
+		// Create a larger buffer for multiple objects
+			const int32 MAX_OBJECTS = 1000;
+			const int32 ALIGNMENT = 256; // Typical uniform buffer alignment requirement
+
+		// Align each object's data to 256 bytes
+			int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+			var perObjectCBDesc = BufferDescription(
+				(uint32)(alignedSize * MAX_OBJECTS),
+				.ConstantBuffer,
+				.Dynamic,
+				.Write
+				);
+			mUnlitVertexCB = mGraphicsContext.Factory.CreateBuffer(perObjectCBDesc);
+		}
+		{
+			// Create a small default material buffer with default values
+			var defaultMaterialData = scope UnlitFragmentUniforms()
+				{
+					MaterialTint = Color.White.ToVector4(),
+					MaterialProperties = Vector4(1, 1, 1, 0)
+				};
+
+			var defaultMaterialBufferDesc = BufferDescription(
+				sizeof(UnlitVertexUniforms),
+				.ConstantBuffer,
+				.Dynamic
+				);
+			mDefaultUnlitMaterialCB = mGraphicsContext.Factory.CreateBuffer(defaultMaterialData, defaultMaterialBufferDesc);
+		}
+
+		var vertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent));
+		var vertexLayouts = scope InputLayouts();
+		vertexLayouts.Add(vertexFormat);
+
+		// Unlit Per Object ResourceLayout
+		{
+			LayoutElementDescription[] layoutElementDescs = scope:: LayoutElementDescription[](
+				LayoutElementDescription(0, .ConstantBuffer, .Vertex, true, sizeof(UnlitVertexUniforms))
+				);
+
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
+
+			mUnlitPerObjectResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
+		}
+
+		// Unlit Material ResourceLayout
+		{
+			LayoutElementDescription[] layoutElementDescs = new LayoutElementDescription[](
+				LayoutElementDescription(0, .ConstantBuffer, .Pixel, false, sizeof(UnlitFragmentUniforms)),
+				LayoutElementDescription(0, .Texture, .Pixel), // Diffuse texture - binding 60 in SPIR-V
+				LayoutElementDescription(0, .Sampler, .Pixel) // Sampler - binding 40 in SPIR-V
+				);
+
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
+
+			mUnlitMaterialResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
+		}
+
+		var meshPipelineDescription = GraphicsPipelineDescription
+			{
+				RenderStates = RenderStateDescription.Default,
+				Shaders = .()
+					{
+						VertexShader = mVertexShader,
+						PixelShader = mPixelShader
+					},
+				InputLayouts = vertexLayouts,
+				ResourceLayouts = scope ResourceLayout[](mUnlitPerObjectResourceLayout, mUnlitMaterialResourceLayout),
+				PrimitiveTopology = .TriangleList,
+				Outputs = .CreateFromFrameBuffer(mSwapChain.FrameBuffer)
+			};
+
+		mUnlitPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(meshPipelineDescription);
+
+		// Per object resource set
+		{
+			ResourceSetDescription resourceSetDesc = .(mUnlitPerObjectResourceLayout, mUnlitVertexCB);
+			mUnlitPerObjectResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
+		}
+
+		// default material resource set
+		{
+			ResourceSetDescription resourceSetDesc = .(mUnlitMaterialResourceLayout, mDefaultUnlitMaterialCB, mDefaultWhiteTexture.Resource.Texture, mGraphicsContext.DefaultSampler);
+			mDefaultUnlitMaterialResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
+		}
 	}
 
-	private void DestroyShaders()
+	private void DestroyUnlitPipeline()
 	{
+		mGraphicsContext.Factory.DestroyResourceSet(ref mDefaultUnlitMaterialResourceSet);
+		mGraphicsContext.Factory.DestroyResourceSet(ref mUnlitPerObjectResourceSet);
+		mGraphicsContext.Factory.DestroyResourceLayout(ref mUnlitMaterialResourceLayout);
+		mGraphicsContext.Factory.DestroyResourceLayout(ref mUnlitPerObjectResourceLayout);
+		mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mUnlitPipeline);
+
+		mGraphicsContext.Factory.DestroyBuffer(ref mDefaultUnlitMaterialCB);
+		mGraphicsContext.Factory.DestroyBuffer(ref mUnlitVertexCB);
+
 		mGraphicsContext.Factory.DestroyShader(ref mPixelShader);
 		mGraphicsContext.Factory.DestroyShader(ref mVertexShader);
+	}
+
+	public ResourceLayout GetMaterialResourceLayout(StringView shaderName)
+	{
+		switch (shaderName)
+		{
+		case "Unlit": return mUnlitMaterialResourceLayout;
+		default: return mUnlitMaterialResourceLayout; // Fallback
+		}
 	}
 
 	private static TextureSampleCount SampleCount = TextureSampleCount.None;

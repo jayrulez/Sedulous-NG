@@ -49,7 +49,11 @@ class GPUTexture : GPUResource
 	{
 		var textureDesc = TextureDescription.CreateTexture2DDescription(image.Width, image.Height, ConvertPixelFormat(image.Format));
 
-		DataBox data = .(image.Data.Ptr);
+		uint32 bytesPerPixel = (uint32)Image.GetBytesPerPixel(image.Format);
+		uint32 rowPitch = image.Width * bytesPerPixel;
+		uint32 slicePitch = rowPitch * image.Height;
+
+		DataBox data = DataBox(image.Data.Ptr, rowPitch, slicePitch);
 
 		Texture = mGraphicsContext.Factory.CreateTexture(scope DataBox[](data), textureDesc);
 

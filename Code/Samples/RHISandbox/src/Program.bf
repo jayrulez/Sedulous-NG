@@ -201,8 +201,10 @@ class SandboxApplication : Application
 			var renderer = geometry.AddComponent<MeshRenderer>();
 			renderer.Color = Color.White;
 			Mesh mesh = Mesh.CreateCube();
-
 			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh, true));
+
+			var material = MaterialResource.CreateUnlit(.Red);
+			renderer.Material = engine.ResourceSystem.AddResource(material);
 		}
 
 		/*// Create floor plane

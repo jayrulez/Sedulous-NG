@@ -90,7 +90,7 @@ public class UnlitMaterial : Material
     
     public override int GetUniformDataSize()
     {
-        return sizeof(Vector4); // Just color
+        return sizeof(Vector4) + sizeof(Vector4); // Just color
     }
     
     public override void FillUniformData(Span<uint8> buffer)

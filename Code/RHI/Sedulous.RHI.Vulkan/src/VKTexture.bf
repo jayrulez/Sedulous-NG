@@ -266,8 +266,24 @@ public class VKTexture : Texture
 					uint32 index = a * description.Faces * description.MipLevels + f * description.MipLevels + m;
 					uint64 copyPointer = bufferPointer + copyOffset;
 					DataBox dataBox = data[index];
-					Internal.MemCpy((void*)(int)copyPointer, (void*)dataBox.DataPointer, dataBox.SlicePitch * description.Depth);
-					copyOffset += dataBox.SlicePitch;
+
+					//Internal.MemCpy((void*)(int)copyPointer, (void*)dataBox.DataPointer, dataBox.SlicePitch * description.Depth);
+					//copyOffset += dataBox.SlicePitch;
+
+					uint32 bytesToCopy;
+					if (description.Type == TextureType.Texture3D)
+					{
+					    bytesToCopy = dataBox.SlicePitch * levelDepth;
+					}
+					else
+					{
+					    // For 1D/2D textures, calculate from row pitch
+					    bytesToCopy = dataBox.RowPitch * levelHeight;
+					}
+
+					Internal.MemCpy((void*)(int)copyPointer, (void*)dataBox.DataPointer, bytesToCopy);
+					copyOffset += bytesToCopy;  
+
 					copyRegions[index] = VkBufferImageCopy()
 						{
 							bufferOffset = context.TextureUploader.CalculateOffset(copyPointer),

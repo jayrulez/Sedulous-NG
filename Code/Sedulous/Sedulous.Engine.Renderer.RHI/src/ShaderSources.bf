@@ -1,5 +1,21 @@
 using System;
+using Sedulous.Mathematics;
 namespace Sedulous.Engine.Renderer.RHI;
+
+[CRepr, Packed]
+struct UnlitVertexUniforms
+{
+	public Matrix MVPMatrix; // 64 bytes (4x float4)
+	public Matrix ModelMatrix; // 64 bytes (4x float4)
+	// Total: 128 bytes (multiple of 16)
+}
+
+[CRepr, Packed, Align(16)]
+struct UnlitFragmentUniforms
+{
+    public Vector4 MaterialTint;
+    public Vector4 MaterialProperties; // metallic, roughness, emissive, unused
+}
 
 static class ShaderSources
 {
@@ -16,7 +32,7 @@ static class ShaderSources
 	        float3 Position : POSITION;
 	        float3 Normal : NORMAL;
 	        float2 TexCoord : TEXCOORD0;
-	        uint Color : COLOR; // converted automatically
+	        float4 Color : COLOR; // converted automatically
 	        float3 Tangent : TANGENT; 
 	    };
 	    // Vertex output structure
@@ -46,6 +62,14 @@ static class ShaderSources
 	    """;
 
 	public const String UnlitShadersPS = """
+	    cbuffer MaterialBlock : register(b0, space1)  // Material properties
+	    {
+	        float4 MaterialTint;
+	        float4 MaterialProperties; // x=metallic, y=roughness, z=emissive, w=unused
+	    }
+
+	    Texture2D DiffuseTexture : register(t0, space1);
+	    SamplerState LinearSampler : register(s0, space1);
 	    struct PSInput
 	    {
 	        float4 Position : SV_POSITION;
@@ -54,8 +78,30 @@ static class ShaderSources
 	    };
 	    float4 PS(PSInput input) : SV_TARGET
 	    {
-	        // Just return the vertex color
-	        return input.Color;
+	        // Sample texture
+	        float4 texColor = DiffuseTexture.Sample(LinearSampler, input.TexCoord);
+
+	        //return input.Color;
+	        // Combine vertex color, texture, and material tint
+	        //return input.Color * MaterialTint;
+	        return texColor * input.Color * MaterialTint;
+	        //return MaterialTint;
+	        //return float4(input.TexCoord.x, input.TexCoord.y, 0.0, 1.0);
+	        //uint2 texSize;
+	        //DiffuseTexture.GetDimensions(texSize.x, texSize.y);
+	        //return float4(1.0, 0.0, 0.0, 1.0);
+
+	        //texColor = DiffuseTexture.Sample(LinearSampler, float2(0.5, 0.5));
+	        //return texColor;
+	        // Clamp UVs to valid range and show if they were out of bounds
+	        //float2 uv = clamp(input.TexCoord, 0.0, 1.0);
+	        //float4 texColor = DiffuseTexture.Sample(LinearSampler, uv);
+
+	        // Add red if UVs were out of range
+	        //if (any(input.TexCoord != uv))
+	        //    return float4(1.0, 0.0, 0.0, 1.0); // Red = bad UVs
+
+	        //return texColor;
 	    }
 	    """;
 }

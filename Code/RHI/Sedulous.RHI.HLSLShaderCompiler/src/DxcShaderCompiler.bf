@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using Dxc_Beef;
+using System;
 namespace Sedulous.RHI.HLSLShaderCompiler;
 
 using static Sedulous.RHI.HLSLShaderCompiler.ExtensionsMethods;
@@ -60,10 +61,14 @@ static class DxcShaderCompiler
 			};
 
 		List<StringView> argList = scope .();
+		String debug = scope .(); 
 		for (var argument in arguments)
 		{
 			argList.Add(argument);
+			debug.AppendF("{} ", argument);
 		}
+
+		System.Diagnostics.Debug.WriteLine(debug);
 
 		DxcCompiler.Compile(buffer, argList, includeHandler, ref IDxcResult.IID, var result);
 		return (IDxcResult*)result;
@@ -236,8 +241,38 @@ static class DxcShaderCompiler
 			if (options.SpvReflect)
 				arguments.Add("-fspv-reflect");
 
+			for(int i = 0; i < 4; i++)
+			{
+				if (options.VkBufferShift > 0)
+				{
+					arguments.Add("-fvk-b-shift");
+					arguments.Add(scope :: $"{options.VkBufferShift}");
+					arguments.Add(scope :: $"{i}");
+				}
 
-			if (options.VkBufferShift > 0)
+				if (options.VkTextureShift > 0)
+				{
+					arguments.Add("-fvk-t-shift");
+					arguments.Add(scope :: $"{options.VkTextureShift}");
+					arguments.Add(scope :: $"{i}");
+				}
+
+				if (options.VkSamplerShift > 0)
+				{
+					arguments.Add("-fvk-s-shift");
+					arguments.Add(scope :: $"{options.VkSamplerShift}");
+					arguments.Add(scope :: $"{i}");
+				}
+
+				if (options.VkUAVShift > 0)
+				{
+					arguments.Add("-fvk-u-shift");
+					arguments.Add(scope :: $"{options.VkUAVShift}");
+					arguments.Add(scope :: $"{i}");
+				}
+			}
+
+			/*if (options.VkBufferShift > 0)
 			{
 				arguments.Add("-fvk-b-shift");
 				arguments.Add(scope :: $"{options.VkBufferShift}");
@@ -263,7 +298,7 @@ static class DxcShaderCompiler
 				arguments.Add("-fvk-u-shift");
 				arguments.Add(scope :: $"{options.VkUAVShift}");
 				arguments.Add(scope :: $"{options.VkUAVShiftSet}");
-			}
+			}*/
 		}
 		else
 		{

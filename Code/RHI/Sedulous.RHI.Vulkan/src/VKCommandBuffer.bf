@@ -404,19 +404,19 @@ public class VKCommandBuffer : CommandBuffer
 		}
 		if (activePipelineState is VKGraphicsPipelineState)
 		{
-			VulkanNative.vkCmdBindDescriptorSets(CommandBuffer, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, currentGraphicsPipelineState.NativePipelineLayout, 0, 1, &nativeResourceSet, vkResourceSet.DynamicBufferCount, dynamicOffsets);
+			VulkanNative.vkCmdBindDescriptorSets(CommandBuffer, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, currentGraphicsPipelineState.NativePipelineLayout, index, 1, &nativeResourceSet, vkResourceSet.DynamicBufferCount, dynamicOffsets);
 		}
 		else if (activePipelineState is VKComputePipelineState)
 		{
-			VulkanNative.vkCmdBindDescriptorSets(CommandBuffer, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_COMPUTE, currentComputePipelineState.NativePipelineLayout, 0, 1, &nativeResourceSet, vkResourceSet.DynamicBufferCount, dynamicOffsets);
+			VulkanNative.vkCmdBindDescriptorSets(CommandBuffer, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_COMPUTE, currentComputePipelineState.NativePipelineLayout, index, 1, &nativeResourceSet, vkResourceSet.DynamicBufferCount, dynamicOffsets);
 		}
 		else if (activePipelineState is VKRaytracingPipelineState)
 		{
-			VulkanNative.vkCmdBindDescriptorSets(CommandBuffer, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, currentRaytracingPipelineState.NativePipelineLayout, 0, 1, &nativeResourceSet, vkResourceSet.DynamicBufferCount, dynamicOffsets);
+			VulkanNative.vkCmdBindDescriptorSets(CommandBuffer, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, currentRaytracingPipelineState.NativePipelineLayout, index, 1, &nativeResourceSet, vkResourceSet.DynamicBufferCount, dynamicOffsets);
 		}
 		else if (activePipelineState is VKMeshShaderPipelineState)
 		{
-			VulkanNative.vkCmdBindDescriptorSets(CommandBuffer, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, currentMeshShaderPipelineState.NativePipelineLayout, 0, 1, &nativeResourceSet, vkResourceSet.DynamicBufferCount, dynamicOffsets);
+			VulkanNative.vkCmdBindDescriptorSets(CommandBuffer, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, currentMeshShaderPipelineState.NativePipelineLayout, index, 1, &nativeResourceSet, vkResourceSet.DynamicBufferCount, dynamicOffsets);
 		}
 		else
 		{

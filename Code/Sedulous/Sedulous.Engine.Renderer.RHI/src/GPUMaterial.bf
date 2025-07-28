@@ -17,6 +17,9 @@ class GPUMaterial : GPUResource
 	private uint32 mUniformBufferSize;
 	private List<GPUResourceHandle<GPUTexture>> mGPUTextures = new .() ~ delete _;
 
+	public Buffer UniformBuffer => mUniformBuffer;
+	public uint32 UniformBufferSize => mUniformBufferSize;
+
 	// Pipeline state derived from material
 	public Material.BlendMode BlendMode => mMaterial.Blending;
 	public Material.CullMode CullMode => mMaterial.Culling;
@@ -78,6 +81,15 @@ class GPUMaterial : GPUResource
 		}
 	}
 
-	public Buffer UniformBuffer => mUniformBuffer;
-	public uint32 UniformBufferSize => mUniformBufferSize;
+	public List<GPUResourceHandle<GPUTexture>> GetGPUTextures() => mGPUTextures;
+
+	public void UpdateUniformData(CommandBuffer commandBuffer)
+	{
+	    if (mUniformBuffer != null)
+	    {
+	        var data = scope uint8[mUniformBufferSize];
+	        mMaterial.FillUniformData(data);
+	        commandBuffer.UpdateBufferData(mUniformBuffer, data.Ptr, mUniformBufferSize);
+	    }
+	}
 }

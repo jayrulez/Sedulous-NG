@@ -1,0 +1,6 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.Serialization"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Serialization.Program"

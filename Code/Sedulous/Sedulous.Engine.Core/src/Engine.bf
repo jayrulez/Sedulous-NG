@@ -17,9 +17,9 @@ using internal Sedulous.Jobs;
 
 sealed class Engine : IEngine
 {
-    private readonly MessageBus mMessageBus = new .() ~ delete _;
-    
-    public MessageBus Messages => mMessageBus;
+	private readonly MessageBus mMessageBus = new .() ~ delete _;
+
+	public MessageBus Messages => mMessageBus;
 	private List<Subsystem> mSubsystems = new .() ~ delete _;
 
 	public Span<Subsystem> Subsystems => mSubsystems;
@@ -163,7 +163,7 @@ sealed class Engine : IEngine
 
 		mInitialized = true;
 
-		for(var subsystem in mSubsystems)
+		for (var subsystem in mSubsystems)
 		{
 			subsystem.Initialized(this);
 		}
@@ -206,7 +206,7 @@ sealed class Engine : IEngine
 		delete mBehaviourSubsystem;
 
 		mSubsystems.Clear();
-        mMessageBus.Clear();
+		mMessageBus.Clear();
 
 		mInitialized = false;
 		mLogger.LogInformation("Engine uninitialized.");
@@ -214,7 +214,7 @@ sealed class Engine : IEngine
 
 	public void Update(int64 elapsedTicks)
 	{
-		#region Update methods
+#region Update methods
 		void SortUpdateFunctions()
 		{
 			Enum.MapValues<IEngine.UpdateStage>(scope (member) =>
@@ -278,7 +278,7 @@ sealed class Engine : IEngine
 
 
 #endregion
-		
+
 		mMessageBus.ProcessQueuedMessages();
 		mJobSystem.Update(elapsedTicks);
 		mResourceSystem.Update(elapsedTicks);
@@ -292,11 +292,7 @@ sealed class Engine : IEngine
 
 		// Pre-Update
 		{
-			RunUpdateFunctions(.PreUpdate, .()
-				{
-					Engine = this,
-					Time = mPreUpdateTimeTracker.Increment(TimeSpan(elapsedTicks))
-				});
+			RunUpdateFunctions(.PreUpdate, .(this, mPreUpdateTimeTracker.Increment(TimeSpan(elapsedTicks))));
 		}
 
 		// Fixed-Update
@@ -316,11 +312,7 @@ sealed class Engine : IEngine
 
 				for (var i = 0; i < fixedTicksToRun; i++)
 				{
-					RunUpdateFunctions(.FixedUpdate, .()
-						{
-							Engine = this,
-							Time = mFixedUpdateTimeTracker.Increment(timeDeltaFixedUpdate /*, mRunningSlowly*/)
-						});
+					RunUpdateFunctions(.FixedUpdate, .(this, mFixedUpdateTimeTracker.Increment(timeDeltaFixedUpdate /*, mRunningSlowly*/)));
 				}
 			}
 		}
@@ -329,20 +321,12 @@ sealed class Engine : IEngine
 		{
 			var updateTime = mUpdateTimeTracker.Increment(TimeSpan(elapsedTicks));
 			mSceneGraphSystem.Update(updateTime);
-			RunUpdateFunctions(.VariableUpdate, .()
-				{
-					Engine = this,
-					Time = updateTime
-				});
+			RunUpdateFunctions(.VariableUpdate, .(this, updateTime));
 		}
 
 		// Post-Update
 		{
-			RunUpdateFunctions(.PostUpdate, .()
-				{
-					Engine = this,
-					Time = mPostUpdateTimeTracker.Increment(TimeSpan(elapsedTicks))
-				});
+			RunUpdateFunctions(.PostUpdate, .(this, mPostUpdateTimeTracker.Increment(TimeSpan(elapsedTicks))));
 		}
 	}
 

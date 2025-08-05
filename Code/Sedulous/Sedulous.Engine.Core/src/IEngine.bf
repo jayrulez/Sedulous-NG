@@ -33,6 +33,12 @@ interface IEngine
 	{
 		public IEngine Engine;
 		public Time Time;
+
+		public this(IEngine engine, Time time)
+		{
+			Engine = engine;
+			Time = time;
+		}
 	}
 
 	public struct RegisteredUpdateFunctionInfo

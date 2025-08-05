@@ -12,6 +12,7 @@ public abstract class Material
     {
         Opaque,         // No blending
         AlphaBlend,     // Standard transparency
+		AlphaTest,
         Additive,       // Additive blending
         Multiply        // Multiply blending
     }

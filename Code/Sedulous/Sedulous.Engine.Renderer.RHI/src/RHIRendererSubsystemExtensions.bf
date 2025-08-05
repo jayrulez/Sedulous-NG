@@ -33,4 +33,16 @@ extension RHIRendererSubsystem
 
 		File.WriteAll(scope $"{stage}.spv", byteCode);
 	}
+
+	internal static void CompileShaderFromSource(GraphicsContext graphicsContext, String shaderSource, ShaderStages stage, String entrypoint, List<uint8> byteCode)
+	{
+		String error = scope .();
+
+		if (DxcShaderCompiler.CompileShader(graphicsContext, shaderSource, entrypoint, stage, CompilerParameters.Default, byteCode, ref error) case .Err)
+		{
+			Runtime.FatalError(scope $"Shader compilation fail: {error}");
+		}
+
+		File.WriteAll(scope $"{stage}.spv", byteCode);
+	}
 }

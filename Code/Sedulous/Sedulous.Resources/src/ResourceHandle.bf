@@ -34,4 +34,10 @@ struct ResourceHandle<T> where T : IResource
 			mIsValid = false;
 		}
 	}
+
+	public void AddRef() mut
+	{
+		if (mIsValid)
+			mResource.AddRef();
+	}
 }

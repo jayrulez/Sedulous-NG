@@ -416,6 +416,9 @@ public class ValidationLayer
 
 	private void NotifyInternal(String message)
 	{
-		Notify("Sedulous", message);
+		if (Notify != null)
+			Notify("Sedulous", message);
+		else
+			Console.WriteLine(scope $"Sedulous: {message}");
 	}
 }

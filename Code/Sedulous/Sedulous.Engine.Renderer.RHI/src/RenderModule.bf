@@ -89,6 +89,126 @@ class RenderModule : SceneModule
 		RenderMeshes(commandBuffer);
 	}
 
+	internal void PrepareGPUResources(CommandBuffer commandBuffer)
+	{
+		var resourceManager = mRenderer.GPUResources;
+
+		// Create GPU resources for any new mesh renderers
+		for (var command in mMeshCommands)
+		{
+			// Get or create GPU mesh
+			if (!mRendererMeshes.ContainsKey(command.Renderer))
+			{
+				if (command.Renderer.Mesh.IsValid && command.Renderer.Mesh.Resource != null)
+				{
+					// This returns a new handle (adds ref)
+					var gpuMesh = resourceManager.GetOrCreateMesh(command.Renderer.Mesh.Resource);
+					if (gpuMesh.IsValid)
+					{
+						mRendererMeshes[command.Renderer] = gpuMesh;
+					}
+				}
+			}
+
+			// Get or create GPU material
+			if (!mRendererMaterials.ContainsKey(command.Renderer))
+			{
+				if (command.Renderer.Material.IsValid && command.Renderer.Material.Resource != null)
+				{
+					// This returns a new handle (adds ref)
+					var gpuMaterial = resourceManager.GetOrCreateMaterial(command.Renderer.Material.Resource);
+					if (gpuMaterial.IsValid)
+					{
+						mRendererMaterials[command.Renderer] = gpuMaterial;
+					}
+					gpuMaterial.Resource.UpdateUniformData(commandBuffer);
+				}
+			}
+		}
+
+		// Update vertex uniform buffer (outside render pass)
+		UpdateVertexUniforms();
+	}
+
+	private void UpdateVertexUniforms()
+	{
+		if (mMeshCommands.IsEmpty)
+			return;
+
+		// Update all object data at once
+		var mapped = mRenderer.GraphicsContext.MapMemory(mRenderer.UnlitVertexCB, MapMode.Write);
+
+		const int32 ALIGNMENT = 256;
+		int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+		for (int i = 0; i < mMeshCommands.Count; i++)
+		{
+			var command = mMeshCommands[i];
+			var vertexUniforms = UnlitVertexUniforms()
+				{
+					MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+					ModelMatrix = command.WorldMatrix
+				};
+
+			// Write to the aligned offset
+			UnlitVertexUniforms* dest = (UnlitVertexUniforms*)((uint8*)mapped.Data + i * alignedSize);
+			*dest = vertexUniforms;
+		}
+
+		mRenderer.GraphicsContext.UnmapMemory(mRenderer.UnlitVertexCB);
+	}
+
+	internal void RenderMeshes(CommandBuffer commandBuffer)
+	{
+		if (mMeshCommands.IsEmpty)
+			return;
+
+		// Render pass is already begun by rendergraph
+		commandBuffer.SetGraphicsPipelineState(mRenderer.UnlitPipeline);
+
+		const int32 ALIGNMENT = 256;
+		int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+		GPUMaterial currentMaterial = null;
+
+		for (int i = 0; i < mMeshCommands.Count; i++)
+		{
+			var command = mMeshCommands[i];
+
+			// Get the material for this object
+			if (mRendererMaterials.TryGetValue(command.Renderer, let materialHandle))
+			{
+				var gpuMaterial = materialHandle.Resource;
+
+				// Only update if material changed (batching)
+				if (gpuMaterial != currentMaterial)
+				{
+					currentMaterial = gpuMaterial;
+
+					// HERE - Set the material's resource set
+					if (gpuMaterial.UniformBuffer != null)
+					{
+						// You'll need to create a resource set for this material
+						var materialResourceSet = GetOrCreateMaterialResourceSet(gpuMaterial);
+						commandBuffer.SetResourceSet(materialResourceSet, 1); // Slot 1 for materials
+					}
+				}
+			} else
+			{
+				// No material - bind a default material resource set
+				commandBuffer.SetResourceSet(mRenderer.DefaultUnlitMaterialResourceSet, 1);
+			}
+
+
+			// Set resource set with dynamic offset
+			uint32 dynamicOffset = (uint32)(i * alignedSize);
+			commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet, 0, scope .(dynamicOffset));
+
+			RenderMesh(command, commandBuffer);
+		}
+		// Render pass will be ended by rendergraph
+	}
+
 	private void UpdateActiveCamera()
 	{
 		mActiveCamera = null;
@@ -153,76 +273,6 @@ class RenderModule : SceneModule
 		mMeshCommands.Sort(scope (lhs, rhs) => lhs.DistanceToCamera.CompareTo(rhs.DistanceToCamera));
 	}
 
-	private void RenderMeshes(CommandBuffer commandBuffer)
-	{
-		if (mMeshCommands.IsEmpty)
-			return;
-
-		// Update all object data at once
-		var mapped = mRenderer.GraphicsContext.MapMemory(mRenderer.UnlitVertexCB, MapMode.Write);
-
-		const int32 ALIGNMENT = 256;
-		int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
-
-		for (int i = 0; i < mMeshCommands.Count; i++)
-		{
-			var command = mMeshCommands[i];
-			var vertexUniforms = UnlitVertexUniforms()
-				{
-					MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
-					ModelMatrix = command.WorldMatrix
-				};
-
-			// Write to the aligned offset
-			UnlitVertexUniforms* dest = (UnlitVertexUniforms*)((uint8*)mapped.Data + i * alignedSize);
-			*dest = vertexUniforms;
-		}
-
-		mRenderer.GraphicsContext.UnmapMemory(mRenderer.UnlitVertexCB);
-
-		RenderPassDescription renderPass = RenderPassDescription(mRenderer.SwapChainFrameBuffer, ClearValue.None);
-		commandBuffer.BeginRenderPass(renderPass);
-		commandBuffer.SetGraphicsPipelineState(mRenderer.UnlitPipeline);
-
-		GPUMaterial currentMaterial = null;
-
-		for (int i = 0; i < mMeshCommands.Count; i++)
-		{
-			var command = mMeshCommands[i];
-
-			// Get the material for this object
-			if (mRendererMaterials.TryGetValue(command.Renderer, let materialHandle))
-			{
-				var gpuMaterial = materialHandle.Resource;
-
-				// Only update if material changed (batching)
-				if (gpuMaterial != currentMaterial)
-				{
-					currentMaterial = gpuMaterial;
-
-					// HERE - Set the material's resource set
-					if (gpuMaterial.UniformBuffer != null)
-					{
-						// You'll need to create a resource set for this material
-						var materialResourceSet = GetOrCreateMaterialResourceSet(gpuMaterial);
-						commandBuffer.SetResourceSet(materialResourceSet, 1); // Slot 1 for materials
-					}
-				}
-			} else
-			{
-				// No material - bind a default material resource set
-				commandBuffer.SetResourceSet(mRenderer.DefaultUnlitMaterialResourceSet, 1);
-			}
-
-
-			// Set resource set with dynamic offset
-			uint32 dynamicOffset = (uint32)(i * alignedSize);
-			commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet, 0, scope .(dynamicOffset));
-
-			RenderMesh(command, commandBuffer);
-		}
-		commandBuffer.EndRenderPass();
-	}
 
 	private void RenderMesh(MeshRenderCommand command, CommandBuffer commandBuffer)
 	{
@@ -278,41 +328,4 @@ class RenderModule : SceneModule
 			);
 	}
 
-	private void PrepareGPUResources(CommandBuffer commandBuffer)
-	{
-		var resourceManager = mRenderer.GPUResources;
-
-		// Create GPU resources for any new mesh renderers
-		for (var command in mMeshCommands)
-		{
-			// Get or create GPU mesh
-			if (!mRendererMeshes.ContainsKey(command.Renderer))
-			{
-				if (command.Renderer.Mesh.IsValid && command.Renderer.Mesh.Resource != null)
-				{
-					// This returns a new handle (adds ref)
-					var gpuMesh = resourceManager.GetOrCreateMesh(command.Renderer.Mesh.Resource);
-					if (gpuMesh.IsValid)
-					{
-						mRendererMeshes[command.Renderer] = gpuMesh;
-					}
-				}
-			}
-
-			// Get or create GPU material
-			if (!mRendererMaterials.ContainsKey(command.Renderer))
-			{
-				if (command.Renderer.Material.IsValid && command.Renderer.Material.Resource != null)
-				{
-					// This returns a new handle (adds ref)
-					var gpuMaterial = resourceManager.GetOrCreateMaterial(command.Renderer.Material.Resource);
-					if (gpuMaterial.IsValid)
-					{
-						mRendererMaterials[command.Renderer] = gpuMaterial;
-					}
-					gpuMaterial.Resource.UpdateUniformData(commandBuffer);
-				}
-			}
-		}
-	}
 }

@@ -7,6 +7,7 @@ using Sedulous.Engine.Renderer.GPU;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.RHI.VertexFormats;
+using Sedulous.Engine.Renderer.RHI.RenderGraph;
 namespace Sedulous.Engine.Renderer.RHI;
 
 using internal Sedulous.Engine.Renderer.RHI;
@@ -83,6 +84,10 @@ class RHIRendererSubsystem : Subsystem
 	private Viewport[] WindowViewports = new .[1] ~ delete _;
 	private Rectangle[] WindowScissors = new .[1] ~ delete _;
 
+	// Render Graph
+	private RenderGraph mRenderGraph ~ delete _;
+	private RenderGraphResourceHandle mBackBufferHandle;
+
 	public this(Window window, GraphicsContext context)
 	{
 		mWindow = window;
@@ -128,12 +133,20 @@ class RHIRendererSubsystem : Subsystem
 
 		CreateUnlitPipeline();
 
+		// Create render graph
+		mRenderGraph = new RenderGraph("Main", mGraphicsContext, mGraphicsContext.Factory);
+		SetupRenderGraph();
+
 		return base.OnInitializing(engine);
 	}
 
 	protected override void OnUnitializing(IEngine engine)
 	{
 		// Cleanup
+		if (mRenderGraph != null)
+		{
+			mRenderGraph.Reset();
+		}
 
 		DestroyUnlitPipeline();
 
@@ -194,29 +207,16 @@ class RHIRendererSubsystem : Subsystem
 
 	private void OnRender(IEngine.UpdateInfo info)
 	{
+		// Update render graph resources if window resized
+		UpdateRenderGraphResources();
+
+		// Execute render graph
 		CommandBuffer commandBuffer = mCommandQueue.CommandBuffer();
-
 		commandBuffer.Begin();
-		{
-			// Clear screen
-			ClearValue clearValue = .(ClearFlags.All, Color.CornflowerBlue);
-			RenderPassDescription clearRenderPass = RenderPassDescription(mSwapChain.FrameBuffer, clearValue);
-			commandBuffer.BeginRenderPass(clearRenderPass);
 
-			commandBuffer.SetViewports(WindowViewports);
-			commandBuffer.SetScissorRectangles(WindowScissors);
-
-			commandBuffer.EndRenderPass();
-		}
-		{
-			for (var module in mModules)
-			{
-				module.RenderFrame(info, commandBuffer);
-			}
-		}
+		mRenderGraph.Execute(commandBuffer);
 
 		commandBuffer.End();
-
 		commandBuffer.Commit();
 
 		mCommandQueue.Submit();
@@ -231,6 +231,68 @@ class RHIRendererSubsystem : Subsystem
 		WindowViewports[0] = Viewport(0, 0, mWindow.Width, mWindow.Height);
 		WindowScissors[0] = Rectangle(0, 0, (.)mWindow.Width, (.)mWindow.Height);
 		mSwapChain.ResizeSwapChain((.)width, (.)height);
+		
+		// Reset render graph on resize
+		if (mRenderGraph != null)
+		{
+			mRenderGraph.Reset();
+			SetupRenderGraph();
+		}
+	}
+
+	private void SetupRenderGraph()
+	{
+		// Import back buffer
+		mBackBufferHandle = mRenderGraph.ImportTexture("BackBuffer", mSwapChain.GetCurrentFramebufferTexture());
+		
+		// Add buffer update pass (outside render pass)
+		var updatePass = mRenderGraph.AddPass<RenderGraphComputePass>("BufferUpdate", 
+			new => BufferUpdatePassExecute);
+		
+		updatePass.Setup(mRenderGraph)
+			.Build();
+		
+		// Add main render pass
+		var mainPass = mRenderGraph.AddPass<RenderGraphGraphicsPass>("MainRender", 
+			new => MainRenderPassExecute);
+		
+		mainPass.Setup(mRenderGraph)
+			.WriteTexture(mBackBufferHandle)
+			.DependsOn(updatePass.Handle)
+			.Build();
+		
+		var clearValue = ClearValue(ClearFlags.All, Color.CornflowerBlue);
+		var mainRenderPass = mainPass as RenderGraphGraphicsPass;
+		mainRenderPass.RenderPassDesc = RenderPassDescription(mSwapChain.FrameBuffer, clearValue);
+		
+		// Compile render graph
+		mRenderGraph.Compile();
+	}
+
+	private void BufferUpdatePassExecute(CommandBuffer cmd, RenderGraphContext context)
+	{
+		// Update all buffers outside of render pass
+		for (var module in mModules)
+		{
+			module.PrepareGPUResources(cmd);
+		}
+	}
+
+	private void MainRenderPassExecute(CommandBuffer cmd, RenderGraphContext context)
+	{
+		cmd.SetViewports(WindowViewports);
+		cmd.SetScissorRectangles(WindowScissors);
+		
+		for (var module in mModules)
+		{
+			module.RenderMeshes(cmd);
+		}
+	}
+
+	private void UpdateRenderGraphResources()
+	{
+		// Check if we need to recreate resources due to window resize
+		// This would be handled by OnWindowResized
 	}
 
 	private void CreateDefaultTextures()

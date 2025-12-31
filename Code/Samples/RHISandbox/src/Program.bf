@@ -145,6 +145,10 @@ class SandboxApplication : Application
 	private int32 mCurrentAnimationIndex = 0;
 	private String[] mAnimationNames = new .("Survey", "Walk", "Run") ~ delete _;
 
+	// Debug visualization
+	private bool mShowLightDebug = true;
+	private RHIRendererSubsystem mRHIRenderer;
+
 	private AppSubsystem mAppSubsystem;
 
 	public this(ILogger logger, WindowSystem windowSystem) : base(logger, windowSystem)
@@ -542,6 +546,13 @@ class SandboxApplication : Application
 				mSunLightEntity.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(mSunYaw, mSunPitch, 0);
 			}
 
+			// Toggle debug visualization with F2
+			if (keyboard.IsKeyPressed(.F2))
+			{
+				mShowLightDebug = !mShowLightDebug;
+				Debug.WriteLine("Light debug visualization: {0}", mShowLightDebug ? "ON" : "OFF");
+			}
+
 			// Display current values with F1
 			if (keyboard.IsKeyPressed(.F1))
 			{
@@ -561,6 +572,28 @@ class SandboxApplication : Application
 				Debug.WriteLine("  T/G - Warmer/Cooler color");
 				Debug.WriteLine("  R   - Reset to default");
 				Debug.WriteLine("  F1  - Show this help");
+				Debug.WriteLine("  F2  - Toggle light debug visualization");
+			}
+
+			// Draw debug visualization for directional light
+			if (mShowLightDebug)
+			{
+				if (mRHIRenderer == null)
+					mRHIRenderer = ((Engine)info.Engine).GetSubsystem<RHIRendererSubsystem>().Value;
+
+				var debugRenderer = mRHIRenderer?.GetDebugRenderer();
+				if (debugRenderer != null)
+				{
+					var lightDir = mSunLightEntity.Transform.Forward;
+					var lightColor = Color(
+						(uint8)(mSunLight.Color.X * 255),
+						(uint8)(mSunLight.Color.Y * 255),
+						(uint8)(mSunLight.Color.Z * 255),
+						255);
+
+					// Draw light rays from "sun position" toward scene center
+					debugRenderer.DrawDirectionalLight(lightDir, Vector3.Zero, 5.0f, lightColor);
+				}
 			}
 		}
 

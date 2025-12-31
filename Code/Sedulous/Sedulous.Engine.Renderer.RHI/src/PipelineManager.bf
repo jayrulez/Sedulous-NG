@@ -19,6 +19,7 @@ class PipelineManager
 	private Shader mUnlitVertexShader;
 	private Shader mUnlitPixelShader;
 	private ResourceLayout mUnlitPerObjectResourceLayout;
+	private LayoutElementDescription[] mUnlitPerObjectLayoutElements ~ delete _;
 	private ResourceLayout mUnlitMaterialResourceLayout;
 	private LayoutElementDescription[] mUnlitMaterialLayoutElements ~ delete _;
 	private ResourceLayout[] mUnlitPipelineResourceLayouts ~ delete _;
@@ -55,8 +56,17 @@ class PipelineManager
 
 	// Lighting resources (shared by all lit pipelines)
 	private ResourceLayout mLightingResourceLayout;
+	private LayoutElementDescription[] mLightingLayoutElements ~ delete _;
 	private Buffer mLightingBuffer;
 	private ResourceSet mLightingResourceSet;
+
+	// Debug line pipeline resources
+	private GraphicsPipelineState mDebugLinePipeline;
+	private Shader mDebugLineVertexShader;
+	private Shader mDebugLinePixelShader;
+	private ResourceLayout mDebugResourceLayout;
+	private LayoutElementDescription[] mDebugLayoutElements ~ delete _;
+	private ResourceLayout[] mDebugPipelineResourceLayouts ~ delete _;
 
 	// Material pipeline registry
 	private MaterialPipelineRegistry mMaterialRegistry = new .() ~ delete _;
@@ -66,6 +76,8 @@ class PipelineManager
 	public GraphicsPipelineState SkinnedUnlitPipeline => mSkinnedUnlitPipeline;
 	public GraphicsPipelineState SkinnedPhongPipeline => mSkinnedPhongPipeline;
 	public GraphicsPipelineState PhongPipeline => mPhongPipeline;
+	public GraphicsPipelineState DebugLinePipeline => mDebugLinePipeline;
+	public ResourceLayout DebugResourceLayout => mDebugResourceLayout;
 	public MaterialPipelineRegistry MaterialRegistry => mMaterialRegistry;
 
 	public ResourceLayout UnlitPerObjectResourceLayout => mUnlitPerObjectResourceLayout;
@@ -100,10 +112,12 @@ class PipelineManager
 		CreatePhongPipeline(targetFrameBuffer);
 		CreateSkinnedPipeline(targetFrameBuffer);
 		CreateSkinnedPhongPipeline(targetFrameBuffer);
+		CreateDebugLinePipeline(targetFrameBuffer);
 	}
 
 	public void Destroy()
 	{
+		DestroyDebugLinePipeline();
 		DestroySkinnedPhongPipeline();
 		DestroySkinnedPipeline();
 		DestroyPhongPipeline();
@@ -119,10 +133,10 @@ class PipelineManager
 	private void CreateLightingResources()
 	{
 		// Create lighting resource layout
-		LayoutElementDescription[] lightingLayoutElements = scope:: LayoutElementDescription[](
+		mLightingLayoutElements = new LayoutElementDescription[](
 			LayoutElementDescription(0, .ConstantBuffer, .Pixel, false, sizeof(LightingUniforms))
 		);
-		ResourceLayoutDescription lightingLayoutDesc = ResourceLayoutDescription(params lightingLayoutElements);
+		ResourceLayoutDescription lightingLayoutDesc = ResourceLayoutDescription(params mLightingLayoutElements);
 		mLightingResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(lightingLayoutDesc);
 
 		// Create lighting buffer with default values
@@ -200,10 +214,10 @@ class PipelineManager
 
 		// Unlit Per Object ResourceLayout
 		{
-			LayoutElementDescription[] layoutElementDescs = scope:: LayoutElementDescription[](
+			mUnlitPerObjectLayoutElements = new LayoutElementDescription[](
 				LayoutElementDescription(0, .ConstantBuffer, .Vertex, true, sizeof(UnlitVertexUniforms))
 			);
-			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params mUnlitPerObjectLayoutElements);
 			mUnlitPerObjectResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
 		}
 
@@ -458,5 +472,59 @@ class PipelineManager
 			mGraphicsContext.Factory.DestroyShader(ref mSkinnedPhongPixelShader);
 		if (mSkinnedPhongVertexShader != null)
 			mGraphicsContext.Factory.DestroyShader(ref mSkinnedPhongVertexShader);
+	}
+
+	private void CreateDebugLinePipeline(FrameBuffer targetFrameBuffer)
+	{
+		// Compile debug line shaders
+		mDebugLineVertexShader = mShaderManager.CompileFromSource(ShaderSources.DebugLineVS, .Vertex, "VS");
+		mDebugLinePixelShader = mShaderManager.CompileFromSource(ShaderSources.DebugLinePS, .Pixel, "PS");
+
+		// Debug line vertex format (position + color)
+		var vertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color));
+		var vertexLayouts = scope InputLayouts();
+		vertexLayouts.Add(vertexFormat);
+
+		// Debug resource layout (just view-projection matrix)
+		mDebugLayoutElements = new LayoutElementDescription[](
+			LayoutElementDescription(0, .ConstantBuffer, .Vertex, false, sizeof(DebugUniforms))
+		);
+		ResourceLayoutDescription debugLayoutDesc = ResourceLayoutDescription(params mDebugLayoutElements);
+		mDebugResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(debugLayoutDesc);
+
+		// Create debug line pipeline with line primitive topology
+		var renderStates = RenderStateDescription.Default;
+		renderStates.DepthStencilState.DepthEnable = true;
+		renderStates.DepthStencilState.DepthWriteMask = false; // Don't write to depth (draw on top of everything)
+
+		var pipelineDescription = GraphicsPipelineDescription
+		{
+			RenderStates = renderStates,
+			Shaders = .()
+			{
+				VertexShader = mDebugLineVertexShader,
+				PixelShader = mDebugLinePixelShader
+			},
+			InputLayouts = vertexLayouts,
+			ResourceLayouts = mDebugPipelineResourceLayouts = new ResourceLayout[](mDebugResourceLayout),
+			PrimitiveTopology = .LineList,
+			Outputs = .CreateFromFrameBuffer(targetFrameBuffer)
+		};
+
+		mDebugLinePipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(pipelineDescription);
+	}
+
+	private void DestroyDebugLinePipeline()
+	{
+		if (mDebugLinePipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mDebugLinePipeline);
+		if (mDebugResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mDebugResourceLayout);
+		if (mDebugLinePixelShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mDebugLinePixelShader);
+		if (mDebugLineVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mDebugLineVertexShader);
 	}
 }

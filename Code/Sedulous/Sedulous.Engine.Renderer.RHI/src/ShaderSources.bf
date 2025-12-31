@@ -34,6 +34,19 @@ struct LightingUniforms
     public Vector4 AmbientLight;          // xyz = ambient color, w = unused
 }
 
+[CRepr, Packed, Align(16)]
+struct DebugLineVertex
+{
+    public Vector3 Position;
+    public Color Color;
+}
+
+[CRepr, Packed, Align(16)]
+struct DebugUniforms
+{
+    public Matrix ViewProjection;
+}
+
 static
 {
 	public const int MAX_BONES = 128;
@@ -413,6 +426,50 @@ static class ShaderSources
 	        float3 finalColor = (ambient + diffuse) * texColor.rgb * input.Color.rgb + specular;
 
 	        return float4(finalColor, texColor.a * input.Color.a * DiffuseColor.a);
+	    }
+	    """;
+
+	// ============================================
+	// Debug Line Shaders
+	// ============================================
+
+	public const String DebugLineVS = """
+	    cbuffer DebugUniforms : register(b0, space0)
+	    {
+	        float4x4 ViewProjection;
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float4 Color : COLOR;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        float4 Color : COLOR;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+	        output.Position = mul(float4(input.Position, 1.0), ViewProjection);
+	        output.Color = input.Color;
+	        return output;
+	    }
+	    """;
+
+	public const String DebugLinePS = """
+	    struct PSInput
+	    {
+	        float4 Position : SV_POSITION;
+	        float4 Color : COLOR;
+	    };
+
+	    float4 PS(PSInput input) : SV_TARGET
+	    {
+	        return input.Color;
 	    }
 	    """;
 }

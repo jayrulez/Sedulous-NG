@@ -64,9 +64,11 @@ class RHIRendererSubsystem : Subsystem
 	public GraphicsPipelineState UnlitPipeline => mPipelineManager.UnlitPipeline;
 	public GraphicsPipelineState SkinnedUnlitPipeline => mPipelineManager.SkinnedUnlitPipeline;
 	public GraphicsPipelineState SkinnedPhongPipeline => mPipelineManager.SkinnedPhongPipeline;
+	public GraphicsPipelineState DebugLinePipeline => mPipelineManager.DebugLinePipeline;
 	public ResourceLayout SkinnedPerObjectResourceLayout => mPipelineManager.SkinnedPerObjectResourceLayout;
 	public ResourceLayout BoneMatricesResourceLayout => mPipelineManager.BoneMatricesResourceLayout;
 	public ResourceLayout UnlitMaterialResourceLayout => mPipelineManager.UnlitMaterialResourceLayout;
+	public ResourceLayout DebugResourceLayout => mPipelineManager.DebugResourceLayout;
 	public ResourceSet DefaultUnlitMaterialResourceSet => mPipelineManager.DefaultUnlitMaterialResourceSet;
 	public ResourceSet UnlitResourceSet => mPipelineManager.UnlitPerObjectResourceSet;
 	public Buffer UnlitVertexCB => mPipelineManager.UnlitVertexCB;
@@ -222,6 +224,25 @@ class RHIRendererSubsystem : Subsystem
 		}
 	}
 
+	/// Get the debug renderer for a specific scene
+	public DebugRenderer GetDebugRenderer(Scene scene)
+	{
+		for (var module in mRenderModules)
+		{
+			if (module.Scene == scene)
+				return module.DebugRenderer;
+		}
+		return null;
+	}
+
+	/// Get the first available debug renderer (convenience for single-scene apps)
+	public DebugRenderer GetDebugRenderer()
+	{
+		if (mRenderModules.Count > 0)
+			return mRenderModules[0].DebugRenderer;
+		return null;
+	}
+
 	private void OnUpdate(IEngine.UpdateInfo info)
 	{
 	}
@@ -296,6 +317,8 @@ class RHIRendererSubsystem : Subsystem
 		for (var module in mRenderModules)
 		{
 			module.PrepareGPUResources(cmd);
+			module.UpdateLightingBuffer(cmd);
+			module.UpdateDebugBuffers(cmd);
 		}
 	}
 
@@ -308,6 +331,7 @@ class RHIRendererSubsystem : Subsystem
 		{
 			module.RenderMeshes(cmd);
 			module.RenderSkinnedMeshes(cmd);
+			module.RenderDebugLines(cmd);
 		}
 	}
 

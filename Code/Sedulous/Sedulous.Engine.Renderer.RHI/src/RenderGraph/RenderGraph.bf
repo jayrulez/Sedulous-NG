@@ -119,12 +119,12 @@ namespace Sedulous.Engine.Renderer.RHI.RenderGraph
 		public void Compile()
 		{
 			mExecutionOrder.Clear();
-			
+
 			// Build dependency graph and perform topological sort
 			List<RenderGraphPass> sorted = scope .();
 			HashSet<RenderGraphPass> visited = scope .();
 			HashSet<RenderGraphPass> visiting = scope .();
-			
+
 			for (let pass in mPasses)
 			{
 				if (!visited.Contains(pass))
@@ -132,19 +132,20 @@ namespace Sedulous.Engine.Renderer.RHI.RenderGraph
 					TopologicalSort(pass, visited, visiting, sorted);
 				}
 			}
-			
-			// Reverse the list to get correct execution order
-			for (int i = sorted.Count - 1; i >= 0; i--)
+
+			// The topological sort already produces correct order (dependencies first)
+			// No reversal needed - dependencies are visited and added before dependents
+			for (let pass in sorted)
 			{
-				mExecutionOrder.Add(sorted[i]);
+				mExecutionOrder.Add(pass);
 			}
-			
+
 			// Perform resource lifetime analysis
 			AnalyzeResourceLifetimes();
-			
+
 			// Cull unused passes
 			CullUnusedPasses();
-			
+
 			mCompiled = true;
 		}
 

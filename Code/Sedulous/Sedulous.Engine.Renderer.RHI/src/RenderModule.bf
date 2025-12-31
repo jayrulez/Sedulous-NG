@@ -45,15 +45,23 @@ class RenderModule : SceneModule
 	// Lighting data
 	private LightingUniforms mCurrentLighting;
 
+	// Debug rendering
+	private DebugRenderer mDebugRenderer ~ delete _;
+	private ResourceSet mDebugResourceSet;
+
 	private EntityQuery mMeshesQuery;
 	private EntityQuery mSkinnedMeshesQuery;
 	private EntityQuery mCamerasQuery;
 	private EntityQuery mDirectionalLightsQuery;
 
+	/// Access to debug renderer for drawing debug lines
+	public DebugRenderer DebugRenderer => mDebugRenderer;
+
 	public this(RHIRendererSubsystem renderer)
 	{
 		mRenderer = renderer;
 		mCache = new RenderCache(renderer, renderer.GPUResources);
+		mDebugRenderer = new DebugRenderer(renderer.GraphicsContext);
 
 		mMeshesQuery = CreateQuery().With<MeshRenderer>();
 		mSkinnedMeshesQuery = CreateQuery().With<SkinnedMeshRenderer>().With<Animator>();
@@ -67,10 +75,17 @@ class RenderModule : SceneModule
 			DirectionalLightColor = Vector4(1.0f, 0.95f, 0.9f, 1.0f),
 			AmbientLight = Vector4(0.1f, 0.1f, 0.15f, 0)
 		};
+
+		// Create debug resource set
+		ResourceSetDescription debugSetDesc = .(renderer.DebugResourceLayout, mDebugRenderer.UniformBuffer);
+		mDebugResourceSet = renderer.GraphicsContext.Factory.CreateResourceSet(debugSetDesc);
 	}
 
 	public ~this()
 	{
+		if (mDebugResourceSet != null)
+			mRenderer.GraphicsContext.Factory.DestroyResourceSet(ref mDebugResourceSet);
+
 		delete mCache;
 
 		DestroyQuery(mMeshesQuery);
@@ -81,6 +96,9 @@ class RenderModule : SceneModule
 
 	protected override void OnUpdate(Time time)
 	{
+		// Clear debug lines from previous frame (before user code adds new ones)
+		mDebugRenderer.Clear();
+
 		// Find active camera and lights
 		UpdateActiveCamera();
 		UpdateLighting();
@@ -120,15 +138,41 @@ class RenderModule : SceneModule
 		}
 	}
 
-	internal void RenderFrame(IEngine.UpdateInfo info, CommandBuffer commandBuffer)
+	/*internal void RenderFrame(IEngine.UpdateInfo info, CommandBuffer commandBuffer)
 	{
 		PrepareGPUResources(commandBuffer);
-
-		// Update lighting buffer
-		commandBuffer.UpdateBufferData(mRenderer.LightingBuffer, &mCurrentLighting, (uint32)sizeof(LightingUniforms));
+		UpdateLightingBuffer(commandBuffer);
+		UpdateDebugBuffers(commandBuffer);
 
 		RenderMeshes(commandBuffer);
 		RenderSkinnedMeshes(commandBuffer);
+		RenderDebugLines(commandBuffer);
+	}*/
+
+	internal void UpdateLightingBuffer(CommandBuffer commandBuffer)
+	{
+		commandBuffer.UpdateBufferData(mRenderer.LightingBuffer, &mCurrentLighting, (uint32)sizeof(LightingUniforms));
+	}
+
+	internal void UpdateDebugBuffers(CommandBuffer commandBuffer)
+	{
+		// Always update the uniform buffer to ensure descriptor is valid
+		var viewProj = mViewMatrix * mProjectionMatrix;
+		mDebugRenderer.UpdateBuffers(commandBuffer, viewProj);
+	}
+
+	internal void RenderDebugLines(CommandBuffer commandBuffer)
+	{
+		if (mDebugRenderer.LineCount == 0)
+			return;
+
+		// Set pipeline and resources
+		commandBuffer.SetGraphicsPipelineState(mRenderer.DebugLinePipeline);
+		commandBuffer.SetResourceSet(mDebugResourceSet, 0);
+		commandBuffer.SetVertexBuffers(scope Buffer[](mDebugRenderer.VertexBuffer));
+
+		// Draw lines
+		commandBuffer.Draw((uint32)(mDebugRenderer.LineCount * 2));
 	}
 
 	internal void PrepareGPUResources(CommandBuffer commandBuffer)

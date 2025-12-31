@@ -851,4 +851,84 @@ static class ShaderSources
 	        return input.Color;
 	    }
 	    """;
+
+	// ============================================
+	// Depth-Only Shaders (for depth prepass)
+	// ============================================
+
+	public const String DepthOnlyVS = """
+	    cbuffer UniformBlock : register(b0)
+	    {
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+	        output.Position = mul(float4(input.Position, 1.0), MVPMatrix);
+	        return output;
+	    }
+	    """;
+
+	public const String SkinnedDepthOnlyVS = """
+	    #define MAX_BONES 128
+
+	    cbuffer UniformBlock : register(b0, space0)
+	    {
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
+	    }
+
+	    cbuffer BoneMatrices : register(b0, space2)
+	    {
+	        float4x4 Bones[MAX_BONES];
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	        uint4 Joints : BLENDINDICES;
+	        float4 Weights : BLENDWEIGHT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+
+	        // Compute skinned position by blending bone transforms
+	        float4x4 skinMatrix =
+	            Bones[input.Joints.x] * input.Weights.x +
+	            Bones[input.Joints.y] * input.Weights.y +
+	            Bones[input.Joints.z] * input.Weights.z +
+	            Bones[input.Joints.w] * input.Weights.w;
+
+	        float4 skinnedPos = mul(float4(input.Position, 1.0), skinMatrix);
+	        output.Position = mul(skinnedPos, MVPMatrix);
+	        return output;
+	    }
+	    """;
 }

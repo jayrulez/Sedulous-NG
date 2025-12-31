@@ -68,6 +68,8 @@ class RHIRendererSubsystem : Subsystem
 	public GraphicsPipelineState PBRPipeline => mPipelineManager.PBRPipeline;
 	public GraphicsPipelineState SkinnedPBRPipeline => mPipelineManager.SkinnedPBRPipeline;
 	public GraphicsPipelineState DebugLinePipeline => mPipelineManager.DebugLinePipeline;
+	public GraphicsPipelineState DepthOnlyPipeline => mPipelineManager.DepthOnlyPipeline;
+	public GraphicsPipelineState SkinnedDepthOnlyPipeline => mPipelineManager.SkinnedDepthOnlyPipeline;
 	public ResourceLayout SkinnedPerObjectResourceLayout => mPipelineManager.SkinnedPerObjectResourceLayout;
 	public ResourceLayout BoneMatricesResourceLayout => mPipelineManager.BoneMatricesResourceLayout;
 	public ResourceLayout UnlitMaterialResourceLayout => mPipelineManager.UnlitMaterialResourceLayout;
@@ -97,9 +99,11 @@ class RHIRendererSubsystem : Subsystem
 		WindowScissors[0] = Rectangle(0, 0, (.)mWindow.Width, (.)mWindow.Height);
 	}
 
+	private ValidationLayer mValidationLayer ~ delete _;
+
 	protected override Result<void> OnInitializing(IEngine engine)
 	{
-		mGraphicsContext.CreateDevice(scope ValidationLayer(mGraphicsContext.Logger));
+		mGraphicsContext.CreateDevice(mValidationLayer  = new ValidationLayer(mGraphicsContext.Logger));
 
 		Sedulous.RHI.SurfaceInfo surfaceInfo = *(Sedulous.RHI.SurfaceInfo*)&mWindow.SurfaceInfo;
 
@@ -289,27 +293,40 @@ class RHIRendererSubsystem : Subsystem
 	{
 		// Import back buffer
 		mBackBufferHandle = mRenderGraph.ImportTexture("BackBuffer", mSwapChain.GetCurrentFramebufferTexture());
-		
+
 		// Add buffer update pass (outside render pass)
-		var updatePass = mRenderGraph.AddPass<RenderGraphComputePass>("BufferUpdate", 
+		var updatePass = mRenderGraph.AddPass<RenderGraphComputePass>("BufferUpdate",
 			new => BufferUpdatePassExecute);
-		
+
 		updatePass.Setup(mRenderGraph)
 			.Build();
-		
-		// Add main render pass
-		var mainPass = mRenderGraph.AddPass<RenderGraphGraphicsPass>("MainRender", 
-			new => MainRenderPassExecute);
-		
-		mainPass.Setup(mRenderGraph)
-			.WriteTexture(mBackBufferHandle)
+
+		// Add depth prepass - clears and writes depth buffer
+		var depthPrepass = mRenderGraph.AddPass<RenderGraphGraphicsPass>("DepthPrepass",
+			new => DepthPrepassExecute);
+
+		depthPrepass.Setup(mRenderGraph)
+			.WriteTexture(mBackBufferHandle)  // Uses same framebuffer (including depth)
 			.DependsOn(updatePass.Handle)
 			.Build();
-		
-		var clearValue = ClearValue(ClearFlags.All, Color.CornflowerBlue);
-		var mainRenderPass = mainPass;
-		mainRenderPass.RenderPassDesc = RenderPassDescription(mSwapChain.FrameBuffer, clearValue);
-		
+
+		// Depth prepass: clear depth only, don't touch color
+		var depthClearValue = ClearValue(.Depth, 1.0f, 0);
+		depthPrepass.RenderPassDesc = RenderPassDescription(mSwapChain.FrameBuffer, depthClearValue);
+
+		// Add main render pass - depends on depth prepass
+		var mainPass = mRenderGraph.AddPass<RenderGraphGraphicsPass>("MainRender",
+			new => MainRenderPassExecute);
+
+		mainPass.Setup(mRenderGraph)
+			.WriteTexture(mBackBufferHandle)
+			.DependsOn(depthPrepass.Handle)  // Depends on depth prepass now
+			.Build();
+
+		// Main pass: clear color, load existing depth (from prepass)
+		var mainClearValue = ClearValue(.Target, Color.CornflowerBlue);
+		mainPass.RenderPassDesc = RenderPassDescription(mSwapChain.FrameBuffer, mainClearValue);
+
 		// Compile render graph
 		mRenderGraph.Compile();
 	}
@@ -322,6 +339,18 @@ class RHIRendererSubsystem : Subsystem
 			module.PrepareGPUResources(cmd);
 			module.UpdateLightingBuffer(cmd);
 			module.UpdateDebugBuffers(cmd);
+		}
+	}
+
+	private void DepthPrepassExecute(CommandBuffer cmd, RenderGraphContext context)
+	{
+		cmd.SetViewports(WindowViewports);
+		cmd.SetScissorRectangles(WindowScissors);
+
+		// Render depth for all opaque geometry
+		for (var module in mRenderModules)
+		{
+			module.RenderDepthPrepass(cmd);
 		}
 	}
 

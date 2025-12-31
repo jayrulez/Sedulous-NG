@@ -68,7 +68,7 @@ This document tracks the planned improvements to the Sedulous renderer codebase.
 ## Phase 3: Rendering Pipeline
 
 ### 3.1 Add render passes
-- [ ] Depth prepass for better z-rejection
+- [x] Depth prepass for better z-rejection
 - [x] Separate opaque and transparent passes
 - [x] Sort transparent objects back-to-front
 
@@ -162,4 +162,5 @@ Sedulous.Engine.Renderer.RHI/
 | 2025-12-31 | Phase 2.2 complete - Implemented PBR pipeline with Cook-Torrance BRDF, skinned PBR variant, fixed camera position for view direction, fixed SDLImageLoader for indexed/palette PNG images |
 | 2025-12-31 | Phase 3 partial - Added frustum culling, separate opaque/transparent render passes, proper sorting (front-to-back for opaque, back-to-front for transparent) |
 | 2025-12-31 | Phase 3.3 complete - Added RenderStatistics with draw call count, triangle count, objects rendered/culled, GPU memory tracking |
+| 2025-12-31 | Phase 3.1 complete - Added depth prepass with depth-only shaders and pipelines for static and skinned meshes |
 

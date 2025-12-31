@@ -82,6 +82,14 @@ class PipelineManager
 	private LayoutElementDescription[] mDebugLayoutElements ~ delete _;
 	private ResourceLayout[] mDebugPipelineResourceLayouts ~ delete _;
 
+	// Depth-only pipeline resources (for depth prepass)
+	private GraphicsPipelineState mDepthOnlyPipeline;
+	private GraphicsPipelineState mSkinnedDepthOnlyPipeline;
+	private Shader mDepthOnlyVertexShader;
+	private Shader mSkinnedDepthOnlyVertexShader;
+	private ResourceLayout[] mDepthOnlyPipelineResourceLayouts ~ delete _;
+	private ResourceLayout[] mSkinnedDepthOnlyPipelineResourceLayouts ~ delete _;
+
 	// Material pipeline registry
 	private MaterialPipelineRegistry mMaterialRegistry = new .() ~ delete _;
 
@@ -93,6 +101,8 @@ class PipelineManager
 	public GraphicsPipelineState PBRPipeline => mPBRPipeline;
 	public GraphicsPipelineState SkinnedPBRPipeline => mSkinnedPBRPipeline;
 	public GraphicsPipelineState DebugLinePipeline => mDebugLinePipeline;
+	public GraphicsPipelineState DepthOnlyPipeline => mDepthOnlyPipeline;
+	public GraphicsPipelineState SkinnedDepthOnlyPipeline => mSkinnedDepthOnlyPipeline;
 	public ResourceLayout DebugResourceLayout => mDebugResourceLayout;
 	public MaterialPipelineRegistry MaterialRegistry => mMaterialRegistry;
 
@@ -131,10 +141,12 @@ class PipelineManager
 		CreateSkinnedPhongPipeline(targetFrameBuffer);
 		CreateSkinnedPBRPipeline(targetFrameBuffer);
 		CreateDebugLinePipeline(targetFrameBuffer);
+		CreateDepthOnlyPipelines(targetFrameBuffer);
 	}
 
 	public void Destroy()
 	{
+		DestroyDepthOnlyPipelines();
 		DestroyDebugLinePipeline();
 		DestroySkinnedPBRPipeline();
 		DestroySkinnedPhongPipeline();
@@ -665,5 +677,89 @@ class PipelineManager
 			mGraphicsContext.Factory.DestroyShader(ref mDebugLinePixelShader);
 		if (mDebugLineVertexShader != null)
 			mGraphicsContext.Factory.DestroyShader(ref mDebugLineVertexShader);
+	}
+
+	private void CreateDepthOnlyPipelines(FrameBuffer targetFrameBuffer)
+	{
+		// Compile depth-only vertex shaders
+		mDepthOnlyVertexShader = mShaderManager.CompileFromSource(ShaderSources.DepthOnlyVS, .Vertex, "VS");
+		mSkinnedDepthOnlyVertexShader = mShaderManager.CompileFromSource(ShaderSources.SkinnedDepthOnlyVS, .Vertex, "VS");
+
+		// Standard mesh vertex format
+		var vertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent));
+		var vertexLayouts = scope InputLayouts();
+		vertexLayouts.Add(vertexFormat);
+
+		// Skinned mesh vertex format
+		var skinnedVertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent))
+			.Add(ElementDescription(ElementFormat.UShort4, ElementSemanticType.BlendIndices))
+			.Add(ElementDescription(ElementFormat.Float4, ElementSemanticType.BlendWeight));
+		var skinnedVertexLayouts = scope InputLayouts();
+		skinnedVertexLayouts.Add(skinnedVertexFormat);
+
+		// Depth-only render states: depth write enabled, depth test enabled
+		var depthOnlyRenderStates = RenderStateDescription.Default;
+		depthOnlyRenderStates.DepthStencilState.DepthEnable = true;
+		depthOnlyRenderStates.DepthStencilState.DepthWriteMask = true;
+		depthOnlyRenderStates.DepthStencilState.DepthFunction = .Less;
+
+		// Create static mesh depth-only pipeline
+		// Only needs Set 0 (per-object uniforms) - no material or lighting
+		var depthOnlyPipelineDesc = GraphicsPipelineDescription
+		{
+			RenderStates = depthOnlyRenderStates,
+			Shaders = .()
+			{
+				VertexShader = mDepthOnlyVertexShader,
+				PixelShader = null  // No pixel shader for depth-only
+			},
+			InputLayouts = vertexLayouts,
+			ResourceLayouts = mDepthOnlyPipelineResourceLayouts = new ResourceLayout[](mUnlitPerObjectResourceLayout),
+			PrimitiveTopology = .TriangleList,
+			Outputs = .CreateFromFrameBuffer(targetFrameBuffer)
+		};
+
+		mDepthOnlyPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(depthOnlyPipelineDesc);
+
+		// Create skinned mesh depth-only pipeline
+		// Shader uses space0 (Set 0) for per-object and space2 (Set 2) for bone matrices
+		// Include material layout as Set 1 placeholder to maintain descriptor set indices
+		var skinnedDepthOnlyPipelineDesc = GraphicsPipelineDescription
+		{
+			RenderStates = depthOnlyRenderStates,
+			Shaders = .()
+			{
+				VertexShader = mSkinnedDepthOnlyVertexShader,
+				PixelShader = null  // No pixel shader for depth-only
+			},
+			InputLayouts = skinnedVertexLayouts,
+			ResourceLayouts = mSkinnedDepthOnlyPipelineResourceLayouts = new ResourceLayout[](mSkinnedPerObjectResourceLayout, mUnlitMaterialResourceLayout, mBoneMatricesResourceLayout),
+			PrimitiveTopology = .TriangleList,
+			Outputs = .CreateFromFrameBuffer(targetFrameBuffer)
+		};
+
+		mSkinnedDepthOnlyPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(skinnedDepthOnlyPipelineDesc);
+	}
+
+	private void DestroyDepthOnlyPipelines()
+	{
+		if (mDepthOnlyPipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mDepthOnlyPipeline);
+		if (mSkinnedDepthOnlyPipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mSkinnedDepthOnlyPipeline);
+		if (mDepthOnlyVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mDepthOnlyVertexShader);
+		if (mSkinnedDepthOnlyVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mSkinnedDepthOnlyVertexShader);
 	}
 }

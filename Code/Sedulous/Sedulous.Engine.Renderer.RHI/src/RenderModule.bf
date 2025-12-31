@@ -217,6 +217,95 @@ class RenderModule : SceneModule
 		mDebugRenderer.UpdateBuffers(commandBuffer, viewProj);
 	}
 
+	/// Render depth prepass for all opaque geometry (no material/lighting, depth-only)
+	internal void RenderDepthPrepass(CommandBuffer commandBuffer)
+	{
+		const int32 ALIGNMENT = 256;
+		int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+		// Render opaque static meshes with depth-only pipeline
+		if (!mOpaqueMeshCommands.IsEmpty)
+		{
+			commandBuffer.SetGraphicsPipelineState(mRenderer.DepthOnlyPipeline);
+
+			int uniformIndex = 0;
+			for (var command in mOpaqueMeshCommands)
+			{
+				// Set per-object resource set with dynamic offset
+				uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
+				commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet, 0, scope .(dynamicOffset));
+
+				// Render mesh (depth only)
+				RenderMeshDepthOnly(command, commandBuffer);
+				uniformIndex++;
+			}
+		}
+
+		// Render opaque skinned meshes with skinned depth-only pipeline
+		if (!mOpaqueSkinnedCommands.IsEmpty)
+		{
+			commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedDepthOnlyPipeline);
+
+			int uniformIndex = mOpaqueMeshCommands.Count; // Continue from where static meshes left off
+			for (var command in mOpaqueSkinnedCommands)
+			{
+				// Set per-object resource set
+				uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
+				commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet, 0, scope .(dynamicOffset));
+
+				// Set bone matrices resource set (Set 2)
+				if (mCache.TryGetBoneResourceSet(command.Animator, let boneResourceSet))
+				{
+					commandBuffer.SetResourceSet(boneResourceSet, 2);
+				}
+
+				// Render skinned mesh (depth only)
+				RenderSkinnedMeshDepthOnly(command, commandBuffer);
+				uniformIndex++;
+			}
+		}
+
+		// Note: Transparent objects skip depth prepass (they render in main pass only)
+	}
+
+	private void RenderMeshDepthOnly(MeshRenderCommand command, CommandBuffer commandBuffer)
+	{
+		if (!mCache.TryGetMesh(command.Renderer, let meshHandle) || !meshHandle.IsValid)
+			return;
+
+		var mesh = meshHandle.Resource;
+		commandBuffer.SetVertexBuffers(scope Buffer[](mesh.VertexBuffer));
+
+		if (mesh.IndexBuffer != null && mesh.IndexCount > 0)
+		{
+			commandBuffer.SetIndexBuffer(mesh.IndexBuffer, .UInt32);
+			commandBuffer.DrawIndexed(mesh.IndexCount);
+		}
+		else
+		{
+			commandBuffer.Draw(mesh.VertexCount);
+		}
+	}
+
+	private void RenderSkinnedMeshDepthOnly(SkinnedMeshRenderCommand command, CommandBuffer commandBuffer)
+	{
+		if (!mCache.TryGetSkinnedMesh(command.Renderer, let meshHandle) || !meshHandle.IsValid)
+			return;
+
+		var mesh = meshHandle.Resource;
+		commandBuffer.SetVertexBuffers(scope Buffer[](mesh.VertexBuffer));
+
+		if (mesh.IndexBuffer != null && mesh.IndexCount > 0)
+		{
+			commandBuffer.SetIndexBuffer(mesh.IndexBuffer, .UInt32);
+			commandBuffer.DrawIndexed(mesh.IndexCount);
+		}
+		else
+		{
+			commandBuffer.Draw(mesh.VertexCount);
+		}
+	}
+
 	internal void RenderDebugLines(CommandBuffer commandBuffer)
 	{
 		if (mDebugRenderer.LineCount == 0)

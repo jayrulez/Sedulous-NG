@@ -238,6 +238,7 @@ class RenderModule : SceneModule
 			return;
 
 		// Render pass is already begun by rendergraph
+		StringView currentShaderName = "Unlit";
 		commandBuffer.SetGraphicsPipelineState(mRenderer.UnlitPipeline);
 
 		const int32 ALIGNMENT = 256;
@@ -259,6 +260,13 @@ class RenderModule : SceneModule
 				{
 					currentMaterial = gpuMaterial;
 
+					// Switch pipeline if shader type changed
+					if (gpuMaterial.ShaderName != currentShaderName)
+					{
+						currentShaderName = gpuMaterial.ShaderName;
+						SetPipelineForShader(commandBuffer, currentShaderName);
+					}
+
 					if (gpuMaterial.UniformBuffer != null)
 					{
 						var materialResourceSet = mCache.GetOrCreateMaterialResourceSet(gpuMaterial);
@@ -269,6 +277,11 @@ class RenderModule : SceneModule
 			else
 			{
 				// No material - bind a default material resource set
+				if (currentShaderName != "Unlit")
+				{
+					currentShaderName = "Unlit";
+					commandBuffer.SetGraphicsPipelineState(mRenderer.UnlitPipeline);
+				}
 				commandBuffer.SetResourceSet(mRenderer.DefaultUnlitMaterialResourceSet, 1);
 			}
 
@@ -279,6 +292,24 @@ class RenderModule : SceneModule
 			RenderMesh(command, commandBuffer);
 		}
 		// Render pass will be ended by rendergraph
+	}
+
+	private void SetPipelineForShader(CommandBuffer commandBuffer, StringView shaderName)
+	{
+		switch (shaderName)
+		{
+		case "Phong":
+			commandBuffer.SetGraphicsPipelineState(mRenderer.PhongPipeline);
+			// Set lighting resource set at slot 2 for Phong
+			commandBuffer.SetResourceSet(mRenderer.LightingResourceSet, 2);
+		case "PBR":
+			commandBuffer.SetGraphicsPipelineState(mRenderer.PBRPipeline);
+			// Set lighting resource set at slot 2 for PBR
+			commandBuffer.SetResourceSet(mRenderer.LightingResourceSet, 2);
+		default:
+			// Default to unlit for unknown shader types
+			commandBuffer.SetGraphicsPipelineState(mRenderer.UnlitPipeline);
+		}
 	}
 
 	private void UpdateActiveCamera()
@@ -539,6 +570,10 @@ class RenderModule : SceneModule
 		case "Phong":
 			commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedPhongPipeline);
 			// Set lighting resource set at slot 3 for skinned Phong
+			commandBuffer.SetResourceSet(mRenderer.LightingResourceSet, 3);
+		case "PBR":
+			commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedPBRPipeline);
+			// Set lighting resource set at slot 3 for skinned PBR
 			commandBuffer.SetResourceSet(mRenderer.LightingResourceSet, 3);
 		default:
 			// Default to unlit for unknown shader types

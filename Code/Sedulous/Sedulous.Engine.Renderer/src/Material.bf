@@ -155,12 +155,51 @@ public class PBRMaterial : Material
     
     public override int GetUniformDataSize()
     {
-        return sizeof(Vector4) * 2 + sizeof(float) * 4; // Colors + scalar values
+        // PBRFragmentUniforms: 2 Vector4s (32 bytes) + 4 floats (16 bytes) = 48 bytes
+        return sizeof(Vector4) * 2 + sizeof(float) * 4;
     }
-    
+
     public override void FillUniformData(Span<uint8> buffer)
     {
-        // Fill PBR uniform data
+        // Fill PBRFragmentUniforms struct layout:
+        // Vector4 AlbedoColor;      // xyz = albedo, w = alpha
+        // Vector4 EmissiveColor;    // xyz = emissive, w = intensity
+        // float Metallic;
+        // float Roughness;
+        // float AmbientOcclusion;
+        // float Padding;
+
+        var ptr = buffer.Ptr;
+
+        // AlbedoColor
+        var albedo = AlbedoColor.ToVector4();
+        Internal.MemCpy(ptr, &albedo, sizeof(Vector4));
+        ptr += sizeof(Vector4);
+
+        // EmissiveColor with intensity in w
+        var emissiveVec = EmissiveColor.ToVector4();
+        var emissive = Vector4(emissiveVec.X, emissiveVec.Y, emissiveVec.Z, EmissiveIntensity);
+        Internal.MemCpy(ptr, &emissive, sizeof(Vector4));
+        ptr += sizeof(Vector4);
+
+        // Metallic
+        var metallic = Metallic;
+        Internal.MemCpy(ptr, &metallic, sizeof(float));
+        ptr += sizeof(float);
+
+        // Roughness
+        var roughness = Roughness;
+        Internal.MemCpy(ptr, &roughness, sizeof(float));
+        ptr += sizeof(float);
+
+        // AmbientOcclusion
+        var ao = AmbientOcclusion;
+        Internal.MemCpy(ptr, &ao, sizeof(float));
+        ptr += sizeof(float);
+
+        // Padding
+        var padding = 0.0f;
+        Internal.MemCpy(ptr, &padding, sizeof(float));
     }
     
     public override void GetTextureResources(List<ResourceHandle<TextureResource>> textures)

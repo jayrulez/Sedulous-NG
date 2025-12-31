@@ -54,6 +54,20 @@ class PipelineManager
 	private LayoutElementDescription[] mPhongMaterialLayoutElements ~ delete _;
 	private ResourceLayout[] mPhongPipelineResourceLayouts ~ delete _;
 
+	// PBR pipeline resources
+	private GraphicsPipelineState mPBRPipeline;
+	private Shader mPBRVertexShader;
+	private Shader mPBRPixelShader;
+	private ResourceLayout mPBRMaterialResourceLayout;
+	private LayoutElementDescription[] mPBRMaterialLayoutElements ~ delete _;
+	private ResourceLayout[] mPBRPipelineResourceLayouts ~ delete _;
+
+	// Skinned PBR pipeline resources
+	private GraphicsPipelineState mSkinnedPBRPipeline;
+	private Shader mSkinnedPBRVertexShader;
+	private Shader mSkinnedPBRPixelShader;
+	private ResourceLayout[] mSkinnedPBRPipelineResourceLayouts ~ delete _;
+
 	// Lighting resources (shared by all lit pipelines)
 	private ResourceLayout mLightingResourceLayout;
 	private LayoutElementDescription[] mLightingLayoutElements ~ delete _;
@@ -76,6 +90,8 @@ class PipelineManager
 	public GraphicsPipelineState SkinnedUnlitPipeline => mSkinnedUnlitPipeline;
 	public GraphicsPipelineState SkinnedPhongPipeline => mSkinnedPhongPipeline;
 	public GraphicsPipelineState PhongPipeline => mPhongPipeline;
+	public GraphicsPipelineState PBRPipeline => mPBRPipeline;
+	public GraphicsPipelineState SkinnedPBRPipeline => mSkinnedPBRPipeline;
 	public GraphicsPipelineState DebugLinePipeline => mDebugLinePipeline;
 	public ResourceLayout DebugResourceLayout => mDebugResourceLayout;
 	public MaterialPipelineRegistry MaterialRegistry => mMaterialRegistry;
@@ -110,16 +126,20 @@ class PipelineManager
 		CreateLightingResources();
 		CreateUnlitPipeline(targetFrameBuffer);
 		CreatePhongPipeline(targetFrameBuffer);
+		CreatePBRPipeline(targetFrameBuffer);
 		CreateSkinnedPipeline(targetFrameBuffer);
 		CreateSkinnedPhongPipeline(targetFrameBuffer);
+		CreateSkinnedPBRPipeline(targetFrameBuffer);
 		CreateDebugLinePipeline(targetFrameBuffer);
 	}
 
 	public void Destroy()
 	{
 		DestroyDebugLinePipeline();
+		DestroySkinnedPBRPipeline();
 		DestroySkinnedPhongPipeline();
 		DestroySkinnedPipeline();
+		DestroyPBRPipeline();
 		DestroyPhongPipeline();
 		DestroyUnlitPipeline();
 		DestroyLightingResources();
@@ -357,6 +377,75 @@ class PipelineManager
 			mGraphicsContext.Factory.DestroyShader(ref mPhongVertexShader);
 	}
 
+	private void CreatePBRPipeline(FrameBuffer targetFrameBuffer)
+	{
+		// Compile PBR shaders
+		mPBRVertexShader = mShaderManager.CompileFromSource(ShaderSources.PBRShadersVS, .Vertex, "VS");
+		mPBRPixelShader = mShaderManager.CompileFromSource(ShaderSources.PBRShadersPS, .Pixel, "PS");
+
+		// Vertex format (same as Phong - standard mesh vertex)
+		var vertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent));
+		var vertexLayouts = scope InputLayouts();
+		vertexLayouts.Add(vertexFormat);
+
+		// PBR Material ResourceLayout
+		// CB + 5 textures (Albedo, Normal, MetallicRoughness, AO, Emissive) + sampler
+		{
+			mPBRMaterialLayoutElements = new LayoutElementDescription[](
+				LayoutElementDescription(0, .ConstantBuffer, .Pixel, false, sizeof(PBRFragmentUniforms)),
+				LayoutElementDescription(0, .Texture, .Pixel),  // Albedo
+				LayoutElementDescription(1, .Texture, .Pixel),  // Normal
+				LayoutElementDescription(2, .Texture, .Pixel),  // MetallicRoughness
+				LayoutElementDescription(3, .Texture, .Pixel),  // AO
+				LayoutElementDescription(4, .Texture, .Pixel),  // Emissive
+				LayoutElementDescription(0, .Sampler, .Pixel)
+			);
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params mPBRMaterialLayoutElements);
+			mPBRMaterialResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
+		}
+
+		// Create PBR pipeline
+		// Layout: Set 0 = per-object, Set 1 = material, Set 2 = lighting
+		var pipelineDescription = GraphicsPipelineDescription
+		{
+			RenderStates = RenderStateDescription.Default,
+			Shaders = .()
+			{
+				VertexShader = mPBRVertexShader,
+				PixelShader = mPBRPixelShader
+			},
+			InputLayouts = vertexLayouts,
+			ResourceLayouts = mPBRPipelineResourceLayouts = new ResourceLayout[](mUnlitPerObjectResourceLayout, mPBRMaterialResourceLayout, mLightingResourceLayout),
+			PrimitiveTopology = .TriangleList,
+			Outputs = .CreateFromFrameBuffer(targetFrameBuffer)
+		};
+
+		mPBRPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(pipelineDescription);
+
+		// Register PBR material type
+		mMaterialRegistry.Register("PBR", mPBRPipeline, mPBRMaterialResourceLayout,
+			new (resources, material, renderer) => {
+				PBRMaterial.FillResourceSet(resources, material, renderer);
+			});
+	}
+
+	private void DestroyPBRPipeline()
+	{
+		if (mPBRPipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mPBRPipeline);
+		if (mPBRMaterialResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mPBRMaterialResourceLayout);
+		if (mPBRPixelShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mPBRPixelShader);
+		if (mPBRVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mPBRVertexShader);
+	}
+
 	private void CreateSkinnedPipeline(FrameBuffer targetFrameBuffer)
 	{
 		// Compile skinned shaders using ShaderManager (dedicated instances to avoid lifetime issues)
@@ -472,6 +561,54 @@ class PipelineManager
 			mGraphicsContext.Factory.DestroyShader(ref mSkinnedPhongPixelShader);
 		if (mSkinnedPhongVertexShader != null)
 			mGraphicsContext.Factory.DestroyShader(ref mSkinnedPhongVertexShader);
+	}
+
+	private void CreateSkinnedPBRPipeline(FrameBuffer targetFrameBuffer)
+	{
+		// Compile skinned PBR shaders (lighting in space3 since space2 is bones)
+		mSkinnedPBRVertexShader = mShaderManager.CompileFromSource(ShaderSources.SkinnedPBRShadersVS, .Vertex, "VS");
+		mSkinnedPBRPixelShader = mShaderManager.CompileFromSource(ShaderSources.SkinnedPBRShadersPS, .Pixel, "PS");
+
+		// Skinned vertex format (same as skinned Phong)
+		var skinnedVertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))       // 12 bytes
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))         // 12 bytes
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))       // 8 bytes
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))// 4 bytes
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent))        // 12 bytes
+			.Add(ElementDescription(ElementFormat.UShort4, ElementSemanticType.BlendIndices))  // 8 bytes
+			.Add(ElementDescription(ElementFormat.Float4, ElementSemanticType.BlendWeight));   // 16 bytes
+
+		var skinnedVertexLayouts = scope InputLayouts();
+		skinnedVertexLayouts.Add(skinnedVertexFormat);
+
+		// Create skinned PBR pipeline
+		// Layout: Set 0 = per-object, Set 1 = material, Set 2 = bones, Set 3 = lighting
+		var skinnedPBRPipelineDescription = GraphicsPipelineDescription
+		{
+			RenderStates = RenderStateDescription.Default,
+			Shaders = .()
+			{
+				VertexShader = mSkinnedPBRVertexShader,
+				PixelShader = mSkinnedPBRPixelShader
+			},
+			InputLayouts = skinnedVertexLayouts,
+			ResourceLayouts = mSkinnedPBRPipelineResourceLayouts = new ResourceLayout[](mSkinnedPerObjectResourceLayout, mPBRMaterialResourceLayout, mBoneMatricesResourceLayout, mLightingResourceLayout),
+			PrimitiveTopology = .TriangleList,
+			Outputs = .CreateFromFrameBuffer(targetFrameBuffer)
+		};
+
+		mSkinnedPBRPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(skinnedPBRPipelineDescription);
+	}
+
+	private void DestroySkinnedPBRPipeline()
+	{
+		if (mSkinnedPBRPipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mSkinnedPBRPipeline);
+		if (mSkinnedPBRPixelShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mSkinnedPBRPixelShader);
+		if (mSkinnedPBRVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mSkinnedPBRVertexShader);
 	}
 
 	private void CreateDebugLinePipeline(FrameBuffer targetFrameBuffer)

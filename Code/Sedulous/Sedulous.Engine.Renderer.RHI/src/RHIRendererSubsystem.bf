@@ -63,7 +63,10 @@ class RHIRendererSubsystem : Subsystem
 	// Pipeline accessors (delegate to PipelineManager)
 	public GraphicsPipelineState UnlitPipeline => mPipelineManager.UnlitPipeline;
 	public GraphicsPipelineState SkinnedUnlitPipeline => mPipelineManager.SkinnedUnlitPipeline;
+	public GraphicsPipelineState PhongPipeline => mPipelineManager.PhongPipeline;
 	public GraphicsPipelineState SkinnedPhongPipeline => mPipelineManager.SkinnedPhongPipeline;
+	public GraphicsPipelineState PBRPipeline => mPipelineManager.PBRPipeline;
+	public GraphicsPipelineState SkinnedPBRPipeline => mPipelineManager.SkinnedPBRPipeline;
 	public GraphicsPipelineState DebugLinePipeline => mPipelineManager.DebugLinePipeline;
 	public ResourceLayout SkinnedPerObjectResourceLayout => mPipelineManager.SkinnedPerObjectResourceLayout;
 	public ResourceLayout BoneMatricesResourceLayout => mPipelineManager.BoneMatricesResourceLayout;

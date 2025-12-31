@@ -280,6 +280,9 @@ class SandboxApplication : Application
 		// Load GLTF model
 		LoadGLTFModel(engine, scene);
 
+		// Load Duck model with PBR material
+		LoadDuckModel(engine, scene);
+
 		base.OnEngineInitialized(engine);
 	}
 
@@ -910,6 +913,67 @@ class SandboxApplication : Application
 
 			Debug.WriteLine(scope $"Loaded static Fox model: {model.MeshCount} meshes, {model.TextureCount} textures");
 		}
+	}
+
+	private void LoadDuckModel(Engine engine, Scene scene)
+	{
+		let processor = scope GLTFModelProcessor();
+
+		let modelPath = scope String();
+		Directory.GetCurrentDirectory(modelPath);
+		modelPath.Append("\\Assets\\Duck\\glTF-Binary\\Duck.glb");
+
+		let model = processor.Read(modelPath);
+		if (model == null)
+		{
+			Debug.WriteLine("Failed to load Duck model");
+			return;
+		}
+		defer delete model;
+
+		// Create texture from model (first texture if available - the Duck has a color map)
+		TextureResource albedoTexture = null;
+		if (model.TextureCount > 0 && model.Textures[0].ImageData != null)
+		{
+			let image = model.Textures[0].ImageData;
+			model.Textures[0].ImageData = null;  // Transfer ownership
+			albedoTexture = new TextureResource(image, true);
+			albedoTexture.SetupFor3D();
+		}
+
+		// Create PBR material
+		let material = new PBRMaterial();
+		material.AlbedoColor = .White;
+		material.Metallic = 0.0f;      // Duck is not metallic
+		material.Roughness = 0.6f;     // Slightly rough surface
+		material.AmbientOcclusion = 1.0f;
+		material.EmissiveColor = .Black;
+		material.EmissiveIntensity = 0.0f;
+
+		if (albedoTexture != null)
+			material.AlbedoTexture = engine.ResourceSystem.AddResource(albedoTexture);
+
+		// Load as static mesh (Duck model doesn't have animations)
+		for (int m = 0; m < model.MeshCount; m++)
+		{
+			let modelMesh = model.Meshes[m];
+			for (int p = 0; p < modelMesh.Primitives.Count; p++)
+			{
+				let primitive = modelMesh.Primitives[p];
+				let geometryMesh = ConvertToGeometryMesh(primitive);
+
+				var entity = scene.CreateEntity(scope $"Duck_{m}_{p}");
+				entity.Transform.Position = Vector3(4, -1.5f, -2);  // Position to the right of the fox
+				entity.Transform.Scale = Vector3(0.01f, 0.01f, 0.01f);  // Duck is fairly large, scale down
+				entity.AddComponent<RotateComponent>();  // Make it rotate like the other objects
+
+				var renderer = entity.AddComponent<MeshRenderer>();
+				renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(geometryMesh, true));
+				renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
+			}
+		}
+
+		Debug.WriteLine(scope $"Loaded Duck model with PBR material: {model.MeshCount} meshes, {model.TextureCount} textures");
 	}
 }
 

@@ -35,6 +35,17 @@ struct LightingUniforms
 }
 
 [CRepr, Packed, Align(16)]
+struct PBRFragmentUniforms
+{
+    public Vector4 AlbedoColor;      // xyz = albedo, w = alpha
+    public Vector4 EmissiveColor;    // xyz = emissive, w = intensity
+    public float Metallic;
+    public float Roughness;
+    public float AmbientOcclusion;
+    public float Padding;
+}
+
+[CRepr, Packed, Align(16)]
 struct DebugLineVertex
 {
     public Vector3 Position;
@@ -244,6 +255,369 @@ static class ShaderSources
 	        float3 finalColor = (ambient + diffuse) * texColor.rgb * input.Color.rgb + specular;
 
 	        return float4(finalColor, texColor.a * input.Color.a * DiffuseColor.a);
+	    }
+	    """;
+
+	// ============================================
+	// PBR Shaders (Physically-Based Rendering)
+	// ============================================
+
+	// PBR uses same vertex shader as Phong (outputs world pos, normal, tangent)
+	public const String PBRShadersVS = """
+	    cbuffer UniformBlock : register(b0)
+	    {
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        float3 WorldPos : TEXCOORD0;
+	        float3 WorldNormal : TEXCOORD1;
+	        float2 TexCoord : TEXCOORD2;
+	        float4 Color : COLOR;
+	        float3 WorldTangent : TEXCOORD3;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+	        output.Position = mul(float4(input.Position, 1.0), MVPMatrix);
+	        output.WorldPos = mul(float4(input.Position, 1.0), ModelMatrix).xyz;
+	        output.WorldNormal = normalize(mul(float4(input.Normal, 0.0), ModelMatrix).xyz);
+	        output.WorldTangent = normalize(mul(float4(input.Tangent, 0.0), ModelMatrix).xyz);
+	        output.TexCoord = input.TexCoord;
+	        output.Color = input.Color;
+	        return output;
+	    }
+	    """;
+
+	public const String PBRShadersPS = """
+	    static const float PI = 3.14159265359;
+
+	    cbuffer MaterialBlock : register(b0, space1)
+	    {
+	        float4 AlbedoColor;      // xyz = albedo, w = alpha
+	        float4 EmissiveColor;    // xyz = emissive, w = intensity
+	        float Metallic;
+	        float Roughness;
+	        float AmbientOcclusion;
+	        float Padding;
+	    }
+
+	    cbuffer LightingBlock : register(b0, space2)
+	    {
+	        float4 DirectionalLightDir;   // xyz = direction (normalized), w = unused
+	        float4 DirectionalLightColor; // xyz = color, w = intensity
+	        float4 SceneAmbientLight;     // xyz = ambient color, w = unused
+	    }
+
+	    Texture2D AlbedoTexture : register(t0, space1);
+	    Texture2D NormalTexture : register(t1, space1);
+	    Texture2D MetallicRoughnessTexture : register(t2, space1);
+	    Texture2D AOTexture : register(t3, space1);
+	    Texture2D EmissiveTexture : register(t4, space1);
+	    SamplerState LinearSampler : register(s0, space1);
+
+	    struct PSInput
+	    {
+	        float4 Position : SV_POSITION;
+	        float3 WorldPos : TEXCOORD0;
+	        float3 WorldNormal : TEXCOORD1;
+	        float2 TexCoord : TEXCOORD2;
+	        float4 Color : COLOR;
+	        float3 WorldTangent : TEXCOORD3;
+	    };
+
+	    // GGX/Trowbridge-Reitz normal distribution function
+	    float DistributionGGX(float3 N, float3 H, float roughness)
+	    {
+	        float a = roughness * roughness;
+	        float a2 = a * a;
+	        float NdotH = max(dot(N, H), 0.0);
+	        float NdotH2 = NdotH * NdotH;
+
+	        float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+	        denom = PI * denom * denom;
+
+	        return a2 / max(denom, 0.0001);
+	    }
+
+	    // Schlick-GGX geometry function
+	    float GeometrySchlickGGX(float NdotV, float roughness)
+	    {
+	        float r = roughness + 1.0;
+	        float k = (r * r) / 8.0;
+	        return NdotV / (NdotV * (1.0 - k) + k);
+	    }
+
+	    // Smith's geometry function
+	    float GeometrySmith(float3 N, float3 V, float3 L, float roughness)
+	    {
+	        float NdotV = max(dot(N, V), 0.0);
+	        float NdotL = max(dot(N, L), 0.0);
+	        float ggx1 = GeometrySchlickGGX(NdotV, roughness);
+	        float ggx2 = GeometrySchlickGGX(NdotL, roughness);
+	        return ggx1 * ggx2;
+	    }
+
+	    // Fresnel-Schlick approximation
+	    float3 FresnelSchlick(float cosTheta, float3 F0)
+	    {
+	        return F0 + (1.0 - F0) * pow(saturate(1.0 - cosTheta), 5.0);
+	    }
+
+	    float4 PS(PSInput input) : SV_TARGET
+	    {
+	        // Sample textures
+	        float4 albedoTex = AlbedoTexture.Sample(LinearSampler, input.TexCoord);
+	        float4 mrTex = MetallicRoughnessTexture.Sample(LinearSampler, input.TexCoord);
+	        float aoTex = AOTexture.Sample(LinearSampler, input.TexCoord).r;
+	        float4 emissiveTex = EmissiveTexture.Sample(LinearSampler, input.TexCoord);
+
+	        // Combine material properties with textures
+	        float3 albedo = AlbedoColor.rgb * albedoTex.rgb * input.Color.rgb;
+	        float metallic = Metallic * mrTex.b;     // Blue channel = metallic
+	        float roughness = Roughness * mrTex.g;   // Green channel = roughness
+	        roughness = max(roughness, 0.04);        // Prevent divide by zero
+	        float ao = AmbientOcclusion * aoTex;
+
+	        // Normal (use vertex normal for now, normal mapping can be added later)
+	        float3 N = normalize(input.WorldNormal);
+	        float3 V = normalize(-input.WorldPos);
+	        float3 L = normalize(-DirectionalLightDir.xyz);
+	        float3 H = normalize(V + L);
+
+	        // Calculate reflectance at normal incidence (F0)
+	        // Dielectrics use 0.04, metals use albedo color
+	        float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
+
+	        // Cook-Torrance BRDF
+	        float NDF = DistributionGGX(N, H, roughness);
+	        float G = GeometrySmith(N, V, L, roughness);
+	        float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+	        // Specular contribution
+	        float3 numerator = NDF * G * F;
+	        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+	        float3 specular = numerator / denominator;
+
+	        // Energy conservation: diffuse and specular can't exceed 1.0
+	        float3 kS = F;  // Specular contribution
+	        float3 kD = (1.0 - kS) * (1.0 - metallic);  // Diffuse (metals have no diffuse)
+
+	        // Outgoing radiance
+	        float NdotL = max(dot(N, L), 0.0);
+	        float lightIntensity = DirectionalLightColor.w;
+	        float3 radiance = DirectionalLightColor.rgb * lightIntensity;
+
+	        // Direct lighting
+	        float3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
+
+	        // Ambient lighting (simple approximation)
+	        float3 ambient = SceneAmbientLight.rgb * albedo * ao;
+
+	        // Emissive
+	        float3 emissive = EmissiveColor.rgb * EmissiveColor.w * emissiveTex.rgb;
+
+	        // Final color
+	        float3 color = ambient + Lo + emissive;
+
+	        // HDR tone mapping (Reinhard)
+	        color = color / (color + 1.0);
+
+	        // Gamma correction
+	        color = pow(color, float3(1.0/2.2, 1.0/2.2, 1.0/2.2));
+
+	        return float4(color, AlbedoColor.a * albedoTex.a * input.Color.a);
+	    }
+	    """;
+
+	// ============================================
+	// Skinned PBR Shaders
+	// ============================================
+
+	public const String SkinnedPBRShadersVS = """
+	    #define MAX_BONES 128
+
+	    cbuffer UniformBlock : register(b0, space0)
+	    {
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
+	    }
+
+	    cbuffer BoneMatrices : register(b0, space2)
+	    {
+	        float4x4 Bones[MAX_BONES];
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	        uint4 Joints : BLENDINDICES;
+	        float4 Weights : BLENDWEIGHT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        float3 WorldPos : TEXCOORD0;
+	        float3 WorldNormal : TEXCOORD1;
+	        float2 TexCoord : TEXCOORD2;
+	        float4 Color : COLOR;
+	        float3 WorldTangent : TEXCOORD3;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+
+	        // Compute skinned position and normal
+	        float4x4 skinMatrix =
+	            Bones[input.Joints.x] * input.Weights.x +
+	            Bones[input.Joints.y] * input.Weights.y +
+	            Bones[input.Joints.z] * input.Weights.z +
+	            Bones[input.Joints.w] * input.Weights.w;
+
+	        float4 skinnedPos = mul(float4(input.Position, 1.0), skinMatrix);
+	        float3 skinnedNormal = mul(float4(input.Normal, 0.0), skinMatrix).xyz;
+	        float3 skinnedTangent = mul(float4(input.Tangent, 0.0), skinMatrix).xyz;
+
+	        output.Position = mul(skinnedPos, MVPMatrix);
+	        output.WorldPos = mul(skinnedPos, ModelMatrix).xyz;
+	        output.WorldNormal = normalize(mul(float4(skinnedNormal, 0.0), ModelMatrix).xyz);
+	        output.WorldTangent = normalize(mul(float4(skinnedTangent, 0.0), ModelMatrix).xyz);
+	        output.TexCoord = input.TexCoord;
+	        output.Color = input.Color;
+	        return output;
+	    }
+	    """;
+
+	// Skinned PBR pixel shader (lighting in space3 since space2 is bones)
+	public const String SkinnedPBRShadersPS = """
+	    static const float PI = 3.14159265359;
+
+	    cbuffer MaterialBlock : register(b0, space1)
+	    {
+	        float4 AlbedoColor;      // xyz = albedo, w = alpha
+	        float4 EmissiveColor;    // xyz = emissive, w = intensity
+	        float Metallic;
+	        float Roughness;
+	        float AmbientOcclusion;
+	        float Padding;
+	    }
+
+	    cbuffer LightingBlock : register(b0, space3)
+	    {
+	        float4 DirectionalLightDir;   // xyz = direction (normalized), w = unused
+	        float4 DirectionalLightColor; // xyz = color, w = intensity
+	        float4 SceneAmbientLight;     // xyz = ambient color, w = unused
+	    }
+
+	    Texture2D AlbedoTexture : register(t0, space1);
+	    Texture2D NormalTexture : register(t1, space1);
+	    Texture2D MetallicRoughnessTexture : register(t2, space1);
+	    Texture2D AOTexture : register(t3, space1);
+	    Texture2D EmissiveTexture : register(t4, space1);
+	    SamplerState LinearSampler : register(s0, space1);
+
+	    struct PSInput
+	    {
+	        float4 Position : SV_POSITION;
+	        float3 WorldPos : TEXCOORD0;
+	        float3 WorldNormal : TEXCOORD1;
+	        float2 TexCoord : TEXCOORD2;
+	        float4 Color : COLOR;
+	        float3 WorldTangent : TEXCOORD3;
+	    };
+
+	    float DistributionGGX(float3 N, float3 H, float roughness)
+	    {
+	        float a = roughness * roughness;
+	        float a2 = a * a;
+	        float NdotH = max(dot(N, H), 0.0);
+	        float NdotH2 = NdotH * NdotH;
+	        float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+	        denom = PI * denom * denom;
+	        return a2 / max(denom, 0.0001);
+	    }
+
+	    float GeometrySchlickGGX(float NdotV, float roughness)
+	    {
+	        float r = roughness + 1.0;
+	        float k = (r * r) / 8.0;
+	        return NdotV / (NdotV * (1.0 - k) + k);
+	    }
+
+	    float GeometrySmith(float3 N, float3 V, float3 L, float roughness)
+	    {
+	        float NdotV = max(dot(N, V), 0.0);
+	        float NdotL = max(dot(N, L), 0.0);
+	        return GeometrySchlickGGX(NdotV, roughness) * GeometrySchlickGGX(NdotL, roughness);
+	    }
+
+	    float3 FresnelSchlick(float cosTheta, float3 F0)
+	    {
+	        return F0 + (1.0 - F0) * pow(saturate(1.0 - cosTheta), 5.0);
+	    }
+
+	    float4 PS(PSInput input) : SV_TARGET
+	    {
+	        float4 albedoTex = AlbedoTexture.Sample(LinearSampler, input.TexCoord);
+	        float4 mrTex = MetallicRoughnessTexture.Sample(LinearSampler, input.TexCoord);
+	        float aoTex = AOTexture.Sample(LinearSampler, input.TexCoord).r;
+	        float4 emissiveTex = EmissiveTexture.Sample(LinearSampler, input.TexCoord);
+
+	        float3 albedo = AlbedoColor.rgb * albedoTex.rgb * input.Color.rgb;
+	        float metallic = Metallic * mrTex.b;
+	        float roughness = max(Roughness * mrTex.g, 0.04);
+	        float ao = AmbientOcclusion * aoTex;
+
+	        float3 N = normalize(input.WorldNormal);
+	        float3 V = normalize(-input.WorldPos);
+	        float3 L = normalize(-DirectionalLightDir.xyz);
+	        float3 H = normalize(V + L);
+
+	        float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
+
+	        float NDF = DistributionGGX(N, H, roughness);
+	        float G = GeometrySmith(N, V, L, roughness);
+	        float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+	        float3 numerator = NDF * G * F;
+	        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+	        float3 specular = numerator / denominator;
+
+	        float3 kS = F;
+	        float3 kD = (1.0 - kS) * (1.0 - metallic);
+
+	        float NdotL = max(dot(N, L), 0.0);
+	        float lightIntensity = DirectionalLightColor.w;
+	        float3 radiance = DirectionalLightColor.rgb * lightIntensity;
+
+	        float3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
+	        float3 ambient = SceneAmbientLight.rgb * albedo * ao;
+	        float3 emissive = EmissiveColor.rgb * EmissiveColor.w * emissiveTex.rgb;
+
+	        float3 color = ambient + Lo + emissive;
+	        color = color / (color + 1.0);
+	        color = pow(color, float3(1.0/2.2, 1.0/2.2, 1.0/2.2));
+
+	        return float4(color, AlbedoColor.a * albedoTex.a * input.Color.a);
 	    }
 	    """;
 

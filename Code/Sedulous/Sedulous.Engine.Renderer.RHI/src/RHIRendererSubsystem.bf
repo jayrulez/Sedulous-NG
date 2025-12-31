@@ -33,6 +33,8 @@ class RHIRendererSubsystem : Subsystem
 	private List<AnimationModule> mAnimationModules = new .() ~ delete _;
 
 	private GPUResourceManager mGPUResourceManager ~ delete _;
+	private ShaderManager mShaderManager ~ delete _;
+	private PipelineManager mPipelineManager ~ delete _;
 
 	public GPUResourceManager GPUResources => mGPUResourceManager;
 
@@ -58,44 +60,16 @@ class RHIRendererSubsystem : Subsystem
 
 	private CommandQueue mCommandQueue;
 
-	private GraphicsPipelineState mUnlitPipeline;
-	public GraphicsPipelineState UnlitPipeline => mUnlitPipeline;
-
-	// Skinned mesh pipeline
-	private GraphicsPipelineState mSkinnedUnlitPipeline;
-	public GraphicsPipelineState SkinnedUnlitPipeline => mSkinnedUnlitPipeline;
-
-	private Shader mSkinnedVertexShader;
-
-	private ResourceLayout mUnlitPerObjectResourceLayout;
-
-	// Skinned mesh resource layouts
-	private ResourceLayout mSkinnedPerObjectResourceLayout;
-	public ResourceLayout SkinnedPerObjectResourceLayout => mSkinnedPerObjectResourceLayout;
-	private ResourceLayout mBoneMatricesResourceLayout;
-	public ResourceLayout BoneMatricesResourceLayout => mBoneMatricesResourceLayout;
-
-	private LayoutElementDescription[] mUnlitMaterialLayoutElements ~ delete _;
-	private ResourceLayout mUnlitMaterialResourceLayout;
-	public ResourceLayout UnlitMaterialResourceLayout => mUnlitMaterialResourceLayout;
-
-	private ResourceSet mDefaultUnlitMaterialResourceSet;
-	public ResourceSet DefaultUnlitMaterialResourceSet => mDefaultUnlitMaterialResourceSet;
-
-	private ResourceSet mUnlitPerObjectResourceSet;
-	public ResourceSet UnlitResourceSet => mUnlitPerObjectResourceSet;
-
-	private Buffer mUnlitVertexCB;
-	public Buffer UnlitVertexCB => mUnlitVertexCB;
-
-	private Buffer mDefaultUnlitMaterialCB;
-	public Buffer DefaultUnlitMaterialCB => mDefaultUnlitMaterialCB;
-
-	/*private Buffer mUnlitPixelCB;
-	public Buffer UnlitPixelCB => mUnlitPixelCB;*/
-
-	private Shader mVertexShader;
-	private Shader mPixelShader;
+	// Pipeline accessors (delegate to PipelineManager)
+	public GraphicsPipelineState UnlitPipeline => mPipelineManager.UnlitPipeline;
+	public GraphicsPipelineState SkinnedUnlitPipeline => mPipelineManager.SkinnedUnlitPipeline;
+	public ResourceLayout SkinnedPerObjectResourceLayout => mPipelineManager.SkinnedPerObjectResourceLayout;
+	public ResourceLayout BoneMatricesResourceLayout => mPipelineManager.BoneMatricesResourceLayout;
+	public ResourceLayout UnlitMaterialResourceLayout => mPipelineManager.UnlitMaterialResourceLayout;
+	public ResourceSet DefaultUnlitMaterialResourceSet => mPipelineManager.DefaultUnlitMaterialResourceSet;
+	public ResourceSet UnlitResourceSet => mPipelineManager.UnlitPerObjectResourceSet;
+	public Buffer UnlitVertexCB => mPipelineManager.UnlitVertexCB;
+	public Buffer DefaultUnlitMaterialCB => mPipelineManager.DefaultUnlitMaterialCB;
 
 	private delegate void(uint32, uint32) mResizeDelegate ~ delete _;
 	private Viewport[] WindowViewports = new .[1] ~ delete _;
@@ -152,8 +126,9 @@ class RHIRendererSubsystem : Subsystem
 		mGPUResourceManager = new GPUResourceManager(mGraphicsContext);
 		CreateDefaultTextures();
 
-		CreateUnlitPipeline();
-		CreateSkinnedPipeline();
+		mShaderManager = new ShaderManager(mGraphicsContext);
+		mPipelineManager = new PipelineManager(mGraphicsContext, this, mShaderManager);
+		mPipelineManager.Initialize(mSwapChain.FrameBuffer);
 
 		// Create render graph
 		mRenderGraph = new RenderGraph("Main", mGraphicsContext, mGraphicsContext.Factory);
@@ -170,8 +145,7 @@ class RHIRendererSubsystem : Subsystem
 			mRenderGraph.Reset();
 		}
 
-		DestroySkinnedPipeline();
-		DestroyUnlitPipeline();
+		// PipelineManager cleanup handled by destructor
 
 		mDefaultWhiteTexture.Release();
 		mDefaultBlackTexture.Release();
@@ -365,217 +339,9 @@ class RHIRendererSubsystem : Subsystem
 		mGraphicsContext.SyncUpcopyQueue();
 	}
 
-	private ResourceLayout[] mUnlitPipelineResourceLayouts ~ delete _;
-
-	private void CreateUnlitPipeline()
-	{
-		{
-			var byteCode = CompileShaderSource(mGraphicsContext, ShaderSources.UnlitShadersVS, .Vertex, "VS", .. scope .());
-			var shaderBytes = scope uint8[byteCode.Count];
-			byteCode.CopyTo(shaderBytes);
-			var vsDesc = ShaderDescription(.Vertex, "VS", shaderBytes);
-			mVertexShader = mGraphicsContext.Factory.CreateShader(vsDesc);
-		}
-		{
-			var byteCode = CompileShaderSource(mGraphicsContext, ShaderSources.UnlitShadersPS, .Pixel, "PS", .. scope .());
-			var shaderBytes = scope uint8[byteCode.Count];
-			byteCode.CopyTo(shaderBytes);
-			var psDesc = ShaderDescription(.Pixel, "PS", shaderBytes);
-			mPixelShader = mGraphicsContext.Factory.CreateShader(psDesc);
-		}
-		{
-
-		// Create a larger buffer for multiple objects
-			const int32 MAX_OBJECTS = 1000;
-			const int32 ALIGNMENT = 256; // Typical uniform buffer alignment requirement
-
-		// Align each object's data to 256 bytes
-			int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
-
-			var perObjectCBDesc = BufferDescription(
-				(uint32)(alignedSize * MAX_OBJECTS),
-				.ConstantBuffer,
-				.Dynamic,
-				.Write
-				);
-			mUnlitVertexCB = mGraphicsContext.Factory.CreateBuffer(perObjectCBDesc);
-		}
-		{
-			// Create a small default material buffer with default values
-			var defaultMaterialData = scope UnlitFragmentUniforms()
-				{
-					MaterialTint = Color.White.ToVector4(),
-					MaterialProperties = Vector4(1, 1, 1, 0)
-				};
-
-			var defaultMaterialBufferDesc = BufferDescription(
-				sizeof(UnlitVertexUniforms),
-				.ConstantBuffer,
-				.Dynamic
-				);
-			mDefaultUnlitMaterialCB = mGraphicsContext.Factory.CreateBuffer(defaultMaterialData, defaultMaterialBufferDesc);
-		}
-
-		var vertexFormat = scope LayoutDescription()
-			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
-			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
-			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
-			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))
-			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent));
-		var vertexLayouts = scope InputLayouts();
-		vertexLayouts.Add(vertexFormat);
-
-		// Unlit Per Object ResourceLayout
-		{
-			LayoutElementDescription[] layoutElementDescs = scope:: LayoutElementDescription[](
-				LayoutElementDescription(0, .ConstantBuffer, .Vertex, true, sizeof(UnlitVertexUniforms))
-				);
-
-			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
-
-			mUnlitPerObjectResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
-		}
-
-		// Unlit Material ResourceLayout
-		{
-			mUnlitMaterialLayoutElements = new LayoutElementDescription[](
-				LayoutElementDescription(0, .ConstantBuffer, .Pixel, false, sizeof(UnlitFragmentUniforms)),
-				LayoutElementDescription(0, .Texture, .Pixel), 
-				LayoutElementDescription(0, .Sampler, .Pixel)
-				);
-
-			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params mUnlitMaterialLayoutElements);
-
-			mUnlitMaterialResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
-		}
-
-		var meshPipelineDescription = GraphicsPipelineDescription
-			{
-				RenderStates = RenderStateDescription.Default,
-				Shaders = .()
-					{
-						VertexShader = mVertexShader,
-						PixelShader = mPixelShader
-					},
-				InputLayouts = vertexLayouts,
-				ResourceLayouts = mUnlitPipelineResourceLayouts = new ResourceLayout[](mUnlitPerObjectResourceLayout, mUnlitMaterialResourceLayout),
-				PrimitiveTopology = .TriangleList,
-				Outputs = .CreateFromFrameBuffer(mSwapChain.FrameBuffer)
-			};
-
-		mUnlitPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(meshPipelineDescription);
-
-		// Per object resource set
-		{
-			ResourceSetDescription resourceSetDesc = .(mUnlitPerObjectResourceLayout, mUnlitVertexCB);
-			mUnlitPerObjectResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
-		}
-
-		// default material resource set
-		{
-			ResourceSetDescription resourceSetDesc = .(mUnlitMaterialResourceLayout, mDefaultUnlitMaterialCB, mDefaultWhiteTexture.Resource.Texture, mGraphicsContext.DefaultSampler);
-			mDefaultUnlitMaterialResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
-		}
-	}
-
-	private void DestroyUnlitPipeline()
-	{
-		mGraphicsContext.Factory.DestroyResourceSet(ref mDefaultUnlitMaterialResourceSet);
-		mGraphicsContext.Factory.DestroyResourceSet(ref mUnlitPerObjectResourceSet);
-		mGraphicsContext.Factory.DestroyResourceLayout(ref mUnlitMaterialResourceLayout);
-		mGraphicsContext.Factory.DestroyResourceLayout(ref mUnlitPerObjectResourceLayout);
-		mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mUnlitPipeline);
-
-		mGraphicsContext.Factory.DestroyBuffer(ref mDefaultUnlitMaterialCB);
-		mGraphicsContext.Factory.DestroyBuffer(ref mUnlitVertexCB);
-
-		mGraphicsContext.Factory.DestroyShader(ref mPixelShader);
-		mGraphicsContext.Factory.DestroyShader(ref mVertexShader);
-	}
-
 	public ResourceLayout GetMaterialResourceLayout(StringView shaderName)
 	{
-		switch (shaderName)
-		{
-		case "Unlit": return mUnlitMaterialResourceLayout;
-		default: return mUnlitMaterialResourceLayout; // Fallback
-		}
-	}
-
-	private ResourceLayout[] mSkinnedPipelineResourceLayouts ~ delete _;
-	private LayoutElementDescription[] mSkinnedPerObjectLayoutElementDescs ~ delete _;
-	private LayoutElementDescription[] mSkinnedBoneMatricesLayoutElementDescs ~ delete _;
-
-	private void CreateSkinnedPipeline()
-	{
-		// Compile skinned vertex shader
-		{
-			var byteCode = CompileShaderSource(mGraphicsContext, ShaderSources.SkinnedUnlitShadersVS, .Vertex, "VS", .. scope .());
-			var shaderBytes = scope uint8[byteCode.Count];
-			byteCode.CopyTo(shaderBytes);
-			var vsDesc = ShaderDescription(.Vertex, "VS", shaderBytes);
-			mSkinnedVertexShader = mGraphicsContext.Factory.CreateShader(vsDesc);
-		}
-
-		// Skinned vertex format (72 bytes)
-		var skinnedVertexFormat = scope LayoutDescription()
-			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))      // 12 bytes
-			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))        // 12 bytes
-			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))      // 8 bytes
-			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))// 4 bytes
-			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent))       // 12 bytes
-			.Add(ElementDescription(ElementFormat.UShort4, ElementSemanticType.BlendIndices)) // 8 bytes
-			.Add(ElementDescription(ElementFormat.Float4, ElementSemanticType.BlendWeight));  // 16 bytes
-
-		var skinnedVertexLayouts = scope InputLayouts();
-		skinnedVertexLayouts.Add(skinnedVertexFormat);
-
-		// Skinned Per Object ResourceLayout (same as regular unlit for now)
-		{
-			LayoutElementDescription[] layoutElementDescs = mSkinnedPerObjectLayoutElementDescs = new LayoutElementDescription[](
-				LayoutElementDescription(0, .ConstantBuffer, .Vertex, true, sizeof(UnlitVertexUniforms))
-			);
-			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
-			mSkinnedPerObjectResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
-		}
-
-		// Bone Matrices ResourceLayout (binding 0 in space2, maps to Set 2 in Vulkan)
-		{
-			LayoutElementDescription[] layoutElementDescs = mSkinnedBoneMatricesLayoutElementDescs = new LayoutElementDescription[](
-				LayoutElementDescription(0, .ConstantBuffer, .Vertex, false, sizeof(BoneMatricesUniforms))
-			);
-			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
-			mBoneMatricesResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
-		}
-
-		// Create skinned pipeline
-		var skinnedPipelineDescription = GraphicsPipelineDescription
-			{
-				RenderStates = RenderStateDescription.Default,
-				Shaders = .()
-					{
-						VertexShader = mSkinnedVertexShader,
-						PixelShader = mPixelShader  // Reuse the same pixel shader
-					},
-				InputLayouts = skinnedVertexLayouts,
-				ResourceLayouts = mSkinnedPipelineResourceLayouts = new ResourceLayout[](mSkinnedPerObjectResourceLayout, mUnlitMaterialResourceLayout, mBoneMatricesResourceLayout),
-				PrimitiveTopology = .TriangleList,
-				Outputs = .CreateFromFrameBuffer(mSwapChain.FrameBuffer)
-			};
-
-		mSkinnedUnlitPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(skinnedPipelineDescription);
-	}
-
-	private void DestroySkinnedPipeline()
-	{
-		if (mSkinnedUnlitPipeline != null)
-			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mSkinnedUnlitPipeline);
-		if (mBoneMatricesResourceLayout != null)
-			mGraphicsContext.Factory.DestroyResourceLayout(ref mBoneMatricesResourceLayout);
-		if (mSkinnedPerObjectResourceLayout != null)
-			mGraphicsContext.Factory.DestroyResourceLayout(ref mSkinnedPerObjectResourceLayout);
-		if (mSkinnedVertexShader != null)
-			mGraphicsContext.Factory.DestroyShader(ref mSkinnedVertexShader);
+		return mPipelineManager.GetMaterialResourceLayout(shaderName);
 	}
 
 	private static TextureSampleCount SampleCount = TextureSampleCount.None;

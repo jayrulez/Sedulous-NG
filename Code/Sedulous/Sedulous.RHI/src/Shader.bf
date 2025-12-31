@@ -24,7 +24,15 @@ public abstract class Shader : GraphicsResource
 	protected this(GraphicsContext context, in ShaderDescription description)
 		: base(context)
 	{
-		Description = description;
+		var data = new uint8[description.ShaderBytes.Count];
+		description.ShaderBytes.CopyTo(data);
+		Description = .(description.Stage, new .(description.EntryPoint), data);
+	}
+
+	public ~this()
+	{
+		delete Description.EntryPoint;
+		delete Description.ShaderBytes;
 	}
 
 	/// <summary>

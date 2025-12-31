@@ -30,18 +30,11 @@ class RenderModule : SceneModule
 	public override StringView Name => "Render";
 
 	private RHIRendererSubsystem mRenderer;
+	private RenderCache mCache;
 
-	// 3D rendering
+	// Render command lists (rebuilt each frame)
 	private List<MeshRenderCommand> mMeshCommands = new .() ~ delete _;
-	private Dictionary<MeshRenderer, GPUResourceHandle<GPUMesh>> mRendererMeshes = new .() ~ delete _;
-	private Dictionary<MeshRenderer, GPUResourceHandle<GPUMaterial>> mRendererMaterials = new .() ~ delete _;
-
-	// Skinned mesh rendering
 	private List<SkinnedMeshRenderCommand> mSkinnedMeshCommands = new .() ~ delete _;
-	private Dictionary<SkinnedMeshRenderer, GPUResourceHandle<GPUSkinnedMesh>> mSkinnedRendererMeshes = new .() ~ delete _;
-	private Dictionary<SkinnedMeshRenderer, GPUResourceHandle<GPUMaterial>> mSkinnedRendererMaterials = new .() ~ delete _;
-	private Dictionary<Animator, GPUSkeleton> mAnimatorSkeletons = new .() ~ delete _;
-	private Dictionary<Animator, ResourceSet> mBoneMatrixResourceSets = new .() ~ delete _;
 
 	// Current frame data
 	private Camera mActiveCamera;
@@ -53,11 +46,10 @@ class RenderModule : SceneModule
 	private EntityQuery mSkinnedMeshesQuery;
 	private EntityQuery mCamerasQuery;
 
-	private Dictionary<GPUMaterial, ResourceSet> mMaterialResourceSets = new .() ~ delete _;
-
 	public this(RHIRendererSubsystem renderer)
 	{
 		mRenderer = renderer;
+		mCache = new RenderCache(renderer, renderer.GPUResources);
 
 		mMeshesQuery = CreateQuery().With<MeshRenderer>();
 		mSkinnedMeshesQuery = CreateQuery().With<SkinnedMeshRenderer>().With<Animator>();
@@ -66,40 +58,7 @@ class RenderModule : SceneModule
 
 	public ~this()
 	{
-		for (var entry in mRendererMaterials)
-		{
-			entry.value.Release();
-		}
-
-		for (var entry in mRendererMeshes)
-		{
-			entry.value.Release();
-		}
-
-		for (var entry in mSkinnedRendererMaterials)
-		{
-			entry.value.Release();
-		}
-
-		for (var entry in mSkinnedRendererMeshes)
-		{
-			entry.value.Release();
-		}
-
-		for (var entry in mAnimatorSkeletons)
-		{
-			delete entry.value;
-		}
-
-		for (var entry in mBoneMatrixResourceSets)
-		{
-			mRenderer.GraphicsContext.Factory.DestroyResourceSet(ref entry.value);
-		}
-
-		for (var entry in mMaterialResourceSets)
-		{
-			mRenderer.GraphicsContext.Factory.DestroyResourceSet(ref entry.value);
-		}
+		delete mCache;
 
 		DestroyQuery(mMeshesQuery);
 		DestroyQuery(mSkinnedMeshesQuery);
@@ -133,82 +92,26 @@ class RenderModule : SceneModule
 
 	internal void PrepareGPUResources(CommandBuffer commandBuffer)
 	{
-		var resourceManager = mRenderer.GPUResources;
-
 		// Create GPU resources for any new mesh renderers
 		for (var command in mMeshCommands)
 		{
-			// Get or create GPU mesh
-			if (!mRendererMeshes.ContainsKey(command.Renderer))
-			{
-				if (command.Renderer.Mesh.IsValid && command.Renderer.Mesh.Resource != null)
-				{
-					// This returns a new handle (adds ref)
-					var gpuMesh = resourceManager.GetOrCreateMesh(command.Renderer.Mesh.Resource);
-					if (gpuMesh.IsValid)
-					{
-						mRendererMeshes[command.Renderer] = gpuMesh;
-					}
-				}
-			}
+			mCache.GetOrCreateMesh(command.Renderer);
 
-			// Get or create GPU material
-			if (!mRendererMaterials.ContainsKey(command.Renderer))
-			{
-				if (command.Renderer.Material.IsValid && command.Renderer.Material.Resource != null)
-				{
-					// This returns a new handle (adds ref)
-					var gpuMaterial = resourceManager.GetOrCreateMaterial(command.Renderer.Material.Resource);
-					if (gpuMaterial.IsValid)
-					{
-						mRendererMaterials[command.Renderer] = gpuMaterial;
-					}
-					gpuMaterial.Resource.UpdateUniformData(commandBuffer);
-				}
-			}
+			var materialHandle = mCache.GetOrCreateMaterial(command.Renderer);
+			if (materialHandle.IsValid)
+				materialHandle.Resource.UpdateUniformData(commandBuffer);
 		}
 
 		// Prepare skinned mesh GPU resources
 		for (var command in mSkinnedMeshCommands)
 		{
-			// Get or create GPU skinned mesh
-			if (!mSkinnedRendererMeshes.ContainsKey(command.Renderer))
-			{
-				if (command.Renderer.Mesh.IsValid && command.Renderer.Mesh.Resource != null)
-				{
-					var gpuMesh = resourceManager.GetOrCreateSkinnedMesh(command.Renderer.Mesh.Resource);
-					if (gpuMesh.IsValid)
-					{
-						mSkinnedRendererMeshes[command.Renderer] = gpuMesh;
-					}
-				}
-			}
+			mCache.GetOrCreateSkinnedMesh(command.Renderer);
 
-			// Get or create GPU material
-			if (!mSkinnedRendererMaterials.ContainsKey(command.Renderer))
-			{
-				if (command.Renderer.Material.IsValid && command.Renderer.Material.Resource != null)
-				{
-					var gpuMaterial = resourceManager.GetOrCreateMaterial(command.Renderer.Material.Resource);
-					if (gpuMaterial.IsValid)
-					{
-						mSkinnedRendererMaterials[command.Renderer] = gpuMaterial;
-					}
-					gpuMaterial.Resource.UpdateUniformData(commandBuffer);
-				}
-			}
+			var materialHandle = mCache.GetOrCreateSkinnedMaterial(command.Renderer);
+			if (materialHandle.IsValid)
+				materialHandle.Resource.UpdateUniformData(commandBuffer);
 
-			// Get or create GPU skeleton for bone matrices
-			if (!mAnimatorSkeletons.ContainsKey(command.Animator))
-			{
-				var skeleton = new GPUSkeleton("Skeleton", mRenderer.GraphicsContext, MAX_BONES);
-				mAnimatorSkeletons[command.Animator] = skeleton;
-
-				// Create resource set for bone matrices
-				var resourceSetDesc = ResourceSetDescription(mRenderer.BoneMatricesResourceLayout, skeleton.BoneMatrixBuffer);
-				var resourceSet = mRenderer.GraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
-				mBoneMatrixResourceSets[command.Animator] = resourceSet;
-			}
+			mCache.GetOrCreateSkeleton(command.Animator);
 		}
 
 		// Update vertex uniform buffer (outside render pass)
@@ -262,7 +165,7 @@ class RenderModule : SceneModule
 			var command = mMeshCommands[i];
 
 			// Get the material for this object
-			if (mRendererMaterials.TryGetValue(command.Renderer, let materialHandle))
+			if (mCache.TryGetMaterial(command.Renderer, let materialHandle))
 			{
 				var gpuMaterial = materialHandle.Resource;
 
@@ -271,20 +174,18 @@ class RenderModule : SceneModule
 				{
 					currentMaterial = gpuMaterial;
 
-					// HERE - Set the material's resource set
 					if (gpuMaterial.UniformBuffer != null)
 					{
-						// You'll need to create a resource set for this material
-						var materialResourceSet = GetOrCreateMaterialResourceSet(gpuMaterial);
-						commandBuffer.SetResourceSet(materialResourceSet, 1); // Slot 1 for materials
+						var materialResourceSet = mCache.GetOrCreateMaterialResourceSet(gpuMaterial);
+						commandBuffer.SetResourceSet(materialResourceSet, 1);
 					}
 				}
-			} else
+			}
+			else
 			{
 				// No material - bind a default material resource set
 				commandBuffer.SetResourceSet(mRenderer.DefaultUnlitMaterialResourceSet, 1);
 			}
-
 
 			// Set resource set with dynamic offset
 			uint32 dynamicOffset = (uint32)(i * alignedSize);
@@ -391,7 +292,7 @@ class RenderModule : SceneModule
 
 	private void RenderMesh(MeshRenderCommand command, CommandBuffer commandBuffer)
 	{
-		if (!mRendererMeshes.TryGetValue(command.Renderer, let meshHandle) || !meshHandle.IsValid)
+		if (!mCache.TryGetMesh(command.Renderer, let meshHandle) || !meshHandle.IsValid)
 			return;
 
 		var mesh = meshHandle.Resource;
@@ -408,41 +309,6 @@ class RenderModule : SceneModule
 		{
 			commandBuffer.Draw(mesh.VertexCount);
 		}
-	}
-
-	private ResourceSet GetOrCreateMaterialResourceSet(GPUMaterial material)
-	{
-		if (!mMaterialResourceSets.TryGetValue(material, var resourceSet))
-		{
-			// Create resource set with material's uniform buffer and textures
-			resourceSet = CreateMaterialResourceSet(material);
-			mMaterialResourceSets[material] = resourceSet;
-		}
-		return resourceSet;
-	}
-
-	private ResourceSet CreateMaterialResourceSet(GPUMaterial material)
-	{
-		var resources = scope List<GraphicsResource>();
-
-		// Let the material type handle its own resource ordering
-		switch (material.ShaderName)
-		{
-		case "Unlit":
-		    UnlitMaterial.FillResourceSet(resources, material, mRenderer);
-		    break;
-		}
-
-		GraphicsResource[] r = scope GraphicsResource[resources.Count];
-		for (int i = 0; i < resources.Count; i++)
-		{
-			r[i] = resources[i];
-		}
-
-		var layout = mRenderer.GetMaterialResourceLayout(material.ShaderName);
-		return mRenderer.GraphicsContext.Factory.CreateResourceSet(
-			ResourceSetDescription(layout, params r)
-			);
 	}
 
 	private void UpdateSkinnedVertexUniforms()
@@ -478,7 +344,7 @@ class RenderModule : SceneModule
 		// Update bone matrices for each animator
 		for (var command in mSkinnedMeshCommands)
 		{
-			if (mAnimatorSkeletons.TryGetValue(command.Animator, var skeleton))
+			if (mCache.TryGetSkeleton(command.Animator, let skeleton))
 			{
 				// Compute final bone matrices with inverse bind matrices
 				var animator = command.Animator;
@@ -534,7 +400,7 @@ class RenderModule : SceneModule
 			var command = mSkinnedMeshCommands[i];
 
 			// Get the material for this object
-			if (mSkinnedRendererMaterials.TryGetValue(command.Renderer, let materialHandle))
+			if (mCache.TryGetSkinnedMaterial(command.Renderer, let materialHandle))
 			{
 				var gpuMaterial = materialHandle.Resource;
 
@@ -545,7 +411,7 @@ class RenderModule : SceneModule
 
 					if (gpuMaterial.UniformBuffer != null)
 					{
-						var materialResourceSet = GetOrCreateMaterialResourceSet(gpuMaterial);
+						var materialResourceSet = mCache.GetOrCreateMaterialResourceSet(gpuMaterial);
 						commandBuffer.SetResourceSet(materialResourceSet, 1);
 					}
 				}
@@ -560,7 +426,7 @@ class RenderModule : SceneModule
 			commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet, 0, scope .(dynamicOffset));
 
 			// Set bone matrices resource set
-			if (mBoneMatrixResourceSets.TryGetValue(command.Animator, var boneResourceSet))
+			if (mCache.TryGetBoneResourceSet(command.Animator, let boneResourceSet))
 			{
 				commandBuffer.SetResourceSet(boneResourceSet, 2);
 			}
@@ -571,7 +437,7 @@ class RenderModule : SceneModule
 
 	private void RenderSkinnedMesh(SkinnedMeshRenderCommand command, CommandBuffer commandBuffer)
 	{
-		if (!mSkinnedRendererMeshes.TryGetValue(command.Renderer, let meshHandle) || !meshHandle.IsValid)
+		if (!mCache.TryGetSkinnedMesh(command.Renderer, let meshHandle) || !meshHandle.IsValid)
 			return;
 
 		var mesh = meshHandle.Resource;

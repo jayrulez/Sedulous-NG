@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Model" = "*", "Sedulous.Model.GLTF" = "*"}
+
+[Project]
+Name = "ModelTest"
+TargetType = "BeefConsoleApplication"
+StartupObject = "ModelTest.Program"

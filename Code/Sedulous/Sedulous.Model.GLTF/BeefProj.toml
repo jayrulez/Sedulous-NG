@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Model" = "*", cgltf-Beef = "*"}
+Dependencies = {corlib = "*", "Sedulous.Model" = "*", "cgltf-Beef" = "*", "Sedulous.Imaging" = "*", "Sedulous.Mathematics" = "*"}
 
 [Project]
 Name = "Sedulous.Model.GLTF"

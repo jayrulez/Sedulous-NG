@@ -88,15 +88,13 @@ abstract class JobBase : RefCounted
 
 	protected virtual void OnCompleted()
 	{
-
 	}
 
-	internal void Run()
+	internal JobRunResult Run()
 	{
 		if (!IsReady())
 		{
-			// todo: maybe return a state so the caller can requeue if necessary
-			return;
+			return .NotReady;
 		}
 
 		mState = .Running;
@@ -104,9 +102,13 @@ abstract class JobBase : RefCounted
 		Execute();
 
 		// Job could have been canceled in execute method.
-		if (mState != .Canceled)
-			mState = .Succeeded;
+		if (mState == .Canceled)
+		{
+			return .Cancelled;
+		}
 
+		mState = .Succeeded;
 		OnCompleted();
+		return .Success;
 	}
 }

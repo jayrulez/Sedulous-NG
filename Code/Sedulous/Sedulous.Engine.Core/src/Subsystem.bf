@@ -75,8 +75,7 @@ abstract class Subsystem
 
     protected virtual void OnUnitializing(IEngine engine) { }
 
-    // Enhanced: Automatic scene module creation (multiple modules per subsystem)
-    internal void SceneCreated(Scene scene)
+    private void SceneCreated(Scene scene)
     {
         var modules = scope List<SceneModule>();
         CreateSceneModules(scene, modules);
@@ -89,7 +88,7 @@ abstract class Subsystem
         OnSceneCreated(scene);
     }
 
-    internal void SceneDestroyed(Scene scene)
+    private void SceneDestroyed(Scene scene)
     {
         OnSceneDestroyed(scene);
 

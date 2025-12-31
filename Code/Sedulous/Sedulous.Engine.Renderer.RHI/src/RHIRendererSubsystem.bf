@@ -262,7 +262,7 @@ class RHIRendererSubsystem : Subsystem
 			.Build();
 		
 		var clearValue = ClearValue(ClearFlags.All, Color.CornflowerBlue);
-		var mainRenderPass = mainPass as RenderGraphGraphicsPass;
+		var mainRenderPass = mainPass;
 		mainRenderPass.RenderPassDesc = RenderPassDescription(mSwapChain.FrameBuffer, clearValue);
 		
 		// Compile render graph

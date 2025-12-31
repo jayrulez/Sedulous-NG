@@ -4,6 +4,6 @@ namespace Sedulous.Serialization;
 
 interface ISerializable
 {
-	Result<void> Serialize(Stream stream);
-	Result<void> Deserialize(Stream stream);
+    void Serialize(ISerializer serializer);
+    void Deserialize(ISerializer serializer);
 }

@@ -178,26 +178,36 @@ internal abstract class Worker
 
 			mState = .Busy;
 
-			JobBase job = null;
+			JobBase currentJob = null;
 			using (mJobsMonitor.Enter())
-				job = mJobs.PopFront();
-			defer job.ReleaseRef();
+				currentJob = mJobs.PopFront();
+			defer currentJob.ReleaseRef();
 
-			if (!job.IsReady())
+			if (!currentJob.IsReady())
 			{
 				// if the job is not ready to run,
 				// re-queue with the job system to free up this worker ASAP
 				//QueueJob(job); // don't want to always queue on this worker, possibly lead to deadlock, we're already inside the monitor and QueueJob will request to enter the Monitor
 				//mJobs.Add(job); // not desirable to always requeue on same worker
 
-				mJobSystem.AddJob(job);
+				mJobSystem.AddJob(currentJob);
 				continue;
 			}
 
-			mJobSystem.Logger?.LogInformation("Worker: {} - Running job: {}.", mName, job.Name);
-			job.[Friend]Run();
+			mJobSystem.Logger?.LogInformation("Worker: {} - Running job: {}.", mName, currentJob.Name);
+			var result = currentJob.[Friend]Run();
+			if(result == .NotReady)
+			{
+				// if the job is not ready to run,
+				// re-queue with the job system to free up this worker ASAP
+				//QueueJob(job); // don't want to always queue on this worker, possibly lead to deadlock, we're already inside the monitor and QueueJob will request to enter the Monitor
+				//mJobs.Add(job); // not desirable to always requeue on same worker
 
-			mJobSystem.HandleProcessedJob(job, this);
+				mJobSystem.AddJob(currentJob);
+				continue;
+			}
+
+			mJobSystem.HandleProcessedJob(currentJob, this);
 		}
 
 		mState = .Idle;

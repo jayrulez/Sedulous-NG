@@ -84,12 +84,12 @@ class TextureResource : Resource
         return levels;
     }
     
-    // Factory method: Create from file (placeholder for future)
+    /*// Factory method: Create from file (placeholder for future)
     public static Result<TextureResource> LoadFromFile(StringView path)
     {
         // TODO: Implement when image loading is added
         return .Err;
-    }
+    }*/
     
     // ========== BASIC TEXTURE FACTORY METHODS ==========
 

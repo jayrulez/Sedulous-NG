@@ -42,9 +42,13 @@ class RenderModule : SceneModule
 	private Matrix mViewMatrix;
 	private Matrix mProjectionMatrix;
 
+	// Lighting data
+	private LightingUniforms mCurrentLighting;
+
 	private EntityQuery mMeshesQuery;
 	private EntityQuery mSkinnedMeshesQuery;
 	private EntityQuery mCamerasQuery;
+	private EntityQuery mDirectionalLightsQuery;
 
 	public this(RHIRendererSubsystem renderer)
 	{
@@ -54,6 +58,15 @@ class RenderModule : SceneModule
 		mMeshesQuery = CreateQuery().With<MeshRenderer>();
 		mSkinnedMeshesQuery = CreateQuery().With<SkinnedMeshRenderer>().With<Animator>();
 		mCamerasQuery = CreateQuery().With<Camera>();
+		mDirectionalLightsQuery = CreateQuery().With<DirectionalLight>();
+
+		// Initialize default lighting
+		mCurrentLighting = .()
+		{
+			DirectionalLightDir = Vector4(0.5f, -1.0f, 0.3f, 0),
+			DirectionalLightColor = Vector4(1.0f, 0.95f, 0.9f, 1.0f),
+			AmbientLight = Vector4(0.1f, 0.1f, 0.15f, 0)
+		};
 	}
 
 	public ~this()
@@ -63,12 +76,14 @@ class RenderModule : SceneModule
 		DestroyQuery(mMeshesQuery);
 		DestroyQuery(mSkinnedMeshesQuery);
 		DestroyQuery(mCamerasQuery);
+		DestroyQuery(mDirectionalLightsQuery);
 	}
 
 	protected override void OnUpdate(Time time)
 	{
 		// Find active camera and lights
 		UpdateActiveCamera();
+		UpdateLighting();
 
 		// Clear render commands
 		mMeshCommands.Clear();
@@ -82,9 +97,35 @@ class RenderModule : SceneModule
 		SortRenderCommands();
 	}
 
+	private void UpdateLighting()
+	{
+		// Find the first directional light in the scene
+		for (var entity in mDirectionalLightsQuery.GetEntities(Scene, .. scope .()))
+		{
+			if (entity.HasComponent<DirectionalLight>())
+			{
+				var light = entity.GetComponent<DirectionalLight>();
+				var transform = entity.Transform;
+
+				// Get light direction from entity's forward vector
+				var lightDir = transform.Forward;
+				mCurrentLighting.DirectionalLightDir = Vector4(lightDir.X, lightDir.Y, lightDir.Z, 0);
+
+				// Light color with intensity in W
+				mCurrentLighting.DirectionalLightColor = Vector4(light.Color.X, light.Color.Y, light.Color.Z, light.Intensity);
+
+				// Use first light found (primary sun light)
+				break;
+			}
+		}
+	}
+
 	internal void RenderFrame(IEngine.UpdateInfo info, CommandBuffer commandBuffer)
 	{
 		PrepareGPUResources(commandBuffer);
+
+		// Update lighting buffer
+		commandBuffer.UpdateBufferData(mRenderer.LightingBuffer, &mCurrentLighting, (uint32)sizeof(LightingUniforms));
 
 		RenderMeshes(commandBuffer);
 		RenderSkinnedMeshes(commandBuffer);
@@ -387,13 +428,12 @@ class RenderModule : SceneModule
 		if (mSkinnedMeshCommands.IsEmpty)
 			return;
 
-		commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedUnlitPipeline);
-
 		const int32 ALIGNMENT = 256;
 		int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
 		int startOffset = mMeshCommands.Count;
 
 		GPUMaterial currentMaterial = null;
+		StringView currentShaderName = default;
 
 		for (int i = 0; i < mSkinnedMeshCommands.Count; i++)
 		{
@@ -409,6 +449,13 @@ class RenderModule : SceneModule
 				{
 					currentMaterial = gpuMaterial;
 
+					// Switch pipeline if shader type changed
+					if (gpuMaterial.ShaderName != currentShaderName)
+					{
+						currentShaderName = gpuMaterial.ShaderName;
+						SetSkinnedPipelineForShader(commandBuffer, currentShaderName);
+					}
+
 					if (gpuMaterial.UniformBuffer != null)
 					{
 						var materialResourceSet = mCache.GetOrCreateMaterialResourceSet(gpuMaterial);
@@ -418,6 +465,12 @@ class RenderModule : SceneModule
 			}
 			else
 			{
+				// Default to unlit pipeline for objects without materials
+				if (currentShaderName != "Unlit")
+				{
+					currentShaderName = "Unlit";
+					commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedUnlitPipeline);
+				}
 				commandBuffer.SetResourceSet(mRenderer.DefaultUnlitMaterialResourceSet, 1);
 			}
 
@@ -432,6 +485,20 @@ class RenderModule : SceneModule
 			}
 
 			RenderSkinnedMesh(command, commandBuffer);
+		}
+	}
+
+	private void SetSkinnedPipelineForShader(CommandBuffer commandBuffer, StringView shaderName)
+	{
+		switch (shaderName)
+		{
+		case "Phong":
+			commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedPhongPipeline);
+			// Set lighting resource set at slot 3 for skinned Phong
+			commandBuffer.SetResourceSet(mRenderer.LightingResourceSet, 3);
+		default:
+			// Default to unlit for unknown shader types
+			commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedUnlitPipeline);
 		}
 	}
 

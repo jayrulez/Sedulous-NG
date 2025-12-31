@@ -63,6 +63,7 @@ class RHIRendererSubsystem : Subsystem
 	// Pipeline accessors (delegate to PipelineManager)
 	public GraphicsPipelineState UnlitPipeline => mPipelineManager.UnlitPipeline;
 	public GraphicsPipelineState SkinnedUnlitPipeline => mPipelineManager.SkinnedUnlitPipeline;
+	public GraphicsPipelineState SkinnedPhongPipeline => mPipelineManager.SkinnedPhongPipeline;
 	public ResourceLayout SkinnedPerObjectResourceLayout => mPipelineManager.SkinnedPerObjectResourceLayout;
 	public ResourceLayout BoneMatricesResourceLayout => mPipelineManager.BoneMatricesResourceLayout;
 	public ResourceLayout UnlitMaterialResourceLayout => mPipelineManager.UnlitMaterialResourceLayout;
@@ -71,6 +72,8 @@ class RHIRendererSubsystem : Subsystem
 	public Buffer UnlitVertexCB => mPipelineManager.UnlitVertexCB;
 	public Buffer DefaultUnlitMaterialCB => mPipelineManager.DefaultUnlitMaterialCB;
 	public MaterialPipelineRegistry MaterialRegistry => mPipelineManager.MaterialRegistry;
+	public Buffer LightingBuffer => mPipelineManager.LightingBuffer;
+	public ResourceSet LightingResourceSet => mPipelineManager.LightingResourceSet;
 
 	private delegate void(uint32, uint32) mResizeDelegate ~ delete _;
 	private Viewport[] WindowViewports = new .[1] ~ delete _;

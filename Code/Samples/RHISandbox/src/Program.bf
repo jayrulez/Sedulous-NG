@@ -201,6 +201,13 @@ class SandboxApplication : Application
 			mCameraPitch = Math.Asin(lookDir.Y);
 		}
 
+		// Create sun light
+		mSunLightEntity = scene.CreateEntity("Sun");
+		mSunLightEntity.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(mSunYaw, mSunPitch, 0);
+		mSunLight = mSunLightEntity.AddComponent<DirectionalLight>();
+		mSunLight.Color = Vector3(1.0f, 0.95f, 0.8f); // Warm white sunlight
+		mSunLight.Intensity = 0.8f;
+
 		// Create objects
 		for (int i = 0; i < 5; i++)
 		{
@@ -769,11 +776,15 @@ class SandboxApplication : Application
 			modelTexture.SetupFor3D();
 		}
 
-		// Create material
-		let material = new UnlitMaterial();
-		material.Color = .White;
+		// Create Phong material for lighting support
+		// Lighting comes from the scene's DirectionalLight entity
+		let material = new PhongMaterial();
+		material.DiffuseColor = .White;
+		material.SpecularColor = Color(0.3f, 0.3f, 0.3f, 1.0f);
+		material.Shininess = 16.0f;
+		material.AmbientColor = .White; // Full ambient tint (scene ambient will provide the color)
 		if (modelTexture != null)
-			material.MainTexture = engine.ResourceSystem.AddResource(modelTexture);
+			material.DiffuseTexture = engine.ResourceSystem.AddResource(modelTexture);
 
 		// Check if model has skin (for animated mesh)
 		bool hasSkin = model.SkinCount > 0 && model.AnimationCount > 0;

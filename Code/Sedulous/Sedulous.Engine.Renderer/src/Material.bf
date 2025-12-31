@@ -45,17 +45,14 @@ public abstract class Material
 }
 
 // Standard lit material (Phong shading)
+// Lighting comes from scene DirectionalLight components
 public class PhongMaterial : Material
 {
     // Material properties
     public Color DiffuseColor { get; set; } = .White;
     public Color SpecularColor { get; set; } = Color(0.5f, 0.5f, 0.5f, 1.0f);
     public float Shininess { get; set; } = 32.0f;
-    public Color AmbientColor { get; set; } = Color(0.2f, 0.2f, 0.2f, 1.0f);
-
-    // Lighting (temporary - should come from scene lights)
-    public Vector3 LightDirection { get; set; } = Vector3(0.5f, -1.0f, 0.5f);
-    public float LightIntensity { get; set; } = 1.0f;
+    public Color AmbientColor { get; set; } = Color(1.0f, 1.0f, 1.0f, 1.0f); // Material's ambient tint (multiplied with scene ambient)
 
     // Textures
     public ResourceHandle<TextureResource> DiffuseTexture { get; set; } ~ _.Release();
@@ -75,8 +72,8 @@ public class PhongMaterial : Material
         // Fill PhongFragmentUniforms struct layout:
         // Vector4 DiffuseColor;    // w = unused
         // Vector4 SpecularColor;   // w = shininess
-        // Vector4 AmbientColor;    // w = unused
-        // Vector4 LightDirection;  // xyz = direction, w = intensity
+        // Vector4 AmbientColor;    // w = unused (material ambient tint)
+        // Vector4 Padding;         // Reserved
 
         var ptr = buffer.Ptr;
 
@@ -91,14 +88,14 @@ public class PhongMaterial : Material
         Internal.MemCpy(ptr, &specular, sizeof(Vector4));
         ptr += sizeof(Vector4);
 
-        // AmbientColor
+        // AmbientColor (material ambient tint)
         var ambient = AmbientColor.ToVector4();
         Internal.MemCpy(ptr, &ambient, sizeof(Vector4));
         ptr += sizeof(Vector4);
 
-        // LightDirection with intensity in w
-        var lightDir = Vector4(LightDirection.X, LightDirection.Y, LightDirection.Z, LightIntensity);
-        Internal.MemCpy(ptr, &lightDir, sizeof(Vector4));
+        // Padding
+        var padding = Vector4.Zero;
+        Internal.MemCpy(ptr, &padding, sizeof(Vector4));
     }
 
     public override void GetTextureResources(List<ResourceHandle<TextureResource>> textures)

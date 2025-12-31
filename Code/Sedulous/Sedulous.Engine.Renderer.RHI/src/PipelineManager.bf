@@ -29,7 +29,7 @@ class PipelineManager
 	private ResourceSet mUnlitPerObjectResourceSet;
 	private ResourceSet mDefaultUnlitMaterialResourceSet;
 
-	// Skinned pipeline resources
+	// Skinned Unlit pipeline resources
 	private GraphicsPipelineState mSkinnedUnlitPipeline;
 	private Shader mSkinnedVertexShader;
 	private Shader mSkinnedPixelShader;
@@ -39,6 +39,12 @@ class PipelineManager
 	private LayoutElementDescription[] mSkinnedBoneMatricesLayoutElementDescs ~ delete _;
 	private ResourceLayout[] mSkinnedPipelineResourceLayouts ~ delete _;
 
+	// Skinned Phong pipeline resources
+	private GraphicsPipelineState mSkinnedPhongPipeline;
+	private Shader mSkinnedPhongVertexShader;
+	private Shader mSkinnedPhongPixelShader;
+	private ResourceLayout[] mSkinnedPhongPipelineResourceLayouts ~ delete _;
+
 	// Phong pipeline resources
 	private GraphicsPipelineState mPhongPipeline;
 	private Shader mPhongVertexShader;
@@ -47,12 +53,18 @@ class PipelineManager
 	private LayoutElementDescription[] mPhongMaterialLayoutElements ~ delete _;
 	private ResourceLayout[] mPhongPipelineResourceLayouts ~ delete _;
 
+	// Lighting resources (shared by all lit pipelines)
+	private ResourceLayout mLightingResourceLayout;
+	private Buffer mLightingBuffer;
+	private ResourceSet mLightingResourceSet;
+
 	// Material pipeline registry
 	private MaterialPipelineRegistry mMaterialRegistry = new .() ~ delete _;
 
 	// Public accessors
 	public GraphicsPipelineState UnlitPipeline => mUnlitPipeline;
 	public GraphicsPipelineState SkinnedUnlitPipeline => mSkinnedUnlitPipeline;
+	public GraphicsPipelineState SkinnedPhongPipeline => mSkinnedPhongPipeline;
 	public GraphicsPipelineState PhongPipeline => mPhongPipeline;
 	public MaterialPipelineRegistry MaterialRegistry => mMaterialRegistry;
 
@@ -60,8 +72,11 @@ class PipelineManager
 	public ResourceLayout UnlitMaterialResourceLayout => mUnlitMaterialResourceLayout;
 	public ResourceLayout SkinnedPerObjectResourceLayout => mSkinnedPerObjectResourceLayout;
 	public ResourceLayout BoneMatricesResourceLayout => mBoneMatricesResourceLayout;
+	public ResourceLayout LightingResourceLayout => mLightingResourceLayout;
 
 	public Buffer UnlitVertexCB => mUnlitVertexCB;
+	public Buffer LightingBuffer => mLightingBuffer;
+	public ResourceSet LightingResourceSet => mLightingResourceSet;
 	public Buffer DefaultUnlitMaterialCB => mDefaultUnlitMaterialCB;
 	public ResourceSet UnlitPerObjectResourceSet => mUnlitPerObjectResourceSet;
 	public ResourceSet DefaultUnlitMaterialResourceSet => mDefaultUnlitMaterialResourceSet;
@@ -80,21 +95,60 @@ class PipelineManager
 
 	public void Initialize(FrameBuffer targetFrameBuffer)
 	{
+		CreateLightingResources();
 		CreateUnlitPipeline(targetFrameBuffer);
 		CreatePhongPipeline(targetFrameBuffer);
 		CreateSkinnedPipeline(targetFrameBuffer);
+		CreateSkinnedPhongPipeline(targetFrameBuffer);
 	}
 
 	public void Destroy()
 	{
+		DestroySkinnedPhongPipeline();
 		DestroySkinnedPipeline();
 		DestroyPhongPipeline();
 		DestroyUnlitPipeline();
+		DestroyLightingResources();
 	}
 
 	public ResourceLayout GetMaterialResourceLayout(StringView shaderName)
 	{
 		return mMaterialRegistry.GetMaterialResourceLayout(shaderName);
+	}
+
+	private void CreateLightingResources()
+	{
+		// Create lighting resource layout
+		LayoutElementDescription[] lightingLayoutElements = scope:: LayoutElementDescription[](
+			LayoutElementDescription(0, .ConstantBuffer, .Pixel, false, sizeof(LightingUniforms))
+		);
+		ResourceLayoutDescription lightingLayoutDesc = ResourceLayoutDescription(params lightingLayoutElements);
+		mLightingResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(lightingLayoutDesc);
+
+		// Create lighting buffer with default values
+		var defaultLighting = LightingUniforms()
+		{
+			DirectionalLightDir = Vector4(0.5f, -1.0f, 0.3f, 0),    // Default light direction
+			DirectionalLightColor = Vector4(1.0f, 0.95f, 0.9f, 1.0f), // Warm white, intensity 1.0
+			AmbientLight = Vector4(0.1f, 0.1f, 0.15f, 0)            // Slight blue ambient
+		};
+
+		var lightingBufferDesc = BufferDescription(sizeof(LightingUniforms), .ConstantBuffer, .Dynamic);
+		mLightingBuffer = mGraphicsContext.Factory.CreateBuffer(&defaultLighting, lightingBufferDesc);
+
+		// Create lighting resource set
+		ResourceSetDescription lightingSetDesc = .(mLightingResourceLayout, mLightingBuffer);
+		mLightingResourceSet = mGraphicsContext.Factory.CreateResourceSet(lightingSetDesc);
+	}
+
+	private void DestroyLightingResources()
+	{
+		if (mLightingResourceSet != null)
+			mGraphicsContext.Factory.DestroyResourceSet(ref mLightingResourceSet);
+		if (mLightingBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mLightingBuffer);
+		if (mLightingResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mLightingResourceLayout);
 	}
 
 	private void CreateUnlitPipeline(FrameBuffer targetFrameBuffer)
@@ -253,6 +307,7 @@ class PipelineManager
 		}
 
 		// Create Phong pipeline
+		// Layout: Set 0 = per-object, Set 1 = material, Set 2 = lighting
 		var pipelineDescription = GraphicsPipelineDescription
 		{
 			RenderStates = RenderStateDescription.Default,
@@ -262,7 +317,7 @@ class PipelineManager
 				PixelShader = mPhongPixelShader
 			},
 			InputLayouts = vertexLayouts,
-			ResourceLayouts = mPhongPipelineResourceLayouts = new ResourceLayout[](mUnlitPerObjectResourceLayout, mPhongMaterialResourceLayout),
+			ResourceLayouts = mPhongPipelineResourceLayouts = new ResourceLayout[](mUnlitPerObjectResourceLayout, mPhongMaterialResourceLayout, mLightingResourceLayout),
 			PrimitiveTopology = .TriangleList,
 			Outputs = .CreateFromFrameBuffer(targetFrameBuffer)
 		};
@@ -355,5 +410,53 @@ class PipelineManager
 			mGraphicsContext.Factory.DestroyShader(ref mSkinnedPixelShader);
 		if (mSkinnedVertexShader != null)
 			mGraphicsContext.Factory.DestroyShader(ref mSkinnedVertexShader);
+	}
+
+	private void CreateSkinnedPhongPipeline(FrameBuffer targetFrameBuffer)
+	{
+		// Compile skinned Phong shaders (separate pixel shader since lighting is at space3)
+		mSkinnedPhongVertexShader = mShaderManager.CompileFromSource(ShaderSources.SkinnedPhongShadersVS, .Vertex, "VS");
+		mSkinnedPhongPixelShader = mShaderManager.CompileFromSource(ShaderSources.SkinnedPhongShadersPS, .Pixel, "PS");
+
+		// Skinned vertex format (same as skinned unlit)
+		var skinnedVertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))       // 12 bytes
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))         // 12 bytes
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))       // 8 bytes
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))// 4 bytes
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent))        // 12 bytes
+			.Add(ElementDescription(ElementFormat.UShort4, ElementSemanticType.BlendIndices))  // 8 bytes
+			.Add(ElementDescription(ElementFormat.Float4, ElementSemanticType.BlendWeight));   // 16 bytes
+
+		var skinnedVertexLayouts = scope InputLayouts();
+		skinnedVertexLayouts.Add(skinnedVertexFormat);
+
+		// Create skinned Phong pipeline
+		// Layout: Set 0 = per-object, Set 1 = material, Set 2 = bones, Set 3 = lighting
+		var skinnedPhongPipelineDescription = GraphicsPipelineDescription
+		{
+			RenderStates = RenderStateDescription.Default,
+			Shaders = .()
+			{
+				VertexShader = mSkinnedPhongVertexShader,
+				PixelShader = mSkinnedPhongPixelShader
+			},
+			InputLayouts = skinnedVertexLayouts,
+			ResourceLayouts = mSkinnedPhongPipelineResourceLayouts = new ResourceLayout[](mSkinnedPerObjectResourceLayout, mPhongMaterialResourceLayout, mBoneMatricesResourceLayout, mLightingResourceLayout),
+			PrimitiveTopology = .TriangleList,
+			Outputs = .CreateFromFrameBuffer(targetFrameBuffer)
+		};
+
+		mSkinnedPhongPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(skinnedPhongPipelineDescription);
+	}
+
+	private void DestroySkinnedPhongPipeline()
+	{
+		if (mSkinnedPhongPipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mSkinnedPhongPipeline);
+		if (mSkinnedPhongPixelShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mSkinnedPhongPixelShader);
+		if (mSkinnedPhongVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mSkinnedPhongVertexShader);
 	}
 }

@@ -55,6 +55,7 @@ This document tracks the planned improvements to the Sedulous renderer codebase.
 
 ### 2.2 Implement missing pipelines
 - [x] Phong pipeline (lighting support)
+- [x] Skinned Phong pipeline (animated meshes with lighting)
 - [ ] PBR pipeline (physically-based rendering)
 
 ### 2.3 Material serialization
@@ -155,4 +156,6 @@ Sedulous.Engine.Renderer.RHI/
 | 2025-12-31 | Phase 1.3 partial - Created ShaderManager for shader compilation |
 | 2025-12-31 | Phase 2.1 complete - Created MaterialPipelineRegistry, removed hardcoded switches |
 | 2025-12-31 | Phase 2.2 partial - Implemented Phong pipeline with lighting support |
+| 2025-12-31 | Phase 2.2 continued - Added SkinnedPhongPipeline for animated meshes with lighting, updated RenderModule to select pipeline based on material type |
+| 2025-12-31 | Scene-based lighting - Created LightingUniforms, added lighting buffer to PipelineManager, RenderModule collects DirectionalLight from scene, removed light properties from PhongMaterial |
 

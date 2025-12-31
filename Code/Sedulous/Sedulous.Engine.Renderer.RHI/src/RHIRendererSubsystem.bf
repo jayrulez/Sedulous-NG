@@ -90,6 +90,20 @@ class RHIRendererSubsystem : Subsystem
 	private RenderGraph mRenderGraph ~ delete _;
 	private RenderGraphResourceHandle mBackBufferHandle;
 
+	// Hi-Z Occlusion Culling resources
+	private const uint32 HIZ_SIZE = 64;  // Fixed Hi-Z texture size
+	private Texture mHiZTexture;
+	private Texture mHiZStagingTexture;  // For CPU readback
+	private ResourceSet mHiZResourceSet;
+	private SamplerState mHiZSampler;
+	private float[] mHiZReadbackData ~ delete _;
+	private bool mHiZDataValid = false;
+
+	public Texture HiZStagingTexture => mHiZStagingTexture;
+	public float[] HiZReadbackData => mHiZReadbackData;
+	public bool HiZDataValid => mHiZDataValid;
+	public uint32 HiZSize => HIZ_SIZE;
+
 	public this(Window window, GraphicsContext context)
 	{
 		mWindow = window;
@@ -143,6 +157,9 @@ class RHIRendererSubsystem : Subsystem
 		mPipelineManager = new PipelineManager(mGraphicsContext, this, mShaderManager);
 		mPipelineManager.Initialize(mSwapChain.FrameBuffer);
 
+		// Create Hi-Z resources
+		CreateHiZResources();
+
 		// Create render graph
 		mRenderGraph = new RenderGraph("Main", mGraphicsContext, mGraphicsContext.Factory);
 		SetupRenderGraph();
@@ -157,6 +174,9 @@ class RHIRendererSubsystem : Subsystem
 		{
 			mRenderGraph.Reset();
 		}
+
+		// Hi-Z cleanup
+		DestroyHiZResources();
 
 		// PipelineManager cleanup handled by destructor
 
@@ -314,13 +334,21 @@ class RHIRendererSubsystem : Subsystem
 		var depthClearValue = ClearValue(.Depth, 1.0f, 0);
 		depthPrepass.RenderPassDesc = RenderPassDescription(mSwapChain.FrameBuffer, depthClearValue);
 
-		// Add main render pass - depends on depth prepass
+		// Add Hi-Z generation pass (after depth prepass, before main render)
+		var hiZPass = mRenderGraph.AddPass<RenderGraphComputePass>("HiZGenerate",
+			new => HiZGenerateExecute);
+
+		hiZPass.Setup(mRenderGraph)
+			.DependsOn(depthPrepass.Handle)  // Depends on depth prepass
+			.Build();
+
+		// Add main render pass - depends on Hi-Z pass
 		var mainPass = mRenderGraph.AddPass<RenderGraphGraphicsPass>("MainRender",
 			new => MainRenderPassExecute);
 
 		mainPass.Setup(mRenderGraph)
 			.WriteTexture(mBackBufferHandle)
-			.DependsOn(depthPrepass.Handle)  // Depends on depth prepass now
+			.DependsOn(hiZPass.Handle)  // Depends on Hi-Z generation now
 			.Build();
 
 		// Main pass: clear color, load existing depth (from prepass)
@@ -352,6 +380,43 @@ class RHIRendererSubsystem : Subsystem
 		{
 			module.RenderDepthPrepass(cmd);
 		}
+	}
+
+	private void HiZGenerateExecute(CommandBuffer cmd, RenderGraphContext context)
+	{
+		// Skip if Hi-Z resources weren't created (no depth buffer)
+		if (mHiZResourceSet == null)
+			return;
+
+		// Read Hi-Z data from previous frame (for use in current frame's culling)
+		// Note: This gives one-frame latency but avoids GPU stalls
+		ReadHiZData();
+
+		// Update Hi-Z params
+		var hiZParams = HiZParams()
+		{
+			OutputSizeX = HIZ_SIZE,
+			OutputSizeY = HIZ_SIZE,
+			InputSizeX = mWindow.Width,
+			InputSizeY = mWindow.Height
+		};
+		cmd.UpdateBufferData(mPipelineManager.HiZParamsBuffer, &hiZParams, (uint32)sizeof(HiZParams), 0);
+
+		// Set compute pipeline and resource set
+		cmd.SetComputePipelineState(mPipelineManager.HiZDownsamplePipeline);
+		cmd.SetResourceSet(mHiZResourceSet, 0);
+
+		// Dispatch compute shader
+		// Thread group size is 8x8, so dispatch (HIZ_SIZE/8) groups in each dimension
+		uint32 groupCountX = (HIZ_SIZE + 7) / 8;
+		uint32 groupCountY = (HIZ_SIZE + 7) / 8;
+		cmd.Dispatch(groupCountX, groupCountY, 1);
+
+		// Barrier to ensure compute is done before copy
+		cmd.ResourceBarrierUnorderedAccessView(mHiZTexture);
+
+		// Copy Hi-Z texture to staging texture for CPU readback next frame
+		cmd.CopyTextureDataTo(mHiZTexture, 0, 0, 0, 0, 0, mHiZStagingTexture, 0, 0, 0, 0, 0, HIZ_SIZE, HIZ_SIZE, 1, 1);
 	}
 
 	private void MainRenderPassExecute(CommandBuffer cmd, RenderGraphContext context)
@@ -402,6 +467,110 @@ class RHIRendererSubsystem : Subsystem
 	public ResourceLayout GetMaterialResourceLayout(StringView shaderName)
 	{
 		return mPipelineManager.GetMaterialResourceLayout(shaderName);
+	}
+
+	private void CreateHiZResources()
+	{
+		// Allocate readback data buffer
+		mHiZReadbackData = new float[HIZ_SIZE * HIZ_SIZE];
+
+		// Create Hi-Z output texture (UAV for compute shader write)
+		var hiZDesc = TextureDescription()
+		{
+			Type = .Texture2D,
+			Format = .R32_Float,  // Single channel float depth
+			Width = HIZ_SIZE,
+			Height = HIZ_SIZE,
+			Depth = 1,
+			MipLevels = 1,
+			ArraySize = 1,
+			Faces = 1,
+			Flags = .ShaderResource | .UnorderedAccess,  // Read and write access
+			Usage = .Default,
+			SampleCount = .None,
+			CpuAccess = .None
+		};
+		mHiZTexture = mGraphicsContext.Factory.CreateTexture(hiZDesc, "HiZTexture");
+
+		// Create staging texture for CPU readback
+		var stagingDesc = TextureDescription()
+		{
+			Type = .Texture2D,
+			Format = .R32_Float,
+			Width = HIZ_SIZE,
+			Height = HIZ_SIZE,
+			Depth = 1,
+			MipLevels = 1,
+			ArraySize = 1,
+			Faces = 1,
+			Flags = .None,
+			Usage = .Staging,
+			SampleCount = .None,
+			CpuAccess = .Read
+		};
+		mHiZStagingTexture = mGraphicsContext.Factory.CreateTexture(stagingDesc, "HiZStagingTexture");
+
+		// Create point sampler for depth texture
+		var samplerDesc = SamplerStateDescription()
+		{
+			Filter = .MinPoint_MagPoint_MipPoint,
+			AddressU = .Clamp,
+			AddressV = .Clamp,
+			AddressW = .Clamp
+		};
+		mHiZSampler = mGraphicsContext.Factory.CreateSamplerState(samplerDesc);
+
+		// Create resource set for Hi-Z compute pass
+		// Layout: InputDepth (Texture), OutputDepth (UAV), HiZParams (CB)
+		var depthAttachment = mSwapChain.FrameBuffer.DepthStencilTarget;
+		if (depthAttachment.HasValue)
+		{
+			var depthTexture = depthAttachment.Value.AttachmentTexture;
+			ResourceSetDescription hiZSetDesc = .(
+				mPipelineManager.HiZResourceLayout,
+				depthTexture,                     // Input depth texture
+				mHiZTexture,                      // Output Hi-Z texture (UAV)
+				mPipelineManager.HiZParamsBuffer  // Params constant buffer
+			);
+			mHiZResourceSet = mGraphicsContext.Factory.CreateResourceSet(hiZSetDesc);
+		}
+	}
+
+	private void DestroyHiZResources()
+	{
+		if (mHiZResourceSet != null)
+			mGraphicsContext.Factory.DestroyResourceSet(ref mHiZResourceSet);
+		if (mHiZSampler != null)
+			mGraphicsContext.Factory.DestroySampler(ref mHiZSampler);
+		if (mHiZStagingTexture != null)
+			mGraphicsContext.Factory.DestroyTexture(ref mHiZStagingTexture);
+		if (mHiZTexture != null)
+			mGraphicsContext.Factory.DestroyTexture(ref mHiZTexture);
+	}
+
+	/// Read Hi-Z data from staging texture (call from RenderModule before culling)
+	public void ReadHiZData()
+	{
+		if (mHiZStagingTexture == null)
+			return;
+
+		// Map the staging texture and copy data
+		var mappedResource = mGraphicsContext.MapMemory(mHiZStagingTexture, .Read);
+		if (mappedResource.Data != null)
+		{
+			// Copy row by row (respecting row pitch)
+			uint8* srcData = (uint8*)mappedResource.Data;
+			for (uint32 y = 0; y < HIZ_SIZE; y++)
+			{
+				float* rowData = (float*)(srcData + y * mappedResource.RowPitch);
+				for (uint32 x = 0; x < HIZ_SIZE; x++)
+				{
+					mHiZReadbackData[y * HIZ_SIZE + x] = rowData[x];
+				}
+			}
+			mHiZDataValid = true;
+			mGraphicsContext.UnmapMemory(mHiZStagingTexture);
+		}
 	}
 
 	private static TextureSampleCount SampleCount = TextureSampleCount.None;

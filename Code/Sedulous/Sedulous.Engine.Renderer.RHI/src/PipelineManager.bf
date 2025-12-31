@@ -90,6 +90,13 @@ class PipelineManager
 	private ResourceLayout[] mDepthOnlyPipelineResourceLayouts ~ delete _;
 	private ResourceLayout[] mSkinnedDepthOnlyPipelineResourceLayouts ~ delete _;
 
+	// Hi-Z occlusion culling resources
+	private Shader mHiZDownsampleShader;
+	private ComputePipelineState mHiZDownsamplePipeline;
+	private ResourceLayout mHiZResourceLayout;
+	private LayoutElementDescription[] mHiZLayoutElements ~ delete _;
+	private Buffer mHiZParamsBuffer;
+
 	// Material pipeline registry
 	private MaterialPipelineRegistry mMaterialRegistry = new .() ~ delete _;
 
@@ -105,6 +112,9 @@ class PipelineManager
 	public GraphicsPipelineState SkinnedDepthOnlyPipeline => mSkinnedDepthOnlyPipeline;
 	public ResourceLayout DebugResourceLayout => mDebugResourceLayout;
 	public MaterialPipelineRegistry MaterialRegistry => mMaterialRegistry;
+	public ComputePipelineState HiZDownsamplePipeline => mHiZDownsamplePipeline;
+	public ResourceLayout HiZResourceLayout => mHiZResourceLayout;
+	public Buffer HiZParamsBuffer => mHiZParamsBuffer;
 
 	public ResourceLayout UnlitPerObjectResourceLayout => mUnlitPerObjectResourceLayout;
 	public ResourceLayout UnlitMaterialResourceLayout => mUnlitMaterialResourceLayout;
@@ -142,10 +152,12 @@ class PipelineManager
 		CreateSkinnedPBRPipeline(targetFrameBuffer);
 		CreateDebugLinePipeline(targetFrameBuffer);
 		CreateDepthOnlyPipelines(targetFrameBuffer);
+		CreateHiZPipeline();
 	}
 
 	public void Destroy()
 	{
+		DestroyHiZPipeline();
 		DestroyDepthOnlyPipelines();
 		DestroyDebugLinePipeline();
 		DestroySkinnedPBRPipeline();
@@ -761,5 +773,47 @@ class PipelineManager
 			mGraphicsContext.Factory.DestroyShader(ref mDepthOnlyVertexShader);
 		if (mSkinnedDepthOnlyVertexShader != null)
 			mGraphicsContext.Factory.DestroyShader(ref mSkinnedDepthOnlyVertexShader);
+	}
+
+	private void CreateHiZPipeline()
+	{
+		// Compile Hi-Z downsample compute shader
+		mHiZDownsampleShader = mShaderManager.CompileFromSource(ShaderSources.HiZDownsampleCS, .Compute, "CS");
+
+		// Create Hi-Z resource layout
+		// Layout: InputDepth (Texture), OutputDepth (RWTexture/UAV), HiZParams (ConstantBuffer)
+		mHiZLayoutElements = new LayoutElementDescription[](
+			LayoutElementDescription(0, .Texture, .Compute),                                    // InputDepth
+			LayoutElementDescription(0, .TextureReadWrite, .Compute),                           // OutputDepth (UAV)
+			LayoutElementDescription(0, .ConstantBuffer, .Compute, false, sizeof(HiZParams))    // HiZParams
+		);
+		ResourceLayoutDescription hiZLayoutDesc = ResourceLayoutDescription(params mHiZLayoutElements);
+		mHiZResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(hiZLayoutDesc);
+
+		// Create Hi-Z params buffer
+		var defaultParams = HiZParams() { OutputSizeX = 1, OutputSizeY = 1, InputSizeX = 0, InputSizeY = 0 };
+		var hiZParamsBufferDesc = BufferDescription(sizeof(HiZParams), .ConstantBuffer, .Dynamic);
+		mHiZParamsBuffer = mGraphicsContext.Factory.CreateBuffer(&defaultParams, hiZParamsBufferDesc);
+
+		// Create Hi-Z compute pipeline
+		var resourceLayouts = scope ResourceLayout[](mHiZResourceLayout);
+		var pipelineDesc = ComputePipelineDescription(
+			resourceLayouts,
+			ComputeShaderStateDescription(){ ComputeShader= mHiZDownsampleShader},//ComputeShaderStateDescription(mHiZDownsampleShader, "CS"),
+			8, 8, 1  // Thread group size matches shader [numthreads(8, 8, 1)]
+		);
+		mHiZDownsamplePipeline = mGraphicsContext.Factory.CreateComputePipeline(pipelineDesc);
+	}
+
+	private void DestroyHiZPipeline()
+	{
+		if (mHiZDownsamplePipeline != null)
+			mGraphicsContext.Factory.DestroyComputePipeline(ref mHiZDownsamplePipeline);
+		if (mHiZResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mHiZResourceLayout);
+		if (mHiZParamsBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mHiZParamsBuffer);
+		if (mHiZDownsampleShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mHiZDownsampleShader);
 	}
 }

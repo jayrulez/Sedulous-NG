@@ -67,7 +67,13 @@ public class VKTexture : Texture
 			if (!String.IsNullOrEmpty(value))
 			{
 				name.Set(value);
-				vkContext?.SetDebugName(VkObjectType.VK_OBJECT_TYPE_IMAGE, NativeImage.Handle, name);
+				if (Description.Usage == .Staging)
+				{
+					vkContext?.SetDebugName(VkObjectType.VK_OBJECT_TYPE_BUFFER, NativeBuffer.Handle, name);
+				} else
+				{
+					vkContext?.SetDebugName(VkObjectType.VK_OBJECT_TYPE_IMAGE, NativeImage.Handle, name);
+				}
 			}
 		}
 	}
@@ -273,16 +279,16 @@ public class VKTexture : Texture
 					uint32 bytesToCopy;
 					if (description.Type == TextureType.Texture3D)
 					{
-					    bytesToCopy = dataBox.SlicePitch * levelDepth;
+						bytesToCopy = dataBox.SlicePitch * levelDepth;
 					}
 					else
 					{
-					    // For 1D/2D textures, calculate from row pitch
-					    bytesToCopy = dataBox.RowPitch * levelHeight;
+						// For 1D/2D textures, calculate from row pitch
+						bytesToCopy = dataBox.RowPitch * levelHeight;
 					}
 
 					Internal.MemCpy((void*)(int)copyPointer, (void*)dataBox.DataPointer, bytesToCopy);
-					copyOffset += bytesToCopy;  
+					copyOffset += bytesToCopy;
 
 					copyRegions[index] = VkBufferImageCopy()
 						{

@@ -74,7 +74,7 @@ This document tracks the planned improvements to the Sedulous renderer codebase.
 
 ### 3.2 Add culling
 - [x] Frustum culling
-- [ ] Optional occlusion culling
+- [x] Hi-Z occlusion culling (hybrid CPU/GPU approach)
 
 ### 3.3 Add render statistics
 - [x] Draw call count
@@ -163,4 +163,5 @@ Sedulous.Engine.Renderer.RHI/
 | 2025-12-31 | Phase 3 partial - Added frustum culling, separate opaque/transparent render passes, proper sorting (front-to-back for opaque, back-to-front for transparent) |
 | 2025-12-31 | Phase 3.3 complete - Added RenderStatistics with draw call count, triangle count, objects rendered/culled, GPU memory tracking |
 | 2025-12-31 | Phase 3.1 complete - Added depth prepass with depth-only shaders and pipelines for static and skinned meshes |
+| 2025-12-31 | Phase 3.2 complete - Added Hi-Z occlusion culling: compute shader generates 64x64 max-depth pyramid from depth buffer, CPU reads back via staging texture, HiZOcclusionCuller tests bounding boxes against Hi-Z data with one-frame latency |
 

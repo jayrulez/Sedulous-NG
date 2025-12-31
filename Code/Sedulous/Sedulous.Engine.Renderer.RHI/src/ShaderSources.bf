@@ -59,6 +59,15 @@ struct DebugUniforms
     public Matrix ViewProjection;
 }
 
+[CRepr, Packed, Align(16)]
+struct HiZParams
+{
+    public uint32 OutputSizeX;
+    public uint32 OutputSizeY;
+    public uint32 InputSizeX;
+    public uint32 InputSizeY;
+}
+
 static
 {
 	public const int MAX_BONES = 128;
@@ -929,6 +938,50 @@ static class ShaderSources
 	        float4 skinnedPos = mul(float4(input.Position, 1.0), skinMatrix);
 	        output.Position = mul(skinnedPos, MVPMatrix);
 	        return output;
+	    }
+	    """;
+
+	// ============================================
+	// Hi-Z Occlusion Culling Shaders
+	// ============================================
+
+	public const String HiZDownsampleCS = """
+	    // Hi-Z downsample compute shader
+	    // Takes depth texture and produces max of NxN region for hierarchical testing
+	    // Single-pass downsample from full resolution to fixed Hi-Z size
+
+	    Texture2D<float> InputDepth : register(t0);
+	    RWTexture2D<float> OutputDepth : register(u0);
+
+	    cbuffer HiZParams : register(b0)
+	    {
+	        uint2 OutputSize;    // Hi-Z texture size (e.g., 64x64)
+	        uint2 InputSize;     // Depth buffer size
+	    }
+
+	    [numthreads(8, 8, 1)]
+	    void CS(uint3 dispatchThreadId : SV_DispatchThreadID)
+	    {
+	        if (dispatchThreadId.x >= OutputSize.x || dispatchThreadId.y >= OutputSize.y)
+	            return;
+
+	        // Calculate the region of the input to sample
+	        // Each output pixel covers (InputSize / OutputSize) input pixels
+	        uint2 regionStart = (dispatchThreadId.xy * InputSize) / OutputSize;
+	        uint2 regionEnd = ((dispatchThreadId.xy + 1) * InputSize) / OutputSize;
+
+	        // Find max depth in the region (furthest from camera)
+	        float maxDepth = 0.0;
+	        for (uint y = regionStart.y; y < regionEnd.y; y++)
+	        {
+	            for (uint x = regionStart.x; x < regionEnd.x; x++)
+	            {
+	                float d = InputDepth[uint2(x, y)];
+	                maxDepth = max(maxDepth, d);
+	            }
+	        }
+
+	        OutputDepth[dispatchThreadId.xy] = maxDepth;
 	    }
 	    """;
 }

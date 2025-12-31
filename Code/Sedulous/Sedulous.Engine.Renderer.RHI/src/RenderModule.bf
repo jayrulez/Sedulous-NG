@@ -79,6 +79,9 @@ class RenderModule : SceneModule
 	// Render statistics
 	private RenderStatistics mStatistics;
 
+	// Hi-Z occlusion culling
+	private HiZOcclusionCuller mHiZCuller ~ delete _;
+
 	private EntityQuery mMeshesQuery;
 	private EntityQuery mSkinnedMeshesQuery;
 	private EntityQuery mCamerasQuery;
@@ -95,6 +98,7 @@ class RenderModule : SceneModule
 		mRenderer = renderer;
 		mCache = new RenderCache(renderer, renderer.GPUResources);
 		mDebugRenderer = new DebugRenderer(renderer.GraphicsContext);
+		mHiZCuller = new HiZOcclusionCuller(renderer);
 
 		mMeshesQuery = CreateQuery().With<MeshRenderer>();
 		mSkinnedMeshesQuery = CreateQuery().With<SkinnedMeshRenderer>().With<Animator>();
@@ -153,7 +157,12 @@ class RenderModule : SceneModule
 			mViewFrustum = BoundingFrustum(mViewMatrix * mProjectionMatrix);
 		}
 
-		// Collect render commands (with frustum culling and transparency separation)
+		// Update Hi-Z culler with current frame's view-projection
+		// Note: Hi-Z data is from previous frame (one frame latency)
+		mHiZCuller.BeginFrame();
+		mHiZCuller.SetViewProjection(mViewMatrix * mProjectionMatrix);
+
+		// Collect render commands (with Hi-Z and frustum culling, transparency separation)
 		CollectRenderCommands();
 		CollectSkinnedRenderCommands();
 
@@ -617,7 +626,14 @@ class RenderModule : SceneModule
 				var localBounds = renderer.Mesh.Resource.Mesh.GetBounds();
 				var worldBounds = TransformBounds(localBounds, worldMatrix);
 
-				// Frustum culling - skip objects outside view
+				// Hi-Z occlusion culling - skip objects occluded by geometry (coarse test)
+				if (!mHiZCuller.TestBoundingBox(worldBounds))
+				{
+					mStatistics.ObjectsCulled++;
+					continue;
+				}
+
+				// Frustum culling - skip objects outside view (precise test)
 				if (mActiveCamera != null && mViewFrustum.Contains(worldBounds) == .Disjoint)
 				{
 					mStatistics.ObjectsCulled++;
@@ -673,7 +689,14 @@ class RenderModule : SceneModule
 				var localBounds = renderer.Mesh.Resource.Mesh.Bounds;
 				var worldBounds = TransformBounds(localBounds, worldMatrix);
 
-				// Frustum culling - skip objects outside view
+				// Hi-Z occlusion culling - skip objects occluded by geometry (coarse test)
+				if (!mHiZCuller.TestBoundingBox(worldBounds))
+				{
+					mStatistics.ObjectsCulled++;
+					continue;
+				}
+
+				// Frustum culling - skip objects outside view (precise test)
 				if (mActiveCamera != null && mViewFrustum.Contains(worldBounds) == .Disjoint)
 				{
 					mStatistics.ObjectsCulled++;

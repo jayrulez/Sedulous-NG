@@ -965,7 +965,7 @@ class SandboxApplication : Application
 				var entity = scene.CreateEntity(scope $"Duck_{m}_{p}");
 				entity.Transform.Position = Vector3(4, -1.5f, -2);  // Position to the right of the fox
 				entity.Transform.Scale = Vector3(0.01f, 0.01f, 0.01f);  // Duck is fairly large, scale down
-				entity.AddComponent<RotateComponent>();  // Make it rotate like the other objects
+				//entity.AddComponent<RotateComponent>();  // Make it rotate like the other objects
 
 				var renderer = entity.AddComponent<MeshRenderer>();
 				renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(geometryMesh, true));

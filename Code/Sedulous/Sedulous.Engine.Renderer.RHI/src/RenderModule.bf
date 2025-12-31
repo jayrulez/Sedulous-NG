@@ -14,6 +14,8 @@ struct MeshRenderCommand
 	public Matrix WorldMatrix;
 	public MeshRenderer Renderer;
 	public float DistanceToCamera;
+	public BoundingBox WorldBounds;
+	public bool IsTransparent;
 }
 
 struct SkinnedMeshRenderCommand
@@ -23,6 +25,8 @@ struct SkinnedMeshRenderCommand
 	public SkinnedMeshRenderer Renderer;
 	public Animator Animator;
 	public float DistanceToCamera;
+	public BoundingBox WorldBounds;
+	public bool IsTransparent;
 }
 
 class RenderModule : SceneModule
@@ -32,9 +36,14 @@ class RenderModule : SceneModule
 	private RHIRendererSubsystem mRenderer;
 	private RenderCache mCache;
 
-	// Render command lists (rebuilt each frame)
-	private List<MeshRenderCommand> mMeshCommands = new .() ~ delete _;
-	private List<SkinnedMeshRenderCommand> mSkinnedMeshCommands = new .() ~ delete _;
+	// Render command lists (rebuilt each frame, separated by transparency)
+	private List<MeshRenderCommand> mOpaqueMeshCommands = new .() ~ delete _;
+	private List<MeshRenderCommand> mTransparentMeshCommands = new .() ~ delete _;
+	private List<SkinnedMeshRenderCommand> mOpaqueSkinnedCommands = new .() ~ delete _;
+	private List<SkinnedMeshRenderCommand> mTransparentSkinnedCommands = new .() ~ delete _;
+
+	// Cached frustum for culling
+	private BoundingFrustum mViewFrustum;
 
 	// Current frame data
 	private Camera mActiveCamera;
@@ -106,10 +115,18 @@ class RenderModule : SceneModule
 		UpdateLighting();
 
 		// Clear render commands
-		mMeshCommands.Clear();
-		mSkinnedMeshCommands.Clear();
+		mOpaqueMeshCommands.Clear();
+		mTransparentMeshCommands.Clear();
+		mOpaqueSkinnedCommands.Clear();
+		mTransparentSkinnedCommands.Clear();
 
-		// Collect render commands
+		// Create view frustum for culling
+		if (mActiveCamera != null)
+		{
+			mViewFrustum = BoundingFrustum(mViewMatrix * mProjectionMatrix);
+		}
+
+		// Collect render commands (with frustum culling and transparency separation)
 		CollectRenderCommands();
 		CollectSkinnedRenderCommands();
 
@@ -186,8 +203,8 @@ class RenderModule : SceneModule
 
 	internal void PrepareGPUResources(CommandBuffer commandBuffer)
 	{
-		// Create GPU resources for any new mesh renderers
-		for (var command in mMeshCommands)
+		// Create GPU resources for opaque mesh renderers
+		for (var command in mOpaqueMeshCommands)
 		{
 			mCache.GetOrCreateMesh(command.Renderer);
 
@@ -196,8 +213,30 @@ class RenderModule : SceneModule
 				materialHandle.Resource.UpdateUniformData(commandBuffer);
 		}
 
-		// Prepare skinned mesh GPU resources
-		for (var command in mSkinnedMeshCommands)
+		// Create GPU resources for transparent mesh renderers
+		for (var command in mTransparentMeshCommands)
+		{
+			mCache.GetOrCreateMesh(command.Renderer);
+
+			var materialHandle = mCache.GetOrCreateMaterial(command.Renderer);
+			if (materialHandle.IsValid)
+				materialHandle.Resource.UpdateUniformData(commandBuffer);
+		}
+
+		// Prepare opaque skinned mesh GPU resources
+		for (var command in mOpaqueSkinnedCommands)
+		{
+			mCache.GetOrCreateSkinnedMesh(command.Renderer);
+
+			var materialHandle = mCache.GetOrCreateSkinnedMaterial(command.Renderer);
+			if (materialHandle.IsValid)
+				materialHandle.Resource.UpdateUniformData(commandBuffer);
+
+			mCache.GetOrCreateSkeleton(command.Animator);
+		}
+
+		// Prepare transparent skinned mesh GPU resources
+		for (var command in mTransparentSkinnedCommands)
 		{
 			mCache.GetOrCreateSkinnedMesh(command.Renderer);
 
@@ -213,9 +252,15 @@ class RenderModule : SceneModule
 		UpdateSkinnedVertexUniforms();
 	}
 
+	/// Total number of mesh commands (opaque + transparent)
+	private int TotalMeshCount => mOpaqueMeshCommands.Count + mTransparentMeshCommands.Count;
+
+	/// Total number of skinned mesh commands (opaque + transparent)
+	private int TotalSkinnedCount => mOpaqueSkinnedCommands.Count + mTransparentSkinnedCommands.Count;
+
 	private void UpdateVertexUniforms()
 	{
-		if (mMeshCommands.IsEmpty)
+		if (mOpaqueMeshCommands.IsEmpty && mTransparentMeshCommands.IsEmpty)
 			return;
 
 		// Update all object data at once
@@ -224,18 +269,34 @@ class RenderModule : SceneModule
 		const int32 ALIGNMENT = 256;
 		int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
 
-		for (int i = 0; i < mMeshCommands.Count; i++)
+		int writeIndex = 0;
+
+		// Write opaque mesh uniforms first
+		for (var command in mOpaqueMeshCommands)
 		{
-			var command = mMeshCommands[i];
 			var vertexUniforms = UnlitVertexUniforms()
 				{
 					MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
 					ModelMatrix = command.WorldMatrix
 				};
 
-			// Write to the aligned offset
-			UnlitVertexUniforms* dest = (UnlitVertexUniforms*)((uint8*)mapped.Data + i * alignedSize);
+			UnlitVertexUniforms* dest = (UnlitVertexUniforms*)((uint8*)mapped.Data + writeIndex * alignedSize);
 			*dest = vertexUniforms;
+			writeIndex++;
+		}
+
+		// Then transparent mesh uniforms
+		for (var command in mTransparentMeshCommands)
+		{
+			var vertexUniforms = UnlitVertexUniforms()
+				{
+					MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+					ModelMatrix = command.WorldMatrix
+				};
+
+			UnlitVertexUniforms* dest = (UnlitVertexUniforms*)((uint8*)mapped.Data + writeIndex * alignedSize);
+			*dest = vertexUniforms;
+			writeIndex++;
 		}
 
 		mRenderer.GraphicsContext.UnmapMemory(mRenderer.UnlitVertexCB);
@@ -243,7 +304,7 @@ class RenderModule : SceneModule
 
 	internal void RenderMeshes(CommandBuffer commandBuffer)
 	{
-		if (mMeshCommands.IsEmpty)
+		if (mOpaqueMeshCommands.IsEmpty && mTransparentMeshCommands.IsEmpty)
 			return;
 
 		// Render pass is already begun by rendergraph
@@ -254,11 +315,11 @@ class RenderModule : SceneModule
 		int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
 
 		GPUMaterial currentMaterial = null;
+		int uniformIndex = 0;
 
-		for (int i = 0; i < mMeshCommands.Count; i++)
+		// 1. Render opaque meshes first (front-to-back)
+		for (var command in mOpaqueMeshCommands)
 		{
-			var command = mMeshCommands[i];
-
 			// Get the material for this object
 			if (mCache.TryGetMaterial(command.Renderer, let materialHandle))
 			{
@@ -295,10 +356,57 @@ class RenderModule : SceneModule
 			}
 
 			// Set resource set with dynamic offset
-			uint32 dynamicOffset = (uint32)(i * alignedSize);
+			uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
 			commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet, 0, scope .(dynamicOffset));
 
 			RenderMesh(command, commandBuffer);
+			uniformIndex++;
+		}
+
+		// 2. Render transparent meshes (back-to-front)
+		for (var command in mTransparentMeshCommands)
+		{
+			// Get the material for this object
+			if (mCache.TryGetMaterial(command.Renderer, let materialHandle))
+			{
+				var gpuMaterial = materialHandle.Resource;
+
+				// Only update if material changed (batching)
+				if (gpuMaterial != currentMaterial)
+				{
+					currentMaterial = gpuMaterial;
+
+					// Switch pipeline if shader type changed
+					if (gpuMaterial.ShaderName != currentShaderName)
+					{
+						currentShaderName = gpuMaterial.ShaderName;
+						SetPipelineForShader(commandBuffer, currentShaderName);
+					}
+
+					if (gpuMaterial.UniformBuffer != null)
+					{
+						var materialResourceSet = mCache.GetOrCreateMaterialResourceSet(gpuMaterial);
+						commandBuffer.SetResourceSet(materialResourceSet, 1);
+					}
+				}
+			}
+			else
+			{
+				// No material - bind a default material resource set
+				if (currentShaderName != "Unlit")
+				{
+					currentShaderName = "Unlit";
+					commandBuffer.SetGraphicsPipelineState(mRenderer.UnlitPipeline);
+				}
+				commandBuffer.SetResourceSet(mRenderer.DefaultUnlitMaterialResourceSet, 1);
+			}
+
+			// Set resource set with dynamic offset
+			uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
+			commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet, 0, scope .(dynamicOffset));
+
+			RenderMesh(command, commandBuffer);
+			uniformIndex++;
 		}
 		// Render pass will be ended by rendergraph
 	}
@@ -352,6 +460,26 @@ class RenderModule : SceneModule
 		}
 	}
 
+	/// Transform a bounding box from local to world space
+	private BoundingBox TransformBounds(BoundingBox localBounds, Matrix worldMatrix)
+	{
+		// Transform all 8 corners of the bounding box and create new AABB
+		var corners = scope Vector3[8];
+		localBounds.GetCorners(corners);
+
+		var min = Vector3(float.MaxValue);
+		var max = Vector3(float.MinValue);
+
+		for (var corner in corners)
+		{
+			var transformed = Vector3.Transform(corner, worldMatrix);
+			min = Vector3.Min(min, transformed);
+			max = Vector3.Max(max, transformed);
+		}
+
+		return BoundingBox(min, max);
+	}
+
 	private void CollectRenderCommands()
 	{
 		for (var entity in mMeshesQuery.GetEntities(Scene, .. scope .()))
@@ -360,13 +488,34 @@ class RenderModule : SceneModule
 			{
 				var renderer = entity.GetComponent<MeshRenderer>();
 				var transform = entity.Transform;
+				var worldMatrix = transform.WorldMatrix;
+
+				// Get mesh bounds and transform to world space
+				if (!renderer.Mesh.IsValid || renderer.Mesh.Resource == null)
+					continue;
+
+				var localBounds = renderer.Mesh.Resource.Mesh.GetBounds();
+				var worldBounds = TransformBounds(localBounds, worldMatrix);
+
+				// Frustum culling - skip objects outside view
+				if (mActiveCamera != null && mViewFrustum.Contains(worldBounds) == .Disjoint)
+					continue;
+
+				// Check if material is transparent
+				bool isTransparent = false;
+				if (renderer.Material.IsValid && renderer.Material.Resource?.Material != null)
+				{
+					isTransparent = renderer.Material.Resource.Material.Blending != .Opaque;
+				}
 
 				var command = MeshRenderCommand()
 					{
 						Entity = entity,
-						WorldMatrix = transform.WorldMatrix,
+						WorldMatrix = worldMatrix,
 						Renderer = renderer,
-						DistanceToCamera = 0
+						DistanceToCamera = 0,
+						WorldBounds = worldBounds,
+						IsTransparent = isTransparent
 					};
 
 				if (mActiveCamera != null)
@@ -374,7 +523,11 @@ class RenderModule : SceneModule
 					command.DistanceToCamera = Vector3.Distance(transform.Position, mActiveCameraTransform.Position);
 				}
 
-				mMeshCommands.Add(command);
+				// Add to appropriate list based on transparency
+				if (isTransparent)
+					mTransparentMeshCommands.Add(command);
+				else
+					mOpaqueMeshCommands.Add(command);
 			}
 		}
 	}
@@ -388,14 +541,35 @@ class RenderModule : SceneModule
 				var renderer = entity.GetComponent<SkinnedMeshRenderer>();
 				var animator = entity.GetComponent<Animator>();
 				var transform = entity.Transform;
+				var worldMatrix = transform.WorldMatrix;
+
+				// Get mesh bounds and transform to world space
+				if (!renderer.Mesh.IsValid || renderer.Mesh.Resource == null)
+					continue;
+
+				var localBounds = renderer.Mesh.Resource.Mesh.Bounds;
+				var worldBounds = TransformBounds(localBounds, worldMatrix);
+
+				// Frustum culling - skip objects outside view
+				if (mActiveCamera != null && mViewFrustum.Contains(worldBounds) == .Disjoint)
+					continue;
+
+				// Check if material is transparent
+				bool isTransparent = false;
+				if (renderer.Material.IsValid && renderer.Material.Resource?.Material != null)
+				{
+					isTransparent = renderer.Material.Resource.Material.Blending != .Opaque;
+				}
 
 				var command = SkinnedMeshRenderCommand()
 					{
 						Entity = entity,
-						WorldMatrix = transform.WorldMatrix,
+						WorldMatrix = worldMatrix,
 						Renderer = renderer,
 						Animator = animator,
-						DistanceToCamera = 0
+						DistanceToCamera = 0,
+						WorldBounds = worldBounds,
+						IsTransparent = isTransparent
 					};
 
 				if (mActiveCamera != null)
@@ -403,15 +577,24 @@ class RenderModule : SceneModule
 					command.DistanceToCamera = Vector3.Distance(transform.Position, mActiveCameraTransform.Position);
 				}
 
-				mSkinnedMeshCommands.Add(command);
+				// Add to appropriate list based on transparency
+				if (isTransparent)
+					mTransparentSkinnedCommands.Add(command);
+				else
+					mOpaqueSkinnedCommands.Add(command);
 			}
 		}
 	}
 
 	private void SortRenderCommands()
 	{
-		// Sort front-to-back for better depth rejection
-		mMeshCommands.Sort(scope (lhs, rhs) => lhs.DistanceToCamera.CompareTo(rhs.DistanceToCamera));
+		// Opaque: front-to-back for better z-rejection
+		mOpaqueMeshCommands.Sort(scope (lhs, rhs) => lhs.DistanceToCamera.CompareTo(rhs.DistanceToCamera));
+		mOpaqueSkinnedCommands.Sort(scope (lhs, rhs) => lhs.DistanceToCamera.CompareTo(rhs.DistanceToCamera));
+
+		// Transparent: back-to-front for correct blending
+		mTransparentMeshCommands.Sort(scope (lhs, rhs) => rhs.DistanceToCamera.CompareTo(lhs.DistanceToCamera));
+		mTransparentSkinnedCommands.Sort(scope (lhs, rhs) => rhs.DistanceToCamera.CompareTo(lhs.DistanceToCamera));
 	}
 
 
@@ -438,7 +621,7 @@ class RenderModule : SceneModule
 
 	private void UpdateSkinnedVertexUniforms()
 	{
-		if (mSkinnedMeshCommands.IsEmpty)
+		if (mOpaqueSkinnedCommands.IsEmpty && mTransparentSkinnedCommands.IsEmpty)
 			return;
 
 		// Update all object data at once
@@ -447,82 +630,108 @@ class RenderModule : SceneModule
 		const int32 ALIGNMENT = 256;
 		int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
 
-		// Offset to place after regular mesh uniforms
-		int startOffset = mMeshCommands.Count;
+		// Offset to place after regular mesh uniforms (opaque + transparent)
+		int writeIndex = TotalMeshCount;
 
-		for (int i = 0; i < mSkinnedMeshCommands.Count; i++)
+		// Write opaque skinned uniforms first
+		for (var command in mOpaqueSkinnedCommands)
 		{
-			var command = mSkinnedMeshCommands[i];
 			var vertexUniforms = UnlitVertexUniforms()
 				{
 					MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
 					ModelMatrix = command.WorldMatrix
 				};
 
-			// Write to the aligned offset
-			UnlitVertexUniforms* dest = (UnlitVertexUniforms*)((uint8*)mapped.Data + (startOffset + i) * alignedSize);
+			UnlitVertexUniforms* dest = (UnlitVertexUniforms*)((uint8*)mapped.Data + writeIndex * alignedSize);
 			*dest = vertexUniforms;
+			writeIndex++;
+		}
+
+		// Then transparent skinned uniforms
+		for (var command in mTransparentSkinnedCommands)
+		{
+			var vertexUniforms = UnlitVertexUniforms()
+				{
+					MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+					ModelMatrix = command.WorldMatrix
+				};
+
+			UnlitVertexUniforms* dest = (UnlitVertexUniforms*)((uint8*)mapped.Data + writeIndex * alignedSize);
+			*dest = vertexUniforms;
+			writeIndex++;
 		}
 
 		mRenderer.GraphicsContext.UnmapMemory(mRenderer.UnlitVertexCB);
 
-		// Update bone matrices for each animator
-		for (var command in mSkinnedMeshCommands)
+		// Update bone matrices for opaque skinned meshes
+		for (var command in mOpaqueSkinnedCommands)
 		{
-			if (mCache.TryGetSkeleton(command.Animator, let skeleton))
+			UpdateBoneMatrices(command);
+		}
+
+		// Update bone matrices for transparent skinned meshes
+		for (var command in mTransparentSkinnedCommands)
+		{
+			UpdateBoneMatrices(command);
+		}
+	}
+
+	private void UpdateBoneMatrices(SkinnedMeshRenderCommand command)
+	{
+		if (mCache.TryGetSkeleton(command.Animator, let skeleton))
+		{
+			// Compute final bone matrices with inverse bind matrices
+			var animator = command.Animator;
+			var skinHandle = command.Renderer.Skin;
+
+			if (skinHandle.IsValid && skinHandle.Resource != null)
 			{
-				// Compute final bone matrices with inverse bind matrices
-				var animator = command.Animator;
-				var skinHandle = command.Renderer.Skin;
+				var skin = skinHandle.Resource;
+				var finalMatrices = scope Matrix[MAX_BONES];
 
-				if (skinHandle.IsValid && skinHandle.Resource != null)
+				// Compute final bone matrices: InverseBindMatrix * WorldTransform (row-vector convention)
+				for (int32 i = 0; i < Math.Min(skin.JointCount, animator.BoneMatrices.Count); i++)
 				{
-					var skin = skinHandle.Resource;
-					var finalMatrices = scope Matrix[MAX_BONES];
-
-					// Compute final bone matrices: InverseBindMatrix * WorldTransform (row-vector convention)
-					for (int32 i = 0; i < Math.Min(skin.JointCount, animator.BoneMatrices.Count); i++)
+					int32 jointNodeIndex = skin.JointIndices[i];
+					if (jointNodeIndex >= 0 && jointNodeIndex < animator.BoneMatrices.Count)
 					{
-						int32 jointNodeIndex = skin.JointIndices[i];
-						if (jointNodeIndex >= 0 && jointNodeIndex < animator.BoneMatrices.Count)
-						{
-							// Joint matrix for row-vector convention (v * M):
-							// v_world = v_mesh * InverseBindMatrix * GlobalTransform
-							finalMatrices[i] = skin.InverseBindMatrices[i] * animator.BoneMatrices[jointNodeIndex];
-						}
-						else
-						{
-							finalMatrices[i] = .Identity;
-						}
+						// Joint matrix for row-vector convention (v * M):
+						// v_world = v_mesh * InverseBindMatrix * GlobalTransform
+						finalMatrices[i] = skin.InverseBindMatrices[i] * animator.BoneMatrices[jointNodeIndex];
 					}
+					else
+					{
+						finalMatrices[i] = .Identity;
+					}
+				}
 
-					skeleton.UpdateBoneMatrices(null, &finalMatrices[0], (int32)skin.JointCount);
-				}
-				else
-				{
-					// No skin - just use identity matrices
-					skeleton.UpdateBoneMatrices(null, animator.BoneMatrices);
-				}
+				skeleton.UpdateBoneMatrices(null, &finalMatrices[0], (int32)skin.JointCount);
+			}
+			else
+			{
+				// No skin - just use identity matrices
+				skeleton.UpdateBoneMatrices(null, animator.BoneMatrices);
 			}
 		}
 	}
 
 	internal void RenderSkinnedMeshes(CommandBuffer commandBuffer)
 	{
-		if (mSkinnedMeshCommands.IsEmpty)
+		if (mOpaqueSkinnedCommands.IsEmpty && mTransparentSkinnedCommands.IsEmpty)
 			return;
 
 		const int32 ALIGNMENT = 256;
 		int32 alignedSize = ((sizeof(UnlitVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
-		int startOffset = mMeshCommands.Count;
+
+		// Start after mesh uniforms (both opaque and transparent)
+		int uniformIndex = TotalMeshCount;
 
 		GPUMaterial currentMaterial = null;
 		StringView currentShaderName = default;
 
-		for (int i = 0; i < mSkinnedMeshCommands.Count; i++)
+		// 1. Render opaque skinned meshes first (front-to-back)
+		for (var command in mOpaqueSkinnedCommands)
 		{
-			var command = mSkinnedMeshCommands[i];
-
 			// Get the material for this object
 			if (mCache.TryGetSkinnedMaterial(command.Renderer, let materialHandle))
 			{
@@ -559,7 +768,7 @@ class RenderModule : SceneModule
 			}
 
 			// Set per-object resource set with dynamic offset
-			uint32 dynamicOffset = (uint32)((startOffset + i) * alignedSize);
+			uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
 			commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet, 0, scope .(dynamicOffset));
 
 			// Set bone matrices resource set
@@ -569,6 +778,59 @@ class RenderModule : SceneModule
 			}
 
 			RenderSkinnedMesh(command, commandBuffer);
+			uniformIndex++;
+		}
+
+		// 2. Render transparent skinned meshes (back-to-front)
+		for (var command in mTransparentSkinnedCommands)
+		{
+			// Get the material for this object
+			if (mCache.TryGetSkinnedMaterial(command.Renderer, let materialHandle))
+			{
+				var gpuMaterial = materialHandle.Resource;
+
+				// Only update if material changed (batching)
+				if (gpuMaterial != currentMaterial)
+				{
+					currentMaterial = gpuMaterial;
+
+					// Switch pipeline if shader type changed
+					if (gpuMaterial.ShaderName != currentShaderName)
+					{
+						currentShaderName = gpuMaterial.ShaderName;
+						SetSkinnedPipelineForShader(commandBuffer, currentShaderName);
+					}
+
+					if (gpuMaterial.UniformBuffer != null)
+					{
+						var materialResourceSet = mCache.GetOrCreateMaterialResourceSet(gpuMaterial);
+						commandBuffer.SetResourceSet(materialResourceSet, 1);
+					}
+				}
+			}
+			else
+			{
+				// Default to unlit pipeline for objects without materials
+				if (currentShaderName != "Unlit")
+				{
+					currentShaderName = "Unlit";
+					commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedUnlitPipeline);
+				}
+				commandBuffer.SetResourceSet(mRenderer.DefaultUnlitMaterialResourceSet, 1);
+			}
+
+			// Set per-object resource set with dynamic offset
+			uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
+			commandBuffer.SetResourceSet(mRenderer.UnlitResourceSet, 0, scope .(dynamicOffset));
+
+			// Set bone matrices resource set
+			if (mCache.TryGetBoneResourceSet(command.Animator, let boneResourceSet))
+			{
+				commandBuffer.SetResourceSet(boneResourceSet, 2);
+			}
+
+			RenderSkinnedMesh(command, commandBuffer);
+			uniformIndex++;
 		}
 	}
 

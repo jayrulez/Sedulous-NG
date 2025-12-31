@@ -4,8 +4,8 @@ namespace Sedulous.Engine.Physics;
 
 class RigidBody : Component
 {
-    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<RigidBody>();
-    public override ComponentTypeId TypeId => sTypeId;
+    //private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<RigidBody>();
+    //public override ComponentTypeId TypeId => sTypeId;
 
     public Vector3 Position { get; set; }
     public Quaternion Rotation { get; set; }

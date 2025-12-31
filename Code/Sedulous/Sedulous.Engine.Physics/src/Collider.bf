@@ -4,8 +4,8 @@ namespace Sedulous.Engine.Physics;
 
 class Collider : Component
 {
-    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Collider>();
-    public override ComponentTypeId TypeId => sTypeId;
+    //private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Collider>();
+    //public override ComponentTypeId TypeId => sTypeId;
     
     public enum ColliderType { Box, Sphere, Capsule, Mesh }
     

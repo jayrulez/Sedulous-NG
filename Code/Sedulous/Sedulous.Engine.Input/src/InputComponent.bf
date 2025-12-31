@@ -4,8 +4,8 @@ namespace Sedulous.Engine.Input;
 
 class InputComponent : Component
 {
-    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<InputComponent>();
-    public override ComponentTypeId TypeId => sTypeId;
+    //private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<InputComponent>();
+    //public override ComponentTypeId TypeId => sTypeId;
 
     public bool ReceivesInput { get; set; } = true;
     public InputContext InputContext { get; set; }

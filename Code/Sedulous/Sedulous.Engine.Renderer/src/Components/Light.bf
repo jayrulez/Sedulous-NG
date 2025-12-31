@@ -12,8 +12,8 @@ abstract class Light : Component
 // Directional light - only needs direction (from transform)
 class DirectionalLight : Light
 {
-    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<DirectionalLight>();
-    public override ComponentTypeId TypeId => sTypeId;
+    //private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<DirectionalLight>();
+    //public override ComponentTypeId TypeId => sTypeId;
     
     // Could add shadow-specific properties here
     public bool CastShadows = true;
@@ -23,8 +23,8 @@ class DirectionalLight : Light
 // Point light - needs position (from transform) and range
 class PointLight : Light
 {
-    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<PointLight>();
-    public override ComponentTypeId TypeId => sTypeId;
+    //private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<PointLight>();
+    //public override ComponentTypeId TypeId => sTypeId;
     
     public float Range = 10.0f;
     
@@ -37,8 +37,8 @@ class PointLight : Light
 // Spot light - needs position, direction (from transform), range and angles
 class SpotLight : Light
 {
-    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<SpotLight>();
-    public override ComponentTypeId TypeId => sTypeId;
+    //private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<SpotLight>();
+    //public override ComponentTypeId TypeId => sTypeId;
     
     public float Range = 10.0f;
     public float InnerConeAngle = 25.0f; // Inner cone angle in degrees

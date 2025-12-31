@@ -5,8 +5,8 @@ namespace Sedulous.Engine.Renderer;
 
 class Camera : Component
 {
-    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Camera>();
-    public override ComponentTypeId TypeId => sTypeId;
+    //private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Camera>();
+    //public override ComponentTypeId TypeId => sTypeId;
     
     public float FieldOfView = 60.0f;
     public float AspectRatio { get; set; } = 16.0f / 9.0f;

@@ -6,8 +6,8 @@ namespace Sedulous.Engine.Renderer;
 
 class SpriteRenderer : Component
 {
-    private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<SpriteRenderer>();
-    public override ComponentTypeId TypeId => sTypeId;
+    //private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<SpriteRenderer>();
+    //public override ComponentTypeId TypeId => sTypeId;
     
     // Texture and appearance
     public ResourceHandle<TextureResource> Texture { get; set; } ~ _.Release();

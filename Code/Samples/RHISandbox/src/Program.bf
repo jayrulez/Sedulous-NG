@@ -24,14 +24,14 @@ namespace RHISandbox;
 
 public class RotateComponent : Component
 {
-	private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Self>();
-	public override ComponentTypeId TypeId => sTypeId;
+	//private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Self>();
+	//public override ComponentTypeId TypeId => sTypeId;
 }
 
 public class ControllerComponent : Component
 {
-	private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Self>();
-	public override ComponentTypeId TypeId => sTypeId;
+	//private static ComponentTypeId sTypeId = ComponentRegistry.GetTypeId<Self>();
+	//public override ComponentTypeId TypeId => sTypeId;
 
 	public float MoveSpeed { get; set; } = 5.0f; // Units per second
 }
@@ -200,7 +200,7 @@ class SandboxApplication : Application
 			geometry.AddComponent<RotateComponent>();
 			var renderer = geometry.AddComponent<MeshRenderer>();
 			renderer.Color = Color.White;
-			
+
 			Mesh mesh = null;
 			TextureResource texture = null;
 			switch (i)
@@ -226,7 +226,7 @@ class SandboxApplication : Application
 				texture = TextureResource.CreateGradient(256, 256, .Blue, .Coral);
 				break;
 			}
-			
+
 			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh ?? Mesh.CreateCube(), true));
 			UnlitMaterial unlit = new UnlitMaterial();
 			unlit.Color = .White;
@@ -245,7 +245,7 @@ class SandboxApplication : Application
 
 		// Use a neutral gray material for the floor to show light colors
 		var floorMat = new UnlitMaterial();
-		floorMat.Color = .White;
+		floorMat.Color = .Green;
 		/*floorMat.DiffuseColor = Color(0.7f, 0.7f, 0.7f, 1.0f);
 		floorMat.SpecularColor = Color(0.3f, 0.3f, 0.3f, 1.0f);
 		floorMat.Shininess = 32.0f;
@@ -555,9 +555,8 @@ class Program
 		var windowSystem = scope SDL3WindowSystem("Sandbox", 1366, 768);
 		var app = scope SandboxApplication(logger, windowSystem);
 
-		//var renderer = scope SDLRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow);
 		var graphicsContext = scope VKGraphicsContext(logger);
-		//defer graphicsContext.Dispose();
+		defer graphicsContext.Dispose();
 		var renderer = scope RHIRendererSubsystem((SDL3Window)windowSystem.PrimaryWindow, graphicsContext);
 		var inputSubsystem = scope InputSubsystem(windowSystem.InputSystem);
 		var audioSubsystem = scope OpenALAudioSubsystem();
@@ -582,7 +581,6 @@ class Program
 			{
 				// Can do something here when engine is shutting down
 			}
-			);
-		graphicsContext.Dispose();
+		);
 	}
 }

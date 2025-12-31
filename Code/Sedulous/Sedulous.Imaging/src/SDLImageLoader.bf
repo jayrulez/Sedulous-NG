@@ -67,16 +67,39 @@ class SDLImageLoader : ImageLoader
 		}
 		defer SDL_DestroySurface(surface);
 
-		uint8[] pixelData = new .[surface.pitch * surface.h];
-		Internal.MemCpy(pixelData.Ptr, surface.pixels, pixelData.Count);
+		// Convert surface to RGBA32 to ensure consistent format
+		// This handles indexed/palette formats, odd formats, etc.
+		SDL_Surface* convertedSurface = surface;
+		bool needsDestroy = false;
 
-		return .Ok(.()
+		if (surface.format != .SDL_PIXELFORMAT_RGBA32 &&
+			surface.format != .SDL_PIXELFORMAT_RGBA8888 &&
+			surface.format != .SDL_PIXELFORMAT_RGB24 &&
+			surface.format != .SDL_PIXELFORMAT_BGR24)
+		{
+			convertedSurface = SDL_ConvertSurface(surface, .SDL_PIXELFORMAT_RGBA32);
+			if (convertedSurface == null)
 			{
-				Width = (uint32)surface.w,
-				Height = (uint32)surface.h,
-				Format = SDLSurfaceFormatToPixelFormat(surface.format),
-				Data = pixelData
-			});
+				return .Err(.UnsupportedFormat);
+			}
+			needsDestroy = true;
+		}
+
+		uint8[] pixelData = new .[convertedSurface.pitch * convertedSurface.h];
+		Internal.MemCpy(pixelData.Ptr, convertedSurface.pixels, pixelData.Count);
+
+		let result = LoadInfo()
+		{
+			Width = (uint32)convertedSurface.w,
+			Height = (uint32)convertedSurface.h,
+			Format = SDLSurfaceFormatToPixelFormat(convertedSurface.format),
+			Data = pixelData
+		};
+
+		if (needsDestroy)
+			SDL_DestroySurface(convertedSurface);
+
+		return .Ok(result);
 	}
 
 	public override System.Result<LoadInfo, LoadResult> LoadFromMemory(System.Span<uint8> data)
@@ -89,16 +112,39 @@ class SDLImageLoader : ImageLoader
 		}
 		defer SDL_DestroySurface(surface);
 
-		uint8[] pixelData = new .[surface.pitch * surface.h];
-		Internal.MemCpy(pixelData.Ptr, surface.pixels, pixelData.Count);
+		// Convert surface to RGBA32 to ensure consistent format
+		// This handles indexed/palette formats, odd formats, etc.
+		SDL_Surface* convertedSurface = surface;
+		bool needsDestroy = false;
 
-		return .Ok(.()
+		if (surface.format != .SDL_PIXELFORMAT_RGBA32 &&
+			surface.format != .SDL_PIXELFORMAT_RGBA8888 &&
+			surface.format != .SDL_PIXELFORMAT_RGB24 &&
+			surface.format != .SDL_PIXELFORMAT_BGR24)
+		{
+			convertedSurface = SDL_ConvertSurface(surface, .SDL_PIXELFORMAT_RGBA32);
+			if (convertedSurface == null)
 			{
-				Width = (uint32)surface.w,
-				Height = (uint32)surface.h,
-				Format = SDLSurfaceFormatToPixelFormat(surface.format),
-				Data = pixelData
-			});
+				return .Err(.UnsupportedFormat);
+			}
+			needsDestroy = true;
+		}
+
+		uint8[] pixelData = new .[convertedSurface.pitch * convertedSurface.h];
+		Internal.MemCpy(pixelData.Ptr, convertedSurface.pixels, pixelData.Count);
+
+		let result = LoadInfo()
+		{
+			Width = (uint32)convertedSurface.w,
+			Height = (uint32)convertedSurface.h,
+			Format = SDLSurfaceFormatToPixelFormat(convertedSurface.format),
+			Data = pixelData
+		};
+
+		if (needsDestroy)
+			SDL_DestroySurface(convertedSurface);
+
+		return .Ok(result);
 	}
 
 	public override bool SupportsExtension(System.StringView @extension)

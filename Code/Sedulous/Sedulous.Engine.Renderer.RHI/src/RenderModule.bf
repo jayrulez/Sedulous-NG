@@ -69,11 +69,13 @@ class RenderModule : SceneModule
 		mDirectionalLightsQuery = CreateQuery().With<DirectionalLight>();
 
 		// Initialize default lighting
+		// Note: PBR requires higher ambient than Phong due to energy conservation (division by PI)
 		mCurrentLighting = .()
 		{
 			DirectionalLightDir = Vector4(0.5f, -1.0f, 0.3f, 0),
 			DirectionalLightColor = Vector4(1.0f, 0.95f, 0.9f, 1.0f),
-			AmbientLight = Vector4(0.1f, 0.1f, 0.15f, 0)
+			AmbientLight = Vector4(0.3f, 0.3f, 0.35f, 0),  // Higher ambient for PBR
+			CameraPosition = Vector4(0, 0, 0, 0)
 		};
 
 		// Create debug resource set
@@ -135,6 +137,13 @@ class RenderModule : SceneModule
 				// Use first light found (primary sun light)
 				break;
 			}
+		}
+
+		// Update camera position for specular calculations
+		if (mActiveCameraTransform != null)
+		{
+			var camPos = mActiveCameraTransform.WorldPosition;
+			mCurrentLighting.CameraPosition = Vector4(camPos.X, camPos.Y, camPos.Z, 0);
 		}
 	}
 

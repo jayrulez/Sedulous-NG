@@ -146,7 +146,7 @@ class GPUResourceManager
     {
         if (materialResource == null || materialResource.Material == null)
             return default;
-        
+
         // Check if we have it cached
         if (mMaterialCache.TryGetValue(materialResource, let existingMaterial))
         {
@@ -161,14 +161,14 @@ class GPUResourceManager
                 mMaterialCache.Remove(materialResource);
             }
         }
-        
+
         // First ensure all textures used by the material are loaded
         var textureList = scope List<ResourceHandle<TextureResource>>();
         materialResource.Material.GetTextureResources(textureList);
-        
+
         // Build texture cache for material creation
         var materialTextureCache = scope Dictionary<TextureResource, GPUResourceHandle<GPUTexture>>();
-        
+
         for (var textureHandle in textureList)
         {
             if (textureHandle.IsValid && textureHandle.Resource != null)
@@ -181,20 +181,20 @@ class GPUResourceManager
                 }
             }
         }
-        
+
         // Create GPU material with texture handles
         var gpuMaterial = new GPUMaterial(
-            scope $"Material_{materialResource.Name}_{materialResource.Id}", 
-            mGraphicsContext, 
-            materialResource.Material, 
+            scope $"Material_{materialResource.Name}_{materialResource.Id}",
+            mGraphicsContext,
+            materialResource.Material,
             materialTextureCache
         );
-        
+
         // Cache the raw pointer
         mMaterialCache[materialResource] = gpuMaterial;
-        
+
         mGraphicsContext.Logger.LogInformation("Created GPU Material: {} (Total: {})", materialResource.Name.Ptr, mMaterialCache.Count);
-        
+
         // Return a handle (this adds the first ref)
         return GPUResourceHandle<GPUMaterial>(gpuMaterial);
     }

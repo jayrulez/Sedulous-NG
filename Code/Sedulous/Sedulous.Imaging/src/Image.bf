@@ -47,10 +47,10 @@ public class Image
         mWidth = width;
         mHeight = height;
         mFormat = format;
-        
+
         var dataSize = DataSize;
         mData = new uint8[dataSize];
-        
+
         if (data != null && data.Count >= dataSize)
         {
             data[0..<dataSize].CopyTo(mData);

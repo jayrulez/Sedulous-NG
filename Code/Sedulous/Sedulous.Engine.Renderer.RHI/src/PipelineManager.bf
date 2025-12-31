@@ -160,11 +160,13 @@ class PipelineManager
 		mLightingResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(lightingLayoutDesc);
 
 		// Create lighting buffer with default values
+		// Note: PBR requires higher ambient than Phong due to energy conservation (division by PI)
 		var defaultLighting = LightingUniforms()
 		{
 			DirectionalLightDir = Vector4(0.5f, -1.0f, 0.3f, 0),    // Default light direction
 			DirectionalLightColor = Vector4(1.0f, 0.95f, 0.9f, 1.0f), // Warm white, intensity 1.0
-			AmbientLight = Vector4(0.1f, 0.1f, 0.15f, 0)            // Slight blue ambient
+			AmbientLight = Vector4(0.3f, 0.3f, 0.35f, 0),            // Higher ambient for PBR
+			CameraPosition = Vector4(0, 0, 0, 0)                     // Default camera at origin
 		};
 
 		var lightingBufferDesc = BufferDescription(sizeof(LightingUniforms), .ConstantBuffer, .Dynamic);

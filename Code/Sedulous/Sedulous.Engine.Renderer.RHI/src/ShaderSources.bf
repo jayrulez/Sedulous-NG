@@ -32,6 +32,7 @@ struct LightingUniforms
     public Vector4 DirectionalLightDir;   // xyz = direction (normalized), w = unused
     public Vector4 DirectionalLightColor; // xyz = color, w = intensity
     public Vector4 AmbientLight;          // xyz = ambient color, w = unused
+    public Vector4 CameraPosition;        // xyz = camera world position, w = unused
 }
 
 [CRepr, Packed, Align(16)]
@@ -212,6 +213,7 @@ static class ShaderSources
 	        float4 DirectionalLightDir;   // xyz = direction (normalized), w = unused
 	        float4 DirectionalLightColor; // xyz = color, w = intensity
 	        float4 SceneAmbientLight;     // xyz = ambient color, w = unused
+	        float4 CameraPosition;        // xyz = camera world position, w = unused
 	    }
 
 	    Texture2D DiffuseTexture : register(t0, space1);
@@ -234,7 +236,7 @@ static class ShaderSources
 	        // Normalize inputs
 	        float3 N = normalize(input.WorldNormal);
 	        float3 L = normalize(-DirectionalLightDir.xyz);
-	        float3 V = normalize(-input.WorldPos); // Approximate view direction
+	        float3 V = normalize(CameraPosition.xyz - input.WorldPos);
 
 	        // Ambient (scene ambient * material ambient tint)
 	        float3 ambient = SceneAmbientLight.rgb * AmbientColor.rgb * DiffuseColor.rgb;
@@ -320,6 +322,7 @@ static class ShaderSources
 	        float4 DirectionalLightDir;   // xyz = direction (normalized), w = unused
 	        float4 DirectionalLightColor; // xyz = color, w = intensity
 	        float4 SceneAmbientLight;     // xyz = ambient color, w = unused
+	        float4 CameraPosition;        // xyz = camera world position, w = unused
 	    }
 
 	    Texture2D AlbedoTexture : register(t0, space1);
@@ -394,7 +397,7 @@ static class ShaderSources
 
 	        // Normal (use vertex normal for now, normal mapping can be added later)
 	        float3 N = normalize(input.WorldNormal);
-	        float3 V = normalize(-input.WorldPos);
+	        float3 V = normalize(CameraPosition.xyz - input.WorldPos);
 	        float3 L = normalize(-DirectionalLightDir.xyz);
 	        float3 H = normalize(V + L);
 
@@ -526,6 +529,7 @@ static class ShaderSources
 	        float4 DirectionalLightDir;   // xyz = direction (normalized), w = unused
 	        float4 DirectionalLightColor; // xyz = color, w = intensity
 	        float4 SceneAmbientLight;     // xyz = ambient color, w = unused
+	        float4 CameraPosition;        // xyz = camera world position, w = unused
 	    }
 
 	    Texture2D AlbedoTexture : register(t0, space1);
@@ -588,7 +592,7 @@ static class ShaderSources
 	        float ao = AmbientOcclusion * aoTex;
 
 	        float3 N = normalize(input.WorldNormal);
-	        float3 V = normalize(-input.WorldPos);
+	        float3 V = normalize(CameraPosition.xyz - input.WorldPos);
 	        float3 L = normalize(-DirectionalLightDir.xyz);
 	        float3 H = normalize(V + L);
 
@@ -757,6 +761,7 @@ static class ShaderSources
 	        float4 DirectionalLightDir;   // xyz = direction (normalized), w = unused
 	        float4 DirectionalLightColor; // xyz = color, w = intensity
 	        float4 SceneAmbientLight;     // xyz = ambient color, w = unused
+	        float4 CameraPosition;        // xyz = camera world position, w = unused
 	    }
 
 	    Texture2D DiffuseTexture : register(t0, space1);
@@ -779,7 +784,7 @@ static class ShaderSources
 	        // Normalize inputs
 	        float3 N = normalize(input.WorldNormal);
 	        float3 L = normalize(-DirectionalLightDir.xyz);
-	        float3 V = normalize(-input.WorldPos);
+	        float3 V = normalize(CameraPosition.xyz - input.WorldPos);
 
 	        // Ambient (scene ambient * material ambient tint)
 	        float3 ambient = SceneAmbientLight.rgb * AmbientColor.rgb * DiffuseColor.rgb;

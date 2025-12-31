@@ -141,19 +141,22 @@ class GLTFModelProcessor : ModelProcessor
 						let formatHint = GetFormatHintFromMimeType(gltfImage.mime_type);
 
 						// Debug: Write embedded image to file to verify it's valid
-						/*{
-							let debugPath = scope String();
+						{
+							/*let debugPath = scope String();
 							debugPath.AppendF("debug_embedded_image_{}.png", i);
 							let file = scope System.IO.FileStream();
 							if (file.Create(debugPath) case .Ok)
 							{
 								file.TryWrite(span);
 								file.Close();
-							}
-						}*/
+								System.Diagnostics.Debug.WriteLine(scope $"Wrote debug embedded image: {debugPath} ({size} bytes)");
+							}*/
+						}
 
 						if (ImageLoaderFactory.LoadImageFromMemory(span, formatHint) case .Ok(let image))
+						{
 							texture.ImageData = image;
+						}
 					}
 				}
 			}
@@ -267,7 +270,7 @@ class GLTFModelProcessor : ModelProcessor
 					pbr.base_color_factor[1],
 					pbr.base_color_factor[2],
 					pbr.base_color_factor[3]
-				);
+					);
 				material.MetallicFactor = pbr.metallic_factor;
 				material.RoughnessFactor = pbr.roughness_factor;
 
@@ -319,7 +322,7 @@ class GLTFModelProcessor : ModelProcessor
 				gltfMat.emissive_factor[0],
 				gltfMat.emissive_factor[1],
 				gltfMat.emissive_factor[2]
-			);
+				);
 
 			// Alpha mode
 			material.AlphaMode = ConvertAlphaMode(gltfMat.alpha_mode);
@@ -611,7 +614,7 @@ class GLTFModelProcessor : ModelProcessor
 							matrixData[4], matrixData[5], matrixData[6], matrixData[7],
 							matrixData[8], matrixData[9], matrixData[10], matrixData[11],
 							matrixData[12], matrixData[13], matrixData[14], matrixData[15]
-						);
+							);
 						skin.InverseBindMatrices.Add(matrix);
 					}
 				}

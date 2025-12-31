@@ -70,6 +70,7 @@ class RHIRendererSubsystem : Subsystem
 	public ResourceSet UnlitResourceSet => mPipelineManager.UnlitPerObjectResourceSet;
 	public Buffer UnlitVertexCB => mPipelineManager.UnlitVertexCB;
 	public Buffer DefaultUnlitMaterialCB => mPipelineManager.DefaultUnlitMaterialCB;
+	public MaterialPipelineRegistry MaterialRegistry => mPipelineManager.MaterialRegistry;
 
 	private delegate void(uint32, uint32) mResizeDelegate ~ delete _;
 	private Viewport[] WindowViewports = new .[1] ~ delete _;

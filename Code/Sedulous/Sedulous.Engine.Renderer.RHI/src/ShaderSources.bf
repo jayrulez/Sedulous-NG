@@ -17,6 +17,15 @@ struct UnlitFragmentUniforms
     public Vector4 MaterialProperties; // metallic, roughness, emissive, unused
 }
 
+[CRepr, Packed, Align(16)]
+struct PhongFragmentUniforms
+{
+    public Vector4 DiffuseColor;    // w = unused
+    public Vector4 SpecularColor;   // w = shininess
+    public Vector4 AmbientColor;    // w = unused
+    public Vector4 LightDirection;  // xyz = direction, w = intensity
+}
+
 static
 {
 	public const int MAX_BONES = 128;
@@ -115,6 +124,103 @@ static class ShaderSources
 	        //return texColor;
 	    }
 	    """;
+
+	// ============================================
+	// Phong Shaders (basic lighting)
+	// ============================================
+
+	public const String PhongShadersVS = """
+	    cbuffer UniformBlock : register(b0)
+	    {
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        float3 WorldPos : TEXCOORD0;
+	        float3 WorldNormal : TEXCOORD1;
+	        float2 TexCoord : TEXCOORD2;
+	        float4 Color : COLOR;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+	        output.Position = mul(float4(input.Position, 1.0), MVPMatrix);
+	        output.WorldPos = mul(float4(input.Position, 1.0), ModelMatrix).xyz;
+	        output.WorldNormal = normalize(mul(float4(input.Normal, 0.0), ModelMatrix).xyz);
+	        output.TexCoord = input.TexCoord;
+	        output.Color = input.Color;
+	        return output;
+	    }
+	    """;
+
+	public const String PhongShadersPS = """
+	    cbuffer MaterialBlock : register(b0, space1)
+	    {
+	        float4 DiffuseColor;    // w = unused
+	        float4 SpecularColor;   // w = shininess
+	        float4 AmbientColor;    // w = unused
+	        float4 LightDirection;  // xyz = direction, w = intensity
+	    }
+
+	    Texture2D DiffuseTexture : register(t0, space1);
+	    SamplerState LinearSampler : register(s0, space1);
+
+	    struct PSInput
+	    {
+	        float4 Position : SV_POSITION;
+	        float3 WorldPos : TEXCOORD0;
+	        float3 WorldNormal : TEXCOORD1;
+	        float2 TexCoord : TEXCOORD2;
+	        float4 Color : COLOR;
+	    };
+
+	    float4 PS(PSInput input) : SV_TARGET
+	    {
+	        // Sample diffuse texture
+	        float4 texColor = DiffuseTexture.Sample(LinearSampler, input.TexCoord);
+
+	        // Normalize inputs
+	        float3 N = normalize(input.WorldNormal);
+	        float3 L = normalize(-LightDirection.xyz);
+	        float3 V = normalize(-input.WorldPos); // Approximate view direction
+
+	        // Ambient
+	        float3 ambient = AmbientColor.rgb * DiffuseColor.rgb;
+
+	        // Diffuse (Lambert)
+	        float NdotL = max(dot(N, L), 0.0);
+	        float3 diffuse = DiffuseColor.rgb * NdotL * LightDirection.w;
+
+	        // Specular (Blinn-Phong)
+	        float3 H = normalize(L + V);
+	        float NdotH = max(dot(N, H), 0.0);
+	        float shininess = SpecularColor.w;
+	        float specPower = pow(NdotH, shininess);
+	        float3 specular = SpecularColor.rgb * specPower * LightDirection.w;
+
+	        // Combine
+	        float3 finalColor = (ambient + diffuse) * texColor.rgb * input.Color.rgb + specular;
+
+	        return float4(finalColor, texColor.a * input.Color.a * DiffuseColor.a);
+	    }
+	    """;
+
+	// ============================================
+	// Skinned Shaders
+	// ============================================
 
 	public const String SkinnedUnlitShadersVS = """
 	    #define MAX_BONES 128

@@ -37,7 +37,7 @@ This document tracks the planned improvements to the Sedulous renderer codebase.
 ### 1.2 Extract pipeline management
 - [x] Create `PipelineManager` class
 - [x] Move pipeline creation from RHIRendererSubsystem
-- [ ] Add material type -> pipeline registry
+- [x] Add material type -> pipeline registry
 
 ### 1.3 Extract shader management
 - [x] Create `ShaderManager` class
@@ -49,12 +49,12 @@ This document tracks the planned improvements to the Sedulous renderer codebase.
 ## Phase 2: Material System Improvements
 
 ### 2.1 Material pipeline registry
-- [ ] Create `MaterialPipelineRegistry` class
-- [ ] Register pipelines by material type
-- [ ] Remove hardcoded switch statements
+- [x] Create `MaterialPipelineRegistry` class
+- [x] Register pipelines by material type
+- [x] Remove hardcoded switch statements
 
 ### 2.2 Implement missing pipelines
-- [ ] Phong pipeline (lighting support)
+- [x] Phong pipeline (lighting support)
 - [ ] PBR pipeline (physically-based rendering)
 
 ### 2.3 Material serialization
@@ -153,4 +153,6 @@ Sedulous.Engine.Renderer.RHI/
 | 2025-12-31 | Phase 1.1 complete - Created RenderCache, refactored RenderModule |
 | 2025-12-31 | Phase 1.2 complete - Created PipelineManager, extracted from RHIRendererSubsystem |
 | 2025-12-31 | Phase 1.3 partial - Created ShaderManager for shader compilation |
+| 2025-12-31 | Phase 2.1 complete - Created MaterialPipelineRegistry, removed hardcoded switches |
+| 2025-12-31 | Phase 2.2 partial - Implemented Phong pipeline with lighting support |
 

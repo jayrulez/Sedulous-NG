@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.Engine.Renderer.GPU;
 
 namespace Sedulous.Engine.Renderer.RHI;
 
@@ -37,9 +39,22 @@ class PipelineManager
 	private LayoutElementDescription[] mSkinnedBoneMatricesLayoutElementDescs ~ delete _;
 	private ResourceLayout[] mSkinnedPipelineResourceLayouts ~ delete _;
 
+	// Phong pipeline resources
+	private GraphicsPipelineState mPhongPipeline;
+	private Shader mPhongVertexShader;
+	private Shader mPhongPixelShader;
+	private ResourceLayout mPhongMaterialResourceLayout;
+	private LayoutElementDescription[] mPhongMaterialLayoutElements ~ delete _;
+	private ResourceLayout[] mPhongPipelineResourceLayouts ~ delete _;
+
+	// Material pipeline registry
+	private MaterialPipelineRegistry mMaterialRegistry = new .() ~ delete _;
+
 	// Public accessors
 	public GraphicsPipelineState UnlitPipeline => mUnlitPipeline;
 	public GraphicsPipelineState SkinnedUnlitPipeline => mSkinnedUnlitPipeline;
+	public GraphicsPipelineState PhongPipeline => mPhongPipeline;
+	public MaterialPipelineRegistry MaterialRegistry => mMaterialRegistry;
 
 	public ResourceLayout UnlitPerObjectResourceLayout => mUnlitPerObjectResourceLayout;
 	public ResourceLayout UnlitMaterialResourceLayout => mUnlitMaterialResourceLayout;
@@ -66,22 +81,20 @@ class PipelineManager
 	public void Initialize(FrameBuffer targetFrameBuffer)
 	{
 		CreateUnlitPipeline(targetFrameBuffer);
+		CreatePhongPipeline(targetFrameBuffer);
 		CreateSkinnedPipeline(targetFrameBuffer);
 	}
 
 	public void Destroy()
 	{
 		DestroySkinnedPipeline();
+		DestroyPhongPipeline();
 		DestroyUnlitPipeline();
 	}
 
 	public ResourceLayout GetMaterialResourceLayout(StringView shaderName)
 	{
-		switch (shaderName)
-		{
-		case "Unlit": return mUnlitMaterialResourceLayout;
-		default: return mUnlitMaterialResourceLayout; // Fallback
-		}
+		return mMaterialRegistry.GetMaterialResourceLayout(shaderName);
 	}
 
 	private void CreateUnlitPipeline(FrameBuffer targetFrameBuffer)
@@ -180,6 +193,12 @@ class PipelineManager
 			ResourceSetDescription resourceSetDesc = .(mUnlitMaterialResourceLayout, mDefaultUnlitMaterialCB, defaultWhiteTexture.Resource.Texture, mGraphicsContext.DefaultSampler);
 			mDefaultUnlitMaterialResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
 		}
+
+		// Register Unlit material type
+		mMaterialRegistry.Register("Unlit", mUnlitPipeline, mUnlitMaterialResourceLayout,
+			new (resources, material, renderer) => {
+				UnlitMaterial.FillResourceSet(resources, material, renderer);
+			});
 	}
 
 	private void DestroyUnlitPipeline()
@@ -204,6 +223,69 @@ class PipelineManager
 			mGraphicsContext.Factory.DestroyShader(ref mUnlitPixelShader);
 		if (mUnlitVertexShader != null)
 			mGraphicsContext.Factory.DestroyShader(ref mUnlitVertexShader);
+	}
+
+	private void CreatePhongPipeline(FrameBuffer targetFrameBuffer)
+	{
+		// Compile Phong shaders
+		mPhongVertexShader = mShaderManager.CompileFromSource(ShaderSources.PhongShadersVS, .Vertex, "VS");
+		mPhongPixelShader = mShaderManager.CompileFromSource(ShaderSources.PhongShadersPS, .Pixel, "PS");
+
+		// Vertex format (same as Unlit - standard mesh vertex)
+		var vertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent));
+		var vertexLayouts = scope InputLayouts();
+		vertexLayouts.Add(vertexFormat);
+
+		// Phong Material ResourceLayout
+		{
+			mPhongMaterialLayoutElements = new LayoutElementDescription[](
+				LayoutElementDescription(0, .ConstantBuffer, .Pixel, false, sizeof(PhongFragmentUniforms)),
+				LayoutElementDescription(0, .Texture, .Pixel),
+				LayoutElementDescription(0, .Sampler, .Pixel)
+			);
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params mPhongMaterialLayoutElements);
+			mPhongMaterialResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
+		}
+
+		// Create Phong pipeline
+		var pipelineDescription = GraphicsPipelineDescription
+		{
+			RenderStates = RenderStateDescription.Default,
+			Shaders = .()
+			{
+				VertexShader = mPhongVertexShader,
+				PixelShader = mPhongPixelShader
+			},
+			InputLayouts = vertexLayouts,
+			ResourceLayouts = mPhongPipelineResourceLayouts = new ResourceLayout[](mUnlitPerObjectResourceLayout, mPhongMaterialResourceLayout),
+			PrimitiveTopology = .TriangleList,
+			Outputs = .CreateFromFrameBuffer(targetFrameBuffer)
+		};
+
+		mPhongPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(pipelineDescription);
+
+		// Register Phong material type
+		mMaterialRegistry.Register("Phong", mPhongPipeline, mPhongMaterialResourceLayout,
+			new (resources, material, renderer) => {
+				PhongMaterial.FillResourceSet(resources, material, renderer);
+			});
+	}
+
+	private void DestroyPhongPipeline()
+	{
+		if (mPhongPipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mPhongPipeline);
+		if (mPhongMaterialResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mPhongMaterialResourceLayout);
+		if (mPhongPixelShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mPhongPixelShader);
+		if (mPhongVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mPhongVertexShader);
 	}
 
 	private void CreateSkinnedPipeline(FrameBuffer targetFrameBuffer)

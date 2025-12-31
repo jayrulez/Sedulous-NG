@@ -18,3 +18,19 @@ extension UnlitMaterial
 		resources.Add(renderer.GraphicsContext.DefaultSampler);
 	}
 }
+
+extension PhongMaterial
+{
+	public static void FillResourceSet(List<GraphicsResource> resources, GPUMaterial gpuMaterial, RHIRendererSubsystem renderer)
+	{
+		// Uniform buffer (PhongFragmentUniforms)
+		resources.Add(gpuMaterial.UniformBuffer);
+
+		// Diffuse texture
+		var textures = gpuMaterial.GetGPUTextures();
+		resources.Add(textures.Count > 0 ? textures[0].Resource.Texture : renderer.GetDefaultWhiteTexture().Resource.Texture);
+
+		// Sampler
+		resources.Add(renderer.GraphicsContext.DefaultSampler);
+	}
+}

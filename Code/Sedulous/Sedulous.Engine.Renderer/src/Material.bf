@@ -52,26 +52,55 @@ public class PhongMaterial : Material
     public Color SpecularColor { get; set; } = Color(0.5f, 0.5f, 0.5f, 1.0f);
     public float Shininess { get; set; } = 32.0f;
     public Color AmbientColor { get; set; } = Color(0.2f, 0.2f, 0.2f, 1.0f);
-    
+
+    // Lighting (temporary - should come from scene lights)
+    public Vector3 LightDirection { get; set; } = Vector3(0.5f, -1.0f, 0.5f);
+    public float LightIntensity { get; set; } = 1.0f;
+
     // Textures
     public ResourceHandle<TextureResource> DiffuseTexture { get; set; } ~ _.Release();
     public ResourceHandle<TextureResource> NormalTexture { get; set; } ~ _.Release();
     public ResourceHandle<TextureResource> SpecularTexture { get; set; } ~ _.Release();
-    
+
     public override StringView ShaderName => "Phong";
-    
+
     public override int GetUniformDataSize()
     {
-        // Size of PhongMaterialUniforms struct
-        return sizeof(Vector4) * 3 + sizeof(float) * 4; // Colors + shininess + padding
+        // PhongFragmentUniforms: 4 Vector4s = 64 bytes
+        return sizeof(Vector4) * 4;
     }
-    
+
     public override void FillUniformData(Span<uint8> buffer)
     {
-        // This would fill a PhongMaterialUniforms struct
-        // For now, we'll handle this when we integrate with the renderer
+        // Fill PhongFragmentUniforms struct layout:
+        // Vector4 DiffuseColor;    // w = unused
+        // Vector4 SpecularColor;   // w = shininess
+        // Vector4 AmbientColor;    // w = unused
+        // Vector4 LightDirection;  // xyz = direction, w = intensity
+
+        var ptr = buffer.Ptr;
+
+        // DiffuseColor
+        var diffuse = DiffuseColor.ToVector4();
+        Internal.MemCpy(ptr, &diffuse, sizeof(Vector4));
+        ptr += sizeof(Vector4);
+
+        // SpecularColor with shininess in w
+        var specVec = SpecularColor.ToVector4();
+        var specular = Vector4(specVec.X, specVec.Y, specVec.Z, Shininess);
+        Internal.MemCpy(ptr, &specular, sizeof(Vector4));
+        ptr += sizeof(Vector4);
+
+        // AmbientColor
+        var ambient = AmbientColor.ToVector4();
+        Internal.MemCpy(ptr, &ambient, sizeof(Vector4));
+        ptr += sizeof(Vector4);
+
+        // LightDirection with intensity in w
+        var lightDir = Vector4(LightDirection.X, LightDirection.Y, LightDirection.Z, LightIntensity);
+        Internal.MemCpy(ptr, &lightDir, sizeof(Vector4));
     }
-    
+
     public override void GetTextureResources(List<ResourceHandle<TextureResource>> textures)
     {
         textures.Clear();

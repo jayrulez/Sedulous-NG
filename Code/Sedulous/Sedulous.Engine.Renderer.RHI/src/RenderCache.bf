@@ -228,19 +228,14 @@ class RenderCache
 	{
 		var resources = scope List<GraphicsResource>();
 
-		// Let the material type handle its own resource ordering
-		switch (material.ShaderName)
-		{
-		case "Unlit":
-			UnlitMaterial.FillResourceSet(resources, material, mRenderer);
-			break;
-		}
+		// Use the material registry to fill resources (no hardcoded switches)
+		mRenderer.MaterialRegistry.FillResourceSet(material.ShaderName, resources, material, mRenderer);
 
 		GraphicsResource[] r = scope GraphicsResource[resources.Count];
 		for (int i = 0; i < resources.Count; i++)
 			r[i] = resources[i];
 
-		var layout = mRenderer.GetMaterialResourceLayout(material.ShaderName);
+		var layout = mRenderer.MaterialRegistry.GetMaterialResourceLayout(material.ShaderName);
 		return mRenderer.GraphicsContext.Factory.CreateResourceSet(
 			ResourceSetDescription(layout, params r)
 		);

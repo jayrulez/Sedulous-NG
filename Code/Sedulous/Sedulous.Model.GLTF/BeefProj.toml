@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Model" = "*", cgltf-Beef = "*"}
+
+[Project]
+Name = "Sedulous.Model.GLTF"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Model.GLTF.Program"

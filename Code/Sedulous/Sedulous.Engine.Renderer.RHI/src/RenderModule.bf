@@ -8,6 +8,24 @@ using Sedulous.Engine.Renderer.GPU;
 using Sedulous.Utilities;
 namespace Sedulous.Engine.Renderer.RHI;
 
+public struct RenderStatistics
+{
+	public int DrawCalls;
+	public int TriangleCount;
+	public int ObjectsRendered;
+	public int ObjectsCulled;
+	public uint64 GPUMemoryUsed;
+
+	public void Reset() mut
+	{
+		DrawCalls = 0;
+		TriangleCount = 0;
+		ObjectsRendered = 0;
+		ObjectsCulled = 0;
+		// GPUMemoryUsed is cumulative, updated from GPUResourceManager
+	}
+}
+
 struct MeshRenderCommand
 {
 	public Entity Entity;
@@ -58,6 +76,9 @@ class RenderModule : SceneModule
 	private DebugRenderer mDebugRenderer ~ delete _;
 	private ResourceSet mDebugResourceSet;
 
+	// Render statistics
+	private RenderStatistics mStatistics;
+
 	private EntityQuery mMeshesQuery;
 	private EntityQuery mSkinnedMeshesQuery;
 	private EntityQuery mCamerasQuery;
@@ -65,6 +86,9 @@ class RenderModule : SceneModule
 
 	/// Access to debug renderer for drawing debug lines
 	public DebugRenderer DebugRenderer => mDebugRenderer;
+
+	/// Access to render statistics (updated each frame)
+	public ref RenderStatistics Statistics => ref mStatistics;
 
 	public this(RHIRendererSubsystem renderer)
 	{
@@ -107,6 +131,9 @@ class RenderModule : SceneModule
 
 	protected override void OnUpdate(Time time)
 	{
+		// Reset per-frame statistics
+		mStatistics.Reset();
+
 		// Clear debug lines from previous frame (before user code adds new ones)
 		mDebugRenderer.Clear();
 
@@ -132,6 +159,9 @@ class RenderModule : SceneModule
 
 		// Sort render commands
 		SortRenderCommands();
+
+		// Update GPU memory statistic
+		mStatistics.GPUMemoryUsed = mRenderer.GPUResources.TotalGPUMemory;
 	}
 
 	private void UpdateLighting()
@@ -199,6 +229,7 @@ class RenderModule : SceneModule
 
 		// Draw lines
 		commandBuffer.Draw((uint32)(mDebugRenderer.LineCount * 2));
+		mStatistics.DrawCalls++;
 	}
 
 	internal void PrepareGPUResources(CommandBuffer commandBuffer)
@@ -499,7 +530,10 @@ class RenderModule : SceneModule
 
 				// Frustum culling - skip objects outside view
 				if (mActiveCamera != null && mViewFrustum.Contains(worldBounds) == .Disjoint)
+				{
+					mStatistics.ObjectsCulled++;
 					continue;
+				}
 
 				// Check if material is transparent
 				bool isTransparent = false;
@@ -552,7 +586,10 @@ class RenderModule : SceneModule
 
 				// Frustum culling - skip objects outside view
 				if (mActiveCamera != null && mViewFrustum.Contains(worldBounds) == .Disjoint)
+				{
+					mStatistics.ObjectsCulled++;
 					continue;
+				}
 
 				// Check if material is transparent
 				bool isTransparent = false;
@@ -612,11 +649,16 @@ class RenderModule : SceneModule
 		{
 			commandBuffer.SetIndexBuffer(mesh.IndexBuffer, .UInt32);
 			commandBuffer.DrawIndexed(mesh.IndexCount);
+			mStatistics.TriangleCount += (int)(mesh.IndexCount / 3);
 		}
 		else
 		{
 			commandBuffer.Draw(mesh.VertexCount);
+			mStatistics.TriangleCount += (int)(mesh.VertexCount / 3);
 		}
+
+		mStatistics.DrawCalls++;
+		mStatistics.ObjectsRendered++;
 	}
 
 	private void UpdateSkinnedVertexUniforms()
@@ -866,10 +908,15 @@ class RenderModule : SceneModule
 		{
 			commandBuffer.SetIndexBuffer(mesh.IndexBuffer, .UInt32);
 			commandBuffer.DrawIndexed(mesh.IndexCount);
+			mStatistics.TriangleCount += (int)(mesh.IndexCount / 3);
 		}
 		else
 		{
 			commandBuffer.Draw(mesh.VertexCount);
+			mStatistics.TriangleCount += (int)(mesh.VertexCount / 3);
 		}
+
+		mStatistics.DrawCalls++;
+		mStatistics.ObjectsRendered++;
 	}
 }

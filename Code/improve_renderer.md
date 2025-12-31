@@ -77,9 +77,9 @@ This document tracks the planned improvements to the Sedulous renderer codebase.
 - [ ] Optional occlusion culling
 
 ### 3.3 Add render statistics
-- [ ] Draw call count
-- [ ] Triangle count
-- [ ] GPU memory usage tracking
+- [x] Draw call count
+- [x] Triangle count
+- [x] GPU memory usage tracking
 
 ---
 
@@ -161,4 +161,5 @@ Sedulous.Engine.Renderer.RHI/
 | 2025-12-31 | Scene-based lighting - Created LightingUniforms, added lighting buffer to PipelineManager, RenderModule collects DirectionalLight from scene, removed light properties from PhongMaterial |
 | 2025-12-31 | Phase 2.2 complete - Implemented PBR pipeline with Cook-Torrance BRDF, skinned PBR variant, fixed camera position for view direction, fixed SDLImageLoader for indexed/palette PNG images |
 | 2025-12-31 | Phase 3 partial - Added frustum culling, separate opaque/transparent render passes, proper sorting (front-to-back for opaque, back-to-front for transparent) |
+| 2025-12-31 | Phase 3.3 complete - Added RenderStatistics with draw call count, triangle count, objects rendered/culled, GPU memory tracking |
 

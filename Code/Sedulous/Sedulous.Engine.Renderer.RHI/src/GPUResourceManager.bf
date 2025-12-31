@@ -8,6 +8,8 @@ using Sedulous.RHI;
 
 namespace Sedulous.Engine.Renderer.RHI;
 
+using static Sedulous.RHI.ExtensionMethods;
+
 // GPU Resource Manager - relies on reference counting
 class GPUResourceManager
 {
@@ -24,6 +26,65 @@ class GPUResourceManager
     public int TotalSkinnedMeshes => mSkinnedMeshCache.Count;
     public int TotalTextures => mTextureCache.Count;
     public int TotalMaterials => mMaterialCache.Count;
+
+    /// Calculate total GPU memory used by all cached resources (in bytes)
+    public uint64 TotalGPUMemory
+    {
+        get
+        {
+            uint64 total = 0;
+
+            // Mesh buffers
+            for (var (_, mesh) in mMeshCache)
+            {
+                if (mesh.RefCount > 0)
+                {
+                    if (mesh.VertexBuffer != null)
+                        total += mesh.VertexBuffer.Description.SizeInBytes;
+                    if (mesh.IndexBuffer != null)
+                        total += mesh.IndexBuffer.Description.SizeInBytes;
+                }
+            }
+
+            // Skinned mesh buffers
+            for (var (_, mesh) in mSkinnedMeshCache)
+            {
+                if (mesh.RefCount > 0)
+                {
+                    if (mesh.VertexBuffer != null)
+                        total += mesh.VertexBuffer.Description.SizeInBytes;
+                    if (mesh.IndexBuffer != null)
+                        total += mesh.IndexBuffer.Description.SizeInBytes;
+                }
+            }
+
+            // Textures
+            for (var (_, texture) in mTextureCache)
+            {
+                if (texture.RefCount > 0 && texture.Texture != null)
+                {
+                    var desc = texture.Texture.Description;
+                    total += CalculateTextureMemory(desc);
+                }
+            }
+
+            return total;
+        }
+    }
+
+    private static uint64 CalculateTextureMemory(TextureDescription desc)
+    {
+        // Use existing GetSizeInBits extension method and convert to bytes
+        uint64 bitsPerPixel = desc.Format.GetSizeInBits();
+        uint64 bytesPerPixel = (bitsPerPixel + 7) / 8; // Round up to nearest byte
+        uint64 baseSize = (uint64)desc.Width * desc.Height * desc.Depth * bytesPerPixel * desc.ArraySize;
+
+        // Account for mipmaps (approximately 1.33x base size)
+        if (desc.MipLevels > 1)
+            baseSize = (baseSize * 4) / 3;
+
+        return baseSize;
+    }
     
     public this(GraphicsContext context)
     {

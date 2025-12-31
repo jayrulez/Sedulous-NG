@@ -1,6 +1,5 @@
 using Sedulous.SceneGraph;
 using System;
-using System.Diagnostics;
 using Sedulous.Engine.Core;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
@@ -188,11 +187,9 @@ class RenderModule : SceneModule
 			// Get or create GPU material
 			if (!mSkinnedRendererMaterials.ContainsKey(command.Renderer))
 			{
-				Debug.WriteLine(scope $"Skinned material check: IsValid={command.Renderer.Material.IsValid}, Resource={command.Renderer.Material.Resource}");
 				if (command.Renderer.Material.IsValid && command.Renderer.Material.Resource != null)
 				{
 					var gpuMaterial = resourceManager.GetOrCreateMaterial(command.Renderer.Material.Resource);
-					Debug.WriteLine(scope $"  GPU material created: IsValid={gpuMaterial.IsValid}");
 					if (gpuMaterial.IsValid)
 					{
 						mSkinnedRendererMaterials[command.Renderer] = gpuMaterial;
@@ -537,10 +534,8 @@ class RenderModule : SceneModule
 			var command = mSkinnedMeshCommands[i];
 
 			// Get the material for this object
-			Debug.WriteLine(scope $"RenderSkinnedMeshes: looking up renderer, dict has {mSkinnedRendererMaterials.Count} entries");
 			if (mSkinnedRendererMaterials.TryGetValue(command.Renderer, let materialHandle))
 			{
-				Debug.WriteLine("  Found material in dict!");
 				var gpuMaterial = materialHandle.Resource;
 
 				// Only update if material changed (batching)
@@ -557,7 +552,6 @@ class RenderModule : SceneModule
 			}
 			else
 			{
-				Debug.WriteLine("  Material NOT found, using default");
 				commandBuffer.SetResourceSet(mRenderer.DefaultUnlitMaterialResourceSet, 1);
 			}
 

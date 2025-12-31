@@ -799,19 +799,7 @@ class SandboxApplication : Application
 					// Add SkinnedMeshRenderer
 					var skinnedRenderer = entity.AddComponent<SkinnedMeshRenderer>();
 					skinnedRenderer.Mesh = engine.ResourceSystem.AddResource(new SkinnedMeshResource(skinnedMesh, true));
-
-					var materialRes = new MaterialResource(material, true);
-					var materialResult = engine.ResourceSystem.AddResource(materialRes);
-					if (materialResult case .Ok(let handle))
-					{
-						skinnedRenderer.Material = handle;
-						Debug.WriteLine(scope $"Skinned material assigned: IsValid={skinnedRenderer.Material.IsValid}, Resource={skinnedRenderer.Material.Resource}");
-					}
-					else
-					{
-						Debug.WriteLine("Failed to add material resource for skinned mesh!");
-					}
-
+					skinnedRenderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
 					skinnedRenderer.Skin = engine.ResourceSystem.AddResource(skinRes);
 
 					// Add Animator

@@ -191,16 +191,10 @@ class AnimationModule : SceneModule
 
 		int nodeCount = nodes.Count;
 
-		// First, compute world transforms by walking the hierarchy
-		var worldTransforms = scope Matrix[nodeCount];
-
-		// Process nodes in hierarchy order
+		// Compute local transforms first
+		var localTransforms = scope Matrix[nodeCount];
 		for (int32 i = 0; i < nodeCount; i++)
 		{
-			var node = nodes[i];
-
-			// Build local transform from animated TRS
-			Matrix localTransform;
 			if (i < animator.JointTranslations.Count)
 			{
 				var translation = animator.JointTranslations[i];
@@ -210,28 +204,48 @@ class AnimationModule : SceneModule
 				let scaleMatrix = Matrix.CreateScale(scale.X, scale.Y, scale.Z);
 				let rotationMatrix = Matrix.CreateFromQuaternion(rotation);
 				let translationMatrix = Matrix.CreateTranslation(translation.X, translation.Y, translation.Z);
-				localTransform = scaleMatrix * rotationMatrix * translationMatrix;
+				localTransforms[i] = scaleMatrix * rotationMatrix * translationMatrix;
 			}
 			else
 			{
-				localTransform = node.LocalTransform;
-			}
-
-			// Find parent transform
-			if (node.ParentIndex >= 0 && node.ParentIndex < nodeCount)
-			{
-				worldTransforms[i] = localTransform * worldTransforms[node.ParentIndex];
-			}
-			else
-			{
-				worldTransforms[i] = localTransform;
+				localTransforms[i] = nodes[i].LocalTransform;
 			}
 		}
 
-		// Store world transforms in bone matrices (inverse bind will be applied when rendering)
+		// Compute world transforms - handle arbitrary node order by computing recursively
+		var worldTransforms = scope Matrix[nodeCount];
+		var computed = scope bool[nodeCount];
+		for (int32 i = 0; i < nodeCount; i++)
+		{
+			ComputeNodeWorldTransform(i, nodes, localTransforms, worldTransforms, computed);
+		}
+
+		// Store world transforms in bone matrices
 		for (int32 i = 0; i < Math.Min(nodeCount, animator.BoneMatrices.Count); i++)
 		{
 			animator.BoneMatrices[i] = worldTransforms[i];
 		}
+	}
+
+	private void ComputeNodeWorldTransform(int32 nodeIndex, List<SkeletonNode> nodes, Matrix[] localTransforms, Matrix[] worldTransforms, bool[] computed)
+	{
+		if (computed[nodeIndex])
+			return;
+
+		var node = nodes[nodeIndex];
+
+		if (node.ParentIndex >= 0 && node.ParentIndex < nodes.Count)
+		{
+			// Ensure parent is computed first
+			ComputeNodeWorldTransform(node.ParentIndex, nodes, localTransforms, worldTransforms, computed);
+			worldTransforms[nodeIndex] = localTransforms[nodeIndex] * worldTransforms[node.ParentIndex];
+		}
+		else
+		{
+			// Root node
+			worldTransforms[nodeIndex] = localTransforms[nodeIndex];
+		}
+
+		computed[nodeIndex] = true;
 	}
 }

@@ -30,9 +30,13 @@ class GPUSkeleton : GPUResource
 	private void CreateBuffer()
 	{
 		// Create bone matrix buffer (MAX_BONES * 64 bytes for 4x4 matrix)
-		// Using Dynamic usage since we update this every frame
+		// Initialize with identity matrices so descriptor set is valid immediately
+		var initialData = scope Matrix[MAX_BONES];
+		for (int i = 0; i < MAX_BONES; i++)
+			initialData[i] = .Identity;
+
 		var bufferDesc = BufferDescription((uint32)(MAX_BONES * sizeof(Matrix)), .ConstantBuffer, .Dynamic, .Write);
-		BoneMatrixBuffer = mGraphicsContext.Factory.CreateBuffer(bufferDesc);
+		BoneMatrixBuffer = mGraphicsContext.Factory.CreateBuffer(&initialData[0], bufferDesc);
 	}
 
 	/// Update bone matrices from animator

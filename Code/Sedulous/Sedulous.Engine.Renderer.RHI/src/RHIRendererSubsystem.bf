@@ -503,6 +503,8 @@ class RHIRendererSubsystem : Subsystem
 	}
 
 	private ResourceLayout[] mSkinnedPipelineResourceLayouts ~ delete _;
+	private LayoutElementDescription[] mSkinnedPerObjectLayoutElementDescs ~ delete _;
+	private LayoutElementDescription[] mSkinnedBoneMatricesLayoutElementDescs ~ delete _;
 
 	private void CreateSkinnedPipeline()
 	{
@@ -530,7 +532,7 @@ class RHIRendererSubsystem : Subsystem
 
 		// Skinned Per Object ResourceLayout (same as regular unlit for now)
 		{
-			LayoutElementDescription[] layoutElementDescs = scope:: LayoutElementDescription[](
+			LayoutElementDescription[] layoutElementDescs = mSkinnedPerObjectLayoutElementDescs = new LayoutElementDescription[](
 				LayoutElementDescription(0, .ConstantBuffer, .Vertex, true, sizeof(UnlitVertexUniforms))
 			);
 			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
@@ -539,7 +541,7 @@ class RHIRendererSubsystem : Subsystem
 
 		// Bone Matrices ResourceLayout (binding 0 in space2, maps to Set 2 in Vulkan)
 		{
-			LayoutElementDescription[] layoutElementDescs = scope:: LayoutElementDescription[](
+			LayoutElementDescription[] layoutElementDescs = mSkinnedBoneMatricesLayoutElementDescs = new LayoutElementDescription[](
 				LayoutElementDescription(0, .ConstantBuffer, .Vertex, false, sizeof(BoneMatricesUniforms))
 			);
 			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);

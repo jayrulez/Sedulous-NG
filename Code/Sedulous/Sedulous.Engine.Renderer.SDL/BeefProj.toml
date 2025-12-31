@@ -1,7 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", SDL3Native = "*", SDL3_shadercross = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Platform.SDL3" = "*", "Sedulous.Engine.Renderer" = "*", "Sedulous.Geometry" = "*"}
-
-[Project]
-Name = "Sedulous.Engine.Renderer.SDL"
-TargetType = "BeefLib"
-StartupObject = "Sedulous.Engine.Renderer.SDL.Program"

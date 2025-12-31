@@ -829,18 +829,6 @@ class SandboxApplication : Application
 					for (var animHandle in animationResources)
 						animator.AddAnimation(animHandle);
 
-					// Initialize pose arrays
-					animator.InitializePose(skeletonData.NodeCount);
-
-					// Initialize joint transforms from skeleton rest pose
-					for (int32 i = 0; i < skeletonData.NodeCount; i++)
-					{
-						var node = skeletonData.Nodes[i];
-						animator.JointTranslations[i] = node.Translation;
-						animator.JointRotations[i] = node.Rotation;
-						animator.JointScales[i] = node.Scale;
-					}
-
 					// Start playing first animation (Survey)
 					if (animator.AnimationCount > 0)
 					{

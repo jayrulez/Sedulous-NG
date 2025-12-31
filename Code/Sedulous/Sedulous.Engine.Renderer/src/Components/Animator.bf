@@ -10,7 +10,17 @@ namespace Sedulous.Engine.Renderer;
 class Animator : Component
 {
 	// Skeleton structure (node hierarchy for animation)
-	public ResourceHandle<SkeletonResource> Skeleton { get; set; } ~ _.Release();
+	private ResourceHandle<SkeletonResource> mSkeleton ~ _.Release();
+
+	public ResourceHandle<SkeletonResource> Skeleton
+	{
+		get => mSkeleton;
+		set
+		{
+			mSkeleton = value;
+			InitializeFromSkeleton();
+		}
+	}
 
 	// Available animations
 	private List<ResourceHandle<AnimationResource>> mAnimations = new .() ~ {
@@ -95,29 +105,28 @@ class Animator : Component
 		}
 	}
 
-	/// Initialize pose arrays to match skeleton node count
-	public void InitializePose(int nodeCount)
+	/// Initialize pose arrays from skeleton rest pose (called automatically when Skeleton is set)
+	private void InitializeFromSkeleton()
 	{
 		mJointTranslations.Clear();
 		mJointRotations.Clear();
 		mJointScales.Clear();
 		mBoneMatrices.Clear();
 
+		if (!mSkeleton.IsValid || mSkeleton.Resource == null)
+			return;
+
+		var skeletonData = mSkeleton.Resource;
+		int nodeCount = skeletonData.NodeCount;
+
+		// Initialize from skeleton rest pose
 		for (int i = 0; i < nodeCount; i++)
 		{
-			mJointTranslations.Add(.Zero);
-			mJointRotations.Add(.Identity);
-			mJointScales.Add(.(1, 1, 1));
+			var node = skeletonData.Nodes[i];
+			mJointTranslations.Add(node.Translation);
+			mJointRotations.Add(node.Rotation);
+			mJointScales.Add(node.Scale);
 			mBoneMatrices.Add(.Identity);
 		}
-	}
-
-	/// Resize bone matrices array
-	public void ResizeBoneMatrices(int count)
-	{
-		while (mBoneMatrices.Count < count)
-			mBoneMatrices.Add(.Identity);
-		while (mBoneMatrices.Count > count)
-			mBoneMatrices.PopBack();
 	}
 }

@@ -489,15 +489,15 @@ class RenderModule : SceneModule
 					var skin = skinHandle.Resource;
 					var finalMatrices = scope Matrix[MAX_BONES];
 
-					// Compute final bone matrices: WorldTransform * InverseBindMatrix
+					// Compute final bone matrices: InverseBindMatrix * WorldTransform (row-vector convention)
 					for (int32 i = 0; i < Math.Min(skin.JointCount, animator.BoneMatrices.Count); i++)
 					{
 						int32 jointNodeIndex = skin.JointIndices[i];
 						if (jointNodeIndex >= 0 && jointNodeIndex < animator.BoneMatrices.Count)
 						{
-							//finalMatrices[i] = skin.InverseBindMatrices[i] * animator.BoneMatrices[jointNodeIndex];
-								// Joint matrix = GlobalTransform * InverseBindMatrix (per glTF spec)
-							finalMatrices[i] = animator.BoneMatrices[jointNodeIndex] * skin.InverseBindMatrices[i];
+							// Joint matrix for row-vector convention (v * M):
+							// v_world = v_mesh * InverseBindMatrix * GlobalTransform
+							finalMatrices[i] = skin.InverseBindMatrices[i] * animator.BoneMatrices[jointNodeIndex];
 						}
 						else
 						{

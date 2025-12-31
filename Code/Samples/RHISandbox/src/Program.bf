@@ -141,6 +141,10 @@ class SandboxApplication : Application
 	private float mSunYaw = 0.0f;
 	private float mSunPitch = Math.DegreesToRadians(-45.0f);
 
+	// Animation control
+	private int32 mCurrentAnimationIndex = 0;
+	private String[] mAnimationNames = new .("Survey", "Walk", "Run") ~ delete _;
+
 	private AppSubsystem mAppSubsystem;
 
 	public this(ILogger logger, WindowSystem windowSystem) : base(logger, windowSystem)
@@ -550,6 +554,21 @@ class SandboxApplication : Application
 				Debug.WriteLine("  T/G - Warmer/Cooler color");
 				Debug.WriteLine("  R   - Reset to default");
 				Debug.WriteLine("  F1  - Show this help");
+			}
+		}
+
+		// Animation toggle with N key
+		var keyboard = inputSubsystem.GetKeyboard();
+		if (keyboard.IsKeyPressed(.N))
+		{
+			// Find animated fox entity and toggle animation
+			var foxEntity = scene.FindEntity("AnimatedFox_0_0");
+			if (foxEntity != null && foxEntity.HasComponent<Animator>())
+			{
+				var animator = foxEntity.GetComponent<Animator>();
+				mCurrentAnimationIndex = (mCurrentAnimationIndex + 1) % (int32)animator.AnimationCount;
+				animator.Play(mCurrentAnimationIndex);
+				Debug.WriteLine(scope $"Playing animation {mCurrentAnimationIndex}: {mAnimationNames[mCurrentAnimationIndex]}");
 			}
 		}
 	}

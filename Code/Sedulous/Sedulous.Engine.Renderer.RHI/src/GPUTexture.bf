@@ -47,15 +47,35 @@ class GPUTexture : GPUResource
 
 	private void CreateTexture(Image image, bool generateMipmaps)
 	{
-		var textureDesc = TextureDescription.CreateTexture2DDescription(image.Width, image.Height, ConvertPixelFormat(image.Format));
+		// Convert RGB8 to RGBA8 since GPUs don't support 3-byte formats
+		Image uploadImage = image;
+		bool ownsUploadImage = false;
+		if (image.Format == .RGB8 || image.Format == .BGR8)
+		{
+			if (image.ConvertFormat(.RGBA8) case .Ok(let converted))
+			{
+				uploadImage = converted;
+				ownsUploadImage = true;
+			}
+			else
+			{
+				mGraphicsContext.Logger.LogError("Failed to convert RGB8 to RGBA8");
+				return;
+			}
+		}
 
-		uint32 bytesPerPixel = (uint32)Image.GetBytesPerPixel(image.Format);
-		uint32 rowPitch = image.Width * bytesPerPixel;
-		uint32 slicePitch = rowPitch * image.Height;
+		var textureDesc = TextureDescription.CreateTexture2DDescription(uploadImage.Width, uploadImage.Height, ConvertPixelFormat(uploadImage.Format));
 
-		DataBox data = DataBox(image.Data.Ptr, rowPitch, slicePitch);
+		uint32 bytesPerPixel = (uint32)Image.GetBytesPerPixel(uploadImage.Format);
+		uint32 rowPitch = uploadImage.Width * bytesPerPixel;
+		uint32 slicePitch = rowPitch * uploadImage.Height;
+
+		DataBox data = DataBox(uploadImage.Data.Ptr, rowPitch, slicePitch);
 
 		Texture = mGraphicsContext.Factory.CreateTexture(scope DataBox[](data), textureDesc);
+
+		if (ownsUploadImage)
+			delete uploadImage;
 
 		if (Texture == null)
 		{

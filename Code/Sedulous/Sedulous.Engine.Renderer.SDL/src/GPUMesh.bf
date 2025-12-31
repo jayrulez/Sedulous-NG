@@ -22,7 +22,8 @@ class GPUMesh : GPUResource
 
 	public ~this()
 	{
-		SDL_ReleaseGPUBuffer(mDevice, IndexBuffer);
+		if (IndexBuffer != null)
+			SDL_ReleaseGPUBuffer(mDevice, IndexBuffer);
 		SDL_ReleaseGPUBuffer(mDevice, VertexBuffer);
 	}
 
@@ -47,25 +48,6 @@ class GPUMesh : GPUResource
 			SDL_UnmapGPUTransferBuffer(device, vertexTransferBuffer);
 		}
 
-		// Create index buffer
-		var indexBufferDesc = SDL_GPUBufferCreateInfo()
-			{
-				usage = .SDL_GPU_BUFFERUSAGE_INDEX,
-				size = (uint32)(mesh.Indices.IndexCount * mesh.Indices.GetIndexSize())
-			};
-
-		IndexBuffer = SDL_CreateGPUBuffer(device, &indexBufferDesc);
-		IndexCount = (uint32)mesh.Indices.IndexCount;
-
-		// Create transfer buffer for index data
-		var indexTransferBuffer = SDL_CreateGPUTransferBuffer(device, scope .() { usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, size = indexBufferDesc.size });
-		var indexTransfer = SDL_MapGPUTransferBuffer(device, indexTransferBuffer, false);
-		if (indexTransfer != null)
-		{
-			Internal.MemCpy(indexTransfer, mesh.Indices.GetRawData(), indexBufferDesc.size);
-			SDL_UnmapGPUTransferBuffer(device, indexTransferBuffer);
-		}
-
 		// Copy data from transfer buffers to GPU buffers
 		var commandBuffer = SDL_AcquireGPUCommandBuffer(device);
 		var copyPass = SDL_BeginGPUCopyPass(commandBuffer);
@@ -81,23 +63,52 @@ class GPUMesh : GPUResource
 				offset = 0, size = vertexBufferDesc.size
 			}, false);
 
-		// Copy index data
-		SDL_UploadToGPUBuffer(copyPass, scope SDL_GPUTransferBufferLocation()
+		// Create and copy index buffer (only if there are indices)
+		SDL_GPUTransferBuffer* indexTransferBuffer = null;
+		if (mesh.Indices.IndexCount > 0)
+		{
+			var indexBufferDesc = SDL_GPUBufferCreateInfo()
+				{
+					usage = .SDL_GPU_BUFFERUSAGE_INDEX,
+					size = (uint32)(mesh.Indices.IndexCount * mesh.Indices.GetIndexSize())
+				};
+
+			IndexBuffer = SDL_CreateGPUBuffer(device, &indexBufferDesc);
+			IndexCount = (uint32)mesh.Indices.IndexCount;
+
+			// Create transfer buffer for index data
+			indexTransferBuffer = SDL_CreateGPUTransferBuffer(device, scope .() { usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, size = indexBufferDesc.size });
+			var indexTransfer = SDL_MapGPUTransferBuffer(device, indexTransferBuffer, false);
+			if (indexTransfer != null)
 			{
-				transfer_buffer = indexTransferBuffer,
-				offset = 0
-			}, scope SDL_GPUBufferRegion()
-			{
-				buffer = IndexBuffer,
-				offset = 0,
-				size = indexBufferDesc.size
-			}, false);
+				Internal.MemCpy(indexTransfer, mesh.Indices.GetRawData(), indexBufferDesc.size);
+				SDL_UnmapGPUTransferBuffer(device, indexTransferBuffer);
+			}
+
+			// Copy index data
+			SDL_UploadToGPUBuffer(copyPass, scope SDL_GPUTransferBufferLocation()
+				{
+					transfer_buffer = indexTransferBuffer,
+					offset = 0
+				}, scope SDL_GPUBufferRegion()
+				{
+					buffer = IndexBuffer,
+					offset = 0,
+					size = indexBufferDesc.size
+				}, false);
+		}
+		else
+		{
+			IndexBuffer = null;
+			IndexCount = 0;
+		}
 
 		SDL_EndGPUCopyPass(copyPass);
 		SDL_SubmitGPUCommandBuffer(commandBuffer);
 
 		// Clean up transfer buffers
 		SDL_ReleaseGPUTransferBuffer(device, vertexTransferBuffer);
-		SDL_ReleaseGPUTransferBuffer(device, indexTransferBuffer);
+		if (indexTransferBuffer != null)
+			SDL_ReleaseGPUTransferBuffer(device, indexTransferBuffer);
 	}
 }

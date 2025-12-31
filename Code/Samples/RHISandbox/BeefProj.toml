@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Engine.Audio.OpenAL" = "*", "Sedulous.Geometry" = "*", "Sedulous.Platform.SDL3" = "*", "Sedulous.Engine.Navigation" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Runtime" = "*", "Sedulous.Engine.Input" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Engine.Renderer.RHI" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Engine.Audio.OpenAL" = "*", "Sedulous.Geometry" = "*", "Sedulous.Platform.SDL3" = "*", "Sedulous.Engine.Navigation" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Runtime" = "*", "Sedulous.Engine.Input" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Engine.Renderer.RHI" = "*", "Sedulous.Model" = "*", "Sedulous.Model.GLTF" = "*"}
 
 [Project]
 Name = "RHISandbox"

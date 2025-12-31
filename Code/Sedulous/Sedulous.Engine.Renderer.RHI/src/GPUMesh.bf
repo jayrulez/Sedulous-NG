@@ -22,7 +22,8 @@ class GPUMesh : GPUResource
 
 	public ~this()
 	{
-		mGraphicsContext.Factory.DestroyBuffer(ref IndexBuffer);
+		if (IndexBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref IndexBuffer);
 		mGraphicsContext.Factory.DestroyBuffer(ref VertexBuffer);
 	}
 
@@ -34,10 +35,17 @@ class GPUMesh : GPUResource
 		VertexBuffer = mGraphicsContext.Factory.CreateBuffer(mesh.Vertices.GetRawData(), vertexBufferDesc);
 		VertexCount = (uint32)mesh.Vertices.VertexCount;
 
-		// Create index buffer
-		var indexBufferDesc = BufferDescription((uint32)(mesh.Indices.IndexCount * mesh.Indices.GetIndexSize()), .IndexBuffer, .Immutable);
-
-		IndexBuffer = mGraphicsContext.Factory.CreateBuffer(mesh.Indices.GetRawData(), indexBufferDesc);
-		IndexCount = (uint32)mesh.Indices.IndexCount;
+		// Create index buffer (only if there are indices)
+		if (mesh.Indices.IndexCount > 0)
+		{
+			var indexBufferDesc = BufferDescription((uint32)(mesh.Indices.IndexCount * mesh.Indices.GetIndexSize()), .IndexBuffer, .Immutable);
+			IndexBuffer = mGraphicsContext.Factory.CreateBuffer(mesh.Indices.GetRawData(), indexBufferDesc);
+			IndexCount = (uint32)mesh.Indices.IndexCount;
+		}
+		else
+		{
+			IndexBuffer = null;
+			IndexCount = 0;
+		}
 	}
 }

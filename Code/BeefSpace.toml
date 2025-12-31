@@ -3,7 +3,7 @@ Projects = {"Sedulous.Engine.Core" = {Path = "Sedulous/Sedulous.Engine.Core"}, "
 WorkspaceFolders = {Dependencies = ["corlib", "Bulkan", "OpenALNative", "Dxc-Beef", "SDL3Native", "SDL3_shadercross", "SDL3_image", "cgltf-Beef"], Samples = ["SDL3Test", "RHITest", "RHISandbox", "SampleGame", "ModelTest"], Sedulous = ["Sedulous.Jobs", "Sedulous.Platform.Core", "Sedulous.Platform.SDL3", "Sedulous.Foundation", "Sedulous.Messaging", "Sedulous.Geometry", "Sedulous.Resources", "Sedulous.SceneGraph", "Sedulous.IO", "Sedulous.IO.Tests", "Sedulous.Jobs.Tests", "Sedulous.Foundation.Tests", "Sedulous.Mathematics", "Sedulous.Mathematics.Tests", "Sedulous.Collections", "Sedulous.Logging", "Sedulous.Utilities", "Sedulous.Imaging", "Sedulous.Imaging.Tests", "Sedulous.Serialization", "Sedulous.Serialization.Tests", "Sedulous.GUI", "Sedulous.Model", "Sedulous.Model.GLTF"], "Sedulous/RHI" = ["Sedulous.RHI", "Sedulous.RHI.Vulkan", "Sedulous.RHI.HLSLShaderCompiler"], "Sedulous/Engine" = ["Sedulous.Engine.Audio", "Sedulous.Engine.Audio.OpenAL", "Sedulous.Engine.Core", "Sedulous.Engine.Input", "Sedulous.Engine.Navigation", "Sedulous.Engine.Physics", "Sedulous.Engine.Renderer", "Sedulous.Engine.Renderer.RHI"], "Sedulous/Editor" = ["Sedulous.Editor.Core", "Sedulous.Editor.Renderer"], "Sedulous/Runtime" = ["Sedulous.Runtime"]}
 
 [Workspace]
-StartupProject = "ModelTest"
+StartupProject = "RHISandbox"
 
 [Configs.Test.Win32]
 ConfigSelections = {"Sedulous.Engine.Core" = {Config = "Debug"}}

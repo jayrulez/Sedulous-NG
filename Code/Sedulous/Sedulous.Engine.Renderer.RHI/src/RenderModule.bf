@@ -281,16 +281,18 @@ class RenderModule : SceneModule
 
 		var mesh = meshHandle.Resource;
 
-		// Get mesh data
-		Buffer vertexBuffer = mesh.VertexBuffer;
-		Buffer indexBuffer = mesh.IndexBuffer;
-		uint32 indexCount = mesh.IndexCount;
+		commandBuffer.SetVertexBuffers(scope Buffer[](mesh.VertexBuffer));
 
-
-		commandBuffer.SetVertexBuffers(scope Buffer[](vertexBuffer));
-		commandBuffer.SetIndexBuffer(indexBuffer, .UInt32);
-
-		commandBuffer.DrawIndexed(indexCount);
+		// Use indexed or non-indexed draw depending on whether mesh has indices
+		if (mesh.IndexBuffer != null && mesh.IndexCount > 0)
+		{
+			commandBuffer.SetIndexBuffer(mesh.IndexBuffer, .UInt32);
+			commandBuffer.DrawIndexed(mesh.IndexCount);
+		}
+		else
+		{
+			commandBuffer.Draw(mesh.VertexCount);
+		}
 	}
 
 	private ResourceSet GetOrCreateMaterialResourceSet(GPUMaterial material)

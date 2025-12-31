@@ -20,7 +20,13 @@ using System.Diagnostics;
 using Sedulous.Imaging;
 using Sedulous.Engine.Renderer.RHI;
 using Sedulous.RHI.Vulkan;
+using Sedulous.Model;
+using Sedulous.Model.Formats.GLTF;
+using System.IO;
+
 namespace RHISandbox;
+
+typealias GeometryMesh = Sedulous.Geometry.Mesh;
 
 public class RotateComponent : Component
 {
@@ -201,33 +207,33 @@ class SandboxApplication : Application
 			var renderer = geometry.AddComponent<MeshRenderer>();
 			renderer.Color = Color.White;
 
-			Mesh mesh = null;
+			GeometryMesh mesh = null;
 			TextureResource texture = null;
 			switch (i)
 			{
 			case 0:
-				mesh = Mesh.CreateCube();
+				mesh = GeometryMesh.CreateCube();
 				texture = TextureResource.CreateCheckerboard();
 				break;
 			case 1:
-				mesh = Mesh.CreateSphere();
+				mesh = GeometryMesh.CreateSphere();
 				texture = TextureResource.CreateGradient(256, 256, .Red, .Green);
 				break;
 			case 2:
-				mesh = Mesh.CreateCylinder();
+				mesh = GeometryMesh.CreateCylinder();
 				texture = TextureResource.CreateGradient(256, 256, .Red, .Yellow);
 				break;
 			case 3:
-				mesh = Mesh.CreateCone();
+				mesh = GeometryMesh.CreateCone();
 				texture = TextureResource.CreateGradient(256, 256, .Green, .Blue);
 				break;
 			case 4:
-				mesh = Mesh.CreateTorus();
+				mesh = GeometryMesh.CreateTorus();
 				texture = TextureResource.CreateGradient(256, 256, .Blue, .Coral);
 				break;
 			}
 
-			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh ?? Mesh.CreateCube(), true));
+			renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(mesh ?? GeometryMesh.CreateCube(), true));
 			UnlitMaterial unlit = new UnlitMaterial();
 			unlit.Color = .White;
 			unlit.MainTexture = engine.ResourceSystem.AddResource(texture ?? TextureResource.CreateSolidColor(256, 256, .Turquoise));
@@ -252,9 +258,12 @@ class SandboxApplication : Application
 		floorMat.AmbientColor = Color(0.05f, 0.05f, 0.05f, 1.0f);*/
 
 		planeRenderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(floorMat, true));
-		var planeMesh = Mesh.CreatePlane();
+		var planeMesh = GeometryMesh.CreatePlane();
 
 		planeRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(planeMesh, true));
+
+		// Load GLTF model
+		LoadGLTFModel(engine, scene);
 
 		base.OnEngineInitialized(engine);
 	}
@@ -543,6 +552,107 @@ class SandboxApplication : Application
 				Debug.WriteLine("  F1  - Show this help");
 			}
 		}
+	}
+
+	// Convert Model.MeshPrimitive to Geometry.Mesh
+	private GeometryMesh ConvertToGeometryMesh(MeshPrimitive primitive)
+	{
+		let mesh = new GeometryMesh();
+		mesh.SetupCommonVertexFormat();
+
+		// Copy vertices
+		mesh.Vertices.Resize((int32)primitive.Vertices.Count);
+		for (int32 i = 0; i < primitive.Vertices.Count; i++)
+		{
+			let v = primitive.Vertices[i];
+			mesh.SetPosition(i, v.Position);
+			mesh.SetNormal(i, v.Normal);
+			mesh.SetUV(i, v.TexCoord0);
+			mesh.SetTangent(i, Vector3(v.Tangent.X, v.Tangent.Y, v.Tangent.Z));
+			mesh.SetColor(i, PackColor(v.Color));
+		}
+
+		// Copy indices
+		mesh.Indices.Resize((int32)primitive.Indices.Count);
+		for (int32 i = 0; i < primitive.Indices.Count; i++)
+			mesh.Indices.SetIndex(i, primitive.Indices[i]);
+
+		mesh.AddSubMesh(SubMesh(0, (int32)primitive.Indices.Count));
+		return mesh;
+	}
+
+	private uint32 PackColor(Vector4 color)
+	{
+		uint8 r = (uint8)(Math.Clamp(color.X, 0, 1) * 255);
+		uint8 g = (uint8)(Math.Clamp(color.Y, 0, 1) * 255);
+		uint8 b = (uint8)(Math.Clamp(color.Z, 0, 1) * 255);
+		uint8 a = (uint8)(Math.Clamp(color.W, 0, 1) * 255);
+		return (uint32)r | ((uint32)g << 8) | ((uint32)b << 16) | ((uint32)a << 24);
+	}
+
+	private void LoadGLTFModel(Engine engine, Scene scene)
+	{
+		let processor = scope GLTFModelProcessor();
+
+		let modelPath = scope String();
+		Directory.GetCurrentDirectory(modelPath);
+		modelPath.Append("\\Assets\\Fox\\glTF-Binary\\Fox.glb");
+
+		let model = processor.Read(modelPath);
+		if (model == null)
+		{
+			Debug.WriteLine("Failed to load GLTF model");
+			return;
+		}
+		defer delete model;
+
+		// Create texture from model (first texture if available)
+		// Transfer ownership of image from model to texture resource
+		TextureResource modelTexture = null;
+		Debug.WriteLine(scope $"Model has {model.TextureCount} textures");
+		if (model.TextureCount > 0 && model.Textures[0].ImageData != null)
+		{
+			let image = model.Textures[0].ImageData;
+			Debug.WriteLine(scope $"Texture image: {image.Width}x{image.Height}, format={image.Format}");
+			model.Textures[0].ImageData = null;  // Transfer ownership
+			modelTexture = new TextureResource(image, true);
+			modelTexture.SetupFor3D();
+		}
+		else
+		{
+			Debug.WriteLine("No texture or image data found in model");
+		}
+
+		// Create material
+		let material = new UnlitMaterial();
+		material.Color = .White;
+		material.Culling = .None;  // Disable culling to test winding order
+		if (modelTexture != null)
+		{
+			material.MainTexture = engine.ResourceSystem.AddResource(modelTexture);
+			Debug.WriteLine(scope $"Material MainTexture valid: {material.MainTexture.IsValid}");
+		}
+
+		// Convert each mesh primitive and create entities
+		for (int m = 0; m < model.MeshCount; m++)
+		{
+			let modelMesh = model.Meshes[m];
+			for (int p = 0; p < modelMesh.Primitives.Count; p++)
+			{
+				let primitive = modelMesh.Primitives[p];
+				let geometryMesh = ConvertToGeometryMesh(primitive);
+
+				var entity = scene.CreateEntity(scope $"Fox_{m}_{p}");
+				entity.Transform.Position = Vector3(0, -1.5f, -3);  // Center, in front of other meshes
+				entity.Transform.Scale = Vector3(0.02f, 0.02f, 0.02f);  // Fox is large, scale down
+
+				var renderer = entity.AddComponent<MeshRenderer>();
+				renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(geometryMesh, true));
+				renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
+			}
+		}
+
+		Debug.WriteLine(scope $"Loaded Fox model: {model.MeshCount} meshes, {model.TextureCount} textures");
 	}
 }
 

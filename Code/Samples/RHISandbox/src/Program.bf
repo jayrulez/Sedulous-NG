@@ -590,6 +590,140 @@ class SandboxApplication : Application
 		return (uint32)r | ((uint32)g << 8) | ((uint32)b << 16) | ((uint32)a << 24);
 	}
 
+	// Convert Model.MeshPrimitive to SkinnedMesh (with bone data)
+	private SkinnedMesh ConvertToSkinnedMesh(MeshPrimitive primitive)
+	{
+		let mesh = new SkinnedMesh();
+
+		// Copy vertices
+		for (int32 i = 0; i < primitive.Vertices.Count; i++)
+		{
+			let v = primitive.Vertices[i];
+			var vertex = SkinnedVertex();
+			vertex.Position = v.Position;
+			vertex.Normal = v.Normal;
+			vertex.TexCoord = v.TexCoord0;
+			vertex.Tangent = Vector3(v.Tangent.X, v.Tangent.Y, v.Tangent.Z);
+			vertex.Color = PackColor(v.Color);
+			vertex.Joints = v.Joints;
+			vertex.Weights = v.Weights;
+			mesh.AddVertex(vertex);
+		}
+
+		// Copy indices
+		mesh.ReserveIndices((int32)primitive.Indices.Count);
+		for (int32 i = 0; i < primitive.Indices.Count; i++)
+			mesh.AddIndex(primitive.Indices[i]);
+
+		mesh.AddSubMesh(SubMesh(0, (int32)primitive.Indices.Count));
+		mesh.CalculateBounds();
+		return mesh;
+	}
+
+	// Convert Model.Skin to SkinData
+	private SkinData ConvertToSkinData(Sedulous.Model.Skin modelSkin)
+	{
+		let skin = new SkinData();
+		if (modelSkin.Name != null)
+			skin.Name = new String(modelSkin.Name);
+		skin.SkeletonRootIndex = modelSkin.SkeletonRootIndex;
+
+		for (var jointIndex in modelSkin.JointIndices)
+			skin.JointIndices.Add(jointIndex);
+
+		for (var ibm in modelSkin.InverseBindMatrices)
+			skin.InverseBindMatrices.Add(ibm);
+
+		return skin;
+	}
+
+	// Convert Model node list to SkeletonData
+	private SkeletonData ConvertToSkeletonData(List<Node> nodes, List<int32> rootNodeIndices)
+	{
+		let skeleton = new SkeletonData();
+
+		// Create a map from Node pointer to index
+		var nodeToIndex = scope Dictionary<Node, int32>();
+		for (int32 i = 0; i < nodes.Count; i++)
+			nodeToIndex[nodes[i]] = i;
+
+		// Copy nodes
+		for (int32 i = 0; i < nodes.Count; i++)
+		{
+			var srcNode = nodes[i];
+			var dstNode = new SkeletonNode();
+
+			if (srcNode.Name != null)
+				dstNode.Name = new String(srcNode.Name);
+
+			dstNode.Translation = srcNode.Translation;
+			dstNode.Rotation = srcNode.Rotation;
+			dstNode.Scale = srcNode.Scale;
+
+			// Find parent index
+			if (srcNode.Parent != null && nodeToIndex.TryGetValue(srcNode.Parent, var parentIdx))
+				dstNode.ParentIndex = parentIdx;
+			else
+				dstNode.ParentIndex = -1;
+
+			// Copy child indices
+			for (var child in srcNode.Children)
+			{
+				if (nodeToIndex.TryGetValue(child, var childIdx))
+					dstNode.ChildIndices.Add(childIdx);
+			}
+
+			skeleton.Nodes.Add(dstNode);
+		}
+
+		// Copy root node indices
+		for (var idx in rootNodeIndices)
+			skeleton.RootNodeIndices.Add(idx);
+
+		return skeleton;
+	}
+
+	// Convert Model.Animation to AnimationClipData
+	private AnimationClipData ConvertToAnimationClipData(Sedulous.Model.Animation modelAnim)
+	{
+		let clip = new AnimationClipData();
+		if (modelAnim.Name != null)
+			clip.Name = new String(modelAnim.Name);
+
+		for (var srcChannel in modelAnim.Channels)
+		{
+			var dstChannel = new AnimationChannelData();
+			dstChannel.TargetNodeIndex = srcChannel.TargetNodeIndex;
+
+			switch (srcChannel.TargetPath)
+			{
+			case .Translation: dstChannel.TargetPath = .Translation;
+			case .Rotation: dstChannel.TargetPath = .Rotation;
+			case .Scale: dstChannel.TargetPath = .Scale;
+			case .Weights: dstChannel.TargetPath = .Weights;
+			}
+
+			// Copy sampler data
+			var srcSampler = srcChannel.Sampler;
+			switch (srcSampler.Interpolation)
+			{
+			case .Linear: dstChannel.Sampler.Interpolation = .Linear;
+			case .Step: dstChannel.Sampler.Interpolation = .Step;
+			case .CubicSpline: dstChannel.Sampler.Interpolation = .CubicSpline;
+			}
+
+			for (var time in srcSampler.KeyframeTimes)
+				dstChannel.Sampler.KeyframeTimes.Add(time);
+
+			for (var value in srcSampler.KeyframeValues)
+				dstChannel.Sampler.KeyframeValues.Add(value);
+
+			clip.Channels.Add(dstChannel);
+		}
+
+		return clip;
+	}
+
 	private void LoadGLTFModel(Engine engine, Scene scene)
 	{
 		let processor = scope GLTFModelProcessor();
@@ -607,7 +741,6 @@ class SandboxApplication : Application
 		defer delete model;
 
 		// Create texture from model (first texture if available)
-		// Transfer ownership of image from model to texture resource
 		TextureResource modelTexture = null;
 		if (model.TextureCount > 0 && model.Textures[0].ImageData != null)
 		{
@@ -623,26 +756,121 @@ class SandboxApplication : Application
 		if (modelTexture != null)
 			material.MainTexture = engine.ResourceSystem.AddResource(modelTexture);
 
-		// Convert each mesh primitive and create entities
-		for (int m = 0; m < model.MeshCount; m++)
+		// Check if model has skin (for animated mesh)
+		bool hasSkin = model.SkinCount > 0 && model.AnimationCount > 0;
+
+		if (hasSkin)
 		{
-			let modelMesh = model.Meshes[m];
-			for (int p = 0; p < modelMesh.Primitives.Count; p++)
+			// Load as animated skinned mesh
+			Debug.WriteLine(scope $"Loading animated Fox with {model.SkinCount} skins, {model.AnimationCount} animations");
+
+			// Convert skeleton from model nodes
+			let skeletonData = ConvertToSkeletonData(model.Nodes, model.RootNodeIndices);
+			let skeletonRes = new SkeletonResource(skeletonData, true);
+
+			// Convert skin
+			let skinData = ConvertToSkinData(model.Skins[0]);
+			let skinRes = new SkinResource(skinData, true);
+
+			// Convert animations
+			var animationResources = new List<ResourceHandle<AnimationResource>>();
+			for (var anim in model.Animations)
 			{
-				let primitive = modelMesh.Primitives[p];
-				let geometryMesh = ConvertToGeometryMesh(primitive);
-
-				var entity = scene.CreateEntity(scope $"Fox_{m}_{p}");
-				entity.Transform.Position = Vector3(0, -1.5f, -3);  // Center, in front of other meshes
-				entity.Transform.Scale = Vector3(0.02f, 0.02f, 0.02f);  // Fox is large, scale down
-
-				var renderer = entity.AddComponent<MeshRenderer>();
-				renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(geometryMesh, true));
-				renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
+				let clipData = ConvertToAnimationClipData(anim);
+				let animRes = new AnimationResource(clipData, true);
+				animationResources.Add(engine.ResourceSystem.AddResource(animRes));
+				var animName = anim.Name ?? "unnamed";
+				Debug.WriteLine(scope $"  Animation: {animName}, Duration: {anim.Duration}s");
 			}
-		}
 
-		Debug.WriteLine(scope $"Loaded Fox model: {model.MeshCount} meshes, {model.TextureCount} textures");
+			// Find mesh with skin and create skinned mesh
+			for (int m = 0; m < model.MeshCount; m++)
+			{
+				let modelMesh = model.Meshes[m];
+				for (int p = 0; p < modelMesh.Primitives.Count; p++)
+				{
+					let primitive = modelMesh.Primitives[p];
+					let skinnedMesh = ConvertToSkinnedMesh(primitive);
+
+					var entity = scene.CreateEntity(scope $"AnimatedFox_{m}_{p}");
+					entity.Transform.Position = Vector3(0, -1.5f, -3);
+					entity.Transform.Scale = Vector3(0.02f, 0.02f, 0.02f);
+
+					// Add SkinnedMeshRenderer
+					var skinnedRenderer = entity.AddComponent<SkinnedMeshRenderer>();
+					skinnedRenderer.Mesh = engine.ResourceSystem.AddResource(new SkinnedMeshResource(skinnedMesh, true));
+
+					var materialRes = new MaterialResource(material, true);
+					var materialResult = engine.ResourceSystem.AddResource(materialRes);
+					if (materialResult case .Ok(let handle))
+					{
+						skinnedRenderer.Material = handle;
+						Debug.WriteLine(scope $"Skinned material assigned: IsValid={skinnedRenderer.Material.IsValid}, Resource={skinnedRenderer.Material.Resource}");
+					}
+					else
+					{
+						Debug.WriteLine("Failed to add material resource for skinned mesh!");
+					}
+
+					skinnedRenderer.Skin = engine.ResourceSystem.AddResource(skinRes);
+
+					// Add Animator
+					var animator = entity.AddComponent<Animator>();
+					animator.Skeleton = engine.ResourceSystem.AddResource(skeletonRes);
+
+					// Add all animations
+					for (var animHandle in animationResources)
+						animator.AddAnimation(animHandle);
+
+					// Initialize pose arrays
+					animator.InitializePose(skeletonData.NodeCount);
+
+					// Initialize joint transforms from skeleton rest pose
+					for (int32 i = 0; i < skeletonData.NodeCount; i++)
+					{
+						var node = skeletonData.Nodes[i];
+						animator.JointTranslations[i] = node.Translation;
+						animator.JointRotations[i] = node.Rotation;
+						animator.JointScales[i] = node.Scale;
+					}
+
+					// Start playing first animation (Survey)
+					if (animator.AnimationCount > 0)
+					{
+						animator.Play(0);
+						Debug.WriteLine(scope $"Playing animation 0");
+					}
+				}
+			}
+
+			// Clean up animation handles list (resources are now owned by animator)
+			delete animationResources;
+
+			Debug.WriteLine(scope $"Loaded animated Fox: {model.MeshCount} meshes, {model.NodeCount} nodes, {model.AnimationCount} animations");
+		}
+		else
+		{
+			// Load as static mesh (fallback)
+			for (int m = 0; m < model.MeshCount; m++)
+			{
+				let modelMesh = model.Meshes[m];
+				for (int p = 0; p < modelMesh.Primitives.Count; p++)
+				{
+					let primitive = modelMesh.Primitives[p];
+					let geometryMesh = ConvertToGeometryMesh(primitive);
+
+					var entity = scene.CreateEntity(scope $"Fox_{m}_{p}");
+					entity.Transform.Position = Vector3(0, -1.5f, -3);
+					entity.Transform.Scale = Vector3(0.02f, 0.02f, 0.02f);
+
+					var renderer = entity.AddComponent<MeshRenderer>();
+					renderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(geometryMesh, true));
+					renderer.Material = engine.ResourceSystem.AddResource(new MaterialResource(material, true));
+				}
+			}
+
+			Debug.WriteLine(scope $"Loaded static Fox model: {model.MeshCount} meshes, {model.TextureCount} textures");
+		}
 	}
 }
 

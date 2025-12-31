@@ -15,11 +15,13 @@ class GPUResourceManager
     
     // Resource caches - resources are automatically cleaned up when ref count hits 0
     private Dictionary<MeshResource, GPUMesh> mMeshCache = new .() ~ delete _;
+    private Dictionary<SkinnedMeshResource, GPUSkinnedMesh> mSkinnedMeshCache = new .() ~ delete _;
     private Dictionary<TextureResource, GPUTexture> mTextureCache = new .() ~ delete _;
     private Dictionary<MaterialResource, GPUMaterial> mMaterialCache = new .() ~ delete _;
-    
+
     // Statistics
     public int TotalMeshes => mMeshCache.Count;
+    public int TotalSkinnedMeshes => mSkinnedMeshCache.Count;
     public int TotalTextures => mTextureCache.Count;
     public int TotalMaterials => mMaterialCache.Count;
     
@@ -64,7 +66,44 @@ class GPUResourceManager
         // Return a handle (this adds the first ref)
         return GPUResourceHandle<GPUMesh>(gpuMesh);
     }
-    
+
+    // Get or create GPU skinned mesh - returns a new handle (adds ref)
+    public GPUResourceHandle<GPUSkinnedMesh> GetOrCreateSkinnedMesh(SkinnedMeshResource meshResource)
+    {
+        if (meshResource == null || meshResource.Mesh == null)
+            return default;
+
+        // Check if we have it cached
+        if (mSkinnedMeshCache.TryGetValue(meshResource, let existingMesh))
+        {
+            // If it still has refs, return a new handle
+            if (existingMesh.RefCount > 0)
+            {
+                return GPUResourceHandle<GPUSkinnedMesh>(existingMesh);
+            }
+            else
+            {
+                // Resource was released, remove from cache
+                mSkinnedMeshCache.Remove(meshResource);
+            }
+        }
+
+        // Create new GPU skinned mesh
+        var gpuMesh = new GPUSkinnedMesh(
+            scope $"SkinnedMesh_{meshResource.Id}",
+            mGraphicsContext,
+            meshResource.Mesh
+        );
+
+        // Cache the raw pointer
+        mSkinnedMeshCache[meshResource] = gpuMesh;
+
+        mGraphicsContext.Logger.LogInformation("Created GPU Skinned Mesh (Total: {})", mSkinnedMeshCache.Count);
+
+        // Return a handle (this adds the first ref)
+        return GPUResourceHandle<GPUSkinnedMesh>(gpuMesh);
+    }
+
     // Get or create GPU texture - returns a new handle (adds ref)
     public GPUResourceHandle<GPUTexture> GetOrCreateTexture(TextureResource textureResource)
     {
@@ -179,6 +218,20 @@ class GPUResourceManager
             removedCount++;
         }
         
+        // Clean skinned mesh cache
+        var skinnedMeshesToRemove = scope List<SkinnedMeshResource>();
+        for (var (resource, mesh) in mSkinnedMeshCache)
+        {
+            if (mesh.RefCount == 0)
+                skinnedMeshesToRemove.Add(resource);
+        }
+
+        for (var resource in skinnedMeshesToRemove)
+        {
+            mSkinnedMeshCache.Remove(resource);
+            removedCount++;
+        }
+
         // Clean texture cache
         var texturesToRemove = scope List<TextureResource>();
         for (var (resource, texture) in mTextureCache)
@@ -186,7 +239,7 @@ class GPUResourceManager
             if (texture.RefCount == 0)
                 texturesToRemove.Add(resource);
         }
-        
+
         for (var resource in texturesToRemove)
         {
             mTextureCache.Remove(resource);

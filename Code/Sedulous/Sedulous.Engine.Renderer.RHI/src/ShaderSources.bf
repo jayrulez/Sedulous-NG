@@ -17,6 +17,17 @@ struct UnlitFragmentUniforms
     public Vector4 MaterialProperties; // metallic, roughness, emissive, unused
 }
 
+static
+{
+	public const int MAX_BONES = 128;
+}
+
+[CRepr, Packed]
+struct BoneMatricesUniforms
+{
+	public Matrix[MAX_BONES] Bones;
+}
+
 static class ShaderSources
 {
 	public const String UnlitShadersVS = """
@@ -102,6 +113,62 @@ static class ShaderSources
 	        //    return float4(1.0, 0.0, 0.0, 1.0); // Red = bad UVs
 
 	        //return texColor;
+	    }
+	    """;
+
+	public const String SkinnedUnlitShadersVS = """
+	    #define MAX_BONES 128
+
+	    // Constant buffers - using register spaces to map to Vulkan descriptor sets
+	    // space0 -> Set 0 (per-object uniforms)
+	    // space2 -> Set 2 (bone matrices)
+	    cbuffer UniformBlock : register(b0, space0)
+	    {
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
+	    }
+
+	    cbuffer BoneMatrices : register(b0, space2)
+	    {
+	        float4x4 Bones[MAX_BONES];
+	    }
+
+	    // Vertex input structure for skinned mesh
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	        uint4 Joints : BLENDINDICES;    // Bone indices (4 bones max)
+	        float4 Weights : BLENDWEIGHT;   // Bone weights
+	    };
+
+	    // Vertex output structure
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+
+	        // Compute skinned position by blending bone transforms
+	        float4x4 skinMatrix =
+	            Bones[input.Joints.x] * input.Weights.x +
+	            Bones[input.Joints.y] * input.Weights.y +
+	            Bones[input.Joints.z] * input.Weights.z +
+	            Bones[input.Joints.w] * input.Weights.w;
+
+	        float4 skinnedPos = mul(float4(input.Position, 1.0), skinMatrix);
+	        output.Position = mul(skinnedPos, MVPMatrix);
+	        output.TexCoord = input.TexCoord;
+	        output.Color = input.Color;
+	        return output;
 	    }
 	    """;
 }

@@ -22,10 +22,15 @@ class RHIRendererSubsystem : Subsystem
 	private IEngine.RegisteredUpdateFunctionInfo? mRenderFunctionRegistration;
 
 	private readonly MeshResourceManager mMeshResourceManager = new .() ~ delete _;
+	private readonly SkinnedMeshResourceManager mSkinnedMeshResourceManager = new .() ~ delete _;
 	private readonly TextureResourceManager mTextureResourceManager = new .() ~ delete _;
 	private readonly MaterialResourceManager mMaterialResourceManager = new .() ~ delete _;
+	private readonly SkinResourceManager mSkinResourceManager = new .() ~ delete _;
+	private readonly SkeletonResourceManager mSkeletonResourceManager = new .() ~ delete _;
+	private readonly AnimationResourceManager mAnimationResourceManager = new .() ~ delete _;
 
-	private List<RenderModule> mModules = new .() ~ delete _;
+	private List<RenderModule> mRenderModules = new .() ~ delete _;
+	private List<AnimationModule> mAnimationModules = new .() ~ delete _;
 
 	private GPUResourceManager mGPUResourceManager ~ delete _;
 
@@ -56,7 +61,19 @@ class RHIRendererSubsystem : Subsystem
 	private GraphicsPipelineState mUnlitPipeline;
 	public GraphicsPipelineState UnlitPipeline => mUnlitPipeline;
 
+	// Skinned mesh pipeline
+	private GraphicsPipelineState mSkinnedUnlitPipeline;
+	public GraphicsPipelineState SkinnedUnlitPipeline => mSkinnedUnlitPipeline;
+
+	private Shader mSkinnedVertexShader;
+
 	private ResourceLayout mUnlitPerObjectResourceLayout;
+
+	// Skinned mesh resource layouts
+	private ResourceLayout mSkinnedPerObjectResourceLayout;
+	public ResourceLayout SkinnedPerObjectResourceLayout => mSkinnedPerObjectResourceLayout;
+	private ResourceLayout mBoneMatricesResourceLayout;
+	public ResourceLayout BoneMatricesResourceLayout => mBoneMatricesResourceLayout;
 
 	private LayoutElementDescription[] mUnlitMaterialLayoutElements ~ delete _;
 	private ResourceLayout mUnlitMaterialResourceLayout;
@@ -125,13 +142,18 @@ class RHIRendererSubsystem : Subsystem
 			});
 
 		engine.ResourceSystem.AddResourceManager(mMeshResourceManager);
+		engine.ResourceSystem.AddResourceManager(mSkinnedMeshResourceManager);
 		engine.ResourceSystem.AddResourceManager(mTextureResourceManager);
 		engine.ResourceSystem.AddResourceManager(mMaterialResourceManager);
+		engine.ResourceSystem.AddResourceManager(mSkinResourceManager);
+		engine.ResourceSystem.AddResourceManager(mSkeletonResourceManager);
+		engine.ResourceSystem.AddResourceManager(mAnimationResourceManager);
 
 		mGPUResourceManager = new GPUResourceManager(mGraphicsContext);
 		CreateDefaultTextures();
 
 		CreateUnlitPipeline();
+		CreateSkinnedPipeline();
 
 		// Create render graph
 		mRenderGraph = new RenderGraph("Main", mGraphicsContext, mGraphicsContext.Factory);
@@ -148,6 +170,7 @@ class RHIRendererSubsystem : Subsystem
 			mRenderGraph.Reset();
 		}
 
+		DestroySkinnedPipeline();
 		DestroyUnlitPipeline();
 
 		mDefaultWhiteTexture.Release();
@@ -155,8 +178,12 @@ class RHIRendererSubsystem : Subsystem
 		mDefaultNormalTexture.Release();
 
 		engine.ResourceSystem.RemoveResourceManager(mMeshResourceManager);
+		engine.ResourceSystem.RemoveResourceManager(mSkinnedMeshResourceManager);
 		engine.ResourceSystem.RemoveResourceManager(mTextureResourceManager);
 		engine.ResourceSystem.RemoveResourceManager(mMaterialResourceManager);
+		engine.ResourceSystem.RemoveResourceManager(mSkinResourceManager);
+		engine.ResourceSystem.RemoveResourceManager(mSkeletonResourceManager);
+		engine.ResourceSystem.RemoveResourceManager(mAnimationResourceManager);
 
 		if (mUpdateFunctionRegistration.HasValue)
 		{
@@ -182,21 +209,37 @@ class RHIRendererSubsystem : Subsystem
 
 	protected override void CreateSceneModules(Scene scene, List<SceneModule> modules)
 	{
-		var module = new RenderModule(this);
-		scene.AddModule(module);
-		modules.Add(module);
-		mModules.Add(module);
+		// Animation module (updates before render)
+		var animModule = new AnimationModule();
+		scene.AddModule(animModule);
+		modules.Add(animModule);
+		mAnimationModules.Add(animModule);
+
+		// Render module
+		var renderModule = new RenderModule(this);
+		scene.AddModule(renderModule);
+		modules.Add(renderModule);
+		mRenderModules.Add(renderModule);
 	}
 
 	protected override void DestroySceneModules(Scene scene)
 	{
-		for (int i = mModules.Count - 1; i >= 0; i--)
+		for (int i = mRenderModules.Count - 1; i >= 0; i--)
 		{
-			if (mModules[i].Scene == scene)
+			if (mRenderModules[i].Scene == scene)
 			{
-				scene.RemoveModule(mModules[i]);
-				delete mModules[i];
-				mModules.RemoveAt(i);
+				scene.RemoveModule(mRenderModules[i]);
+				delete mRenderModules[i];
+				mRenderModules.RemoveAt(i);
+			}
+		}
+		for (int i = mAnimationModules.Count - 1; i >= 0; i--)
+		{
+			if (mAnimationModules[i].Scene == scene)
+			{
+				scene.RemoveModule(mAnimationModules[i]);
+				delete mAnimationModules[i];
+				mAnimationModules.RemoveAt(i);
 			}
 		}
 	}
@@ -272,7 +315,7 @@ class RHIRendererSubsystem : Subsystem
 	private void BufferUpdatePassExecute(CommandBuffer cmd, RenderGraphContext context)
 	{
 		// Update all buffers outside of render pass
-		for (var module in mModules)
+		for (var module in mRenderModules)
 		{
 			module.PrepareGPUResources(cmd);
 		}
@@ -282,10 +325,11 @@ class RHIRendererSubsystem : Subsystem
 	{
 		cmd.SetViewports(WindowViewports);
 		cmd.SetScissorRectangles(WindowScissors);
-		
-		for (var module in mModules)
+
+		for (var module in mRenderModules)
 		{
 			module.RenderMeshes(cmd);
+			module.RenderSkinnedMeshes(cmd);
 		}
 	}
 
@@ -320,6 +364,8 @@ class RHIRendererSubsystem : Subsystem
 
 		mGraphicsContext.SyncUpcopyQueue();
 	}
+
+	private ResourceLayout[] mUnlitPipelineResourceLayouts ~ delete _;
 
 	private void CreateUnlitPipeline()
 	{
@@ -412,7 +458,7 @@ class RHIRendererSubsystem : Subsystem
 						PixelShader = mPixelShader
 					},
 				InputLayouts = vertexLayouts,
-				ResourceLayouts = scope ResourceLayout[](mUnlitPerObjectResourceLayout, mUnlitMaterialResourceLayout),
+				ResourceLayouts = mUnlitPipelineResourceLayouts = new ResourceLayout[](mUnlitPerObjectResourceLayout, mUnlitMaterialResourceLayout),
 				PrimitiveTopology = .TriangleList,
 				Outputs = .CreateFromFrameBuffer(mSwapChain.FrameBuffer)
 			};
@@ -454,6 +500,80 @@ class RHIRendererSubsystem : Subsystem
 		case "Unlit": return mUnlitMaterialResourceLayout;
 		default: return mUnlitMaterialResourceLayout; // Fallback
 		}
+	}
+
+	private ResourceLayout[] mSkinnedPipelineResourceLayouts ~ delete _;
+
+	private void CreateSkinnedPipeline()
+	{
+		// Compile skinned vertex shader
+		{
+			var byteCode = CompileShaderSource(mGraphicsContext, ShaderSources.SkinnedUnlitShadersVS, .Vertex, "VS", .. scope .());
+			var shaderBytes = scope uint8[byteCode.Count];
+			byteCode.CopyTo(shaderBytes);
+			var vsDesc = ShaderDescription(.Vertex, "VS", shaderBytes);
+			mSkinnedVertexShader = mGraphicsContext.Factory.CreateShader(vsDesc);
+		}
+
+		// Skinned vertex format (72 bytes)
+		var skinnedVertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))      // 12 bytes
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))        // 12 bytes
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))      // 8 bytes
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))// 4 bytes
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent))       // 12 bytes
+			.Add(ElementDescription(ElementFormat.UShort4, ElementSemanticType.BlendIndices)) // 8 bytes
+			.Add(ElementDescription(ElementFormat.Float4, ElementSemanticType.BlendWeight));  // 16 bytes
+
+		var skinnedVertexLayouts = scope InputLayouts();
+		skinnedVertexLayouts.Add(skinnedVertexFormat);
+
+		// Skinned Per Object ResourceLayout (same as regular unlit for now)
+		{
+			LayoutElementDescription[] layoutElementDescs = scope:: LayoutElementDescription[](
+				LayoutElementDescription(0, .ConstantBuffer, .Vertex, true, sizeof(UnlitVertexUniforms))
+			);
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
+			mSkinnedPerObjectResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
+		}
+
+		// Bone Matrices ResourceLayout (binding 0 in space2, maps to Set 2 in Vulkan)
+		{
+			LayoutElementDescription[] layoutElementDescs = scope:: LayoutElementDescription[](
+				LayoutElementDescription(0, .ConstantBuffer, .Vertex, false, sizeof(BoneMatricesUniforms))
+			);
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params layoutElementDescs);
+			mBoneMatricesResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
+		}
+
+		// Create skinned pipeline
+		var skinnedPipelineDescription = GraphicsPipelineDescription
+			{
+				RenderStates = RenderStateDescription.Default,
+				Shaders = .()
+					{
+						VertexShader = mSkinnedVertexShader,
+						PixelShader = mPixelShader  // Reuse the same pixel shader
+					},
+				InputLayouts = skinnedVertexLayouts,
+				ResourceLayouts = mSkinnedPipelineResourceLayouts = new ResourceLayout[](mSkinnedPerObjectResourceLayout, mUnlitMaterialResourceLayout, mBoneMatricesResourceLayout),
+				PrimitiveTopology = .TriangleList,
+				Outputs = .CreateFromFrameBuffer(mSwapChain.FrameBuffer)
+			};
+
+		mSkinnedUnlitPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(skinnedPipelineDescription);
+	}
+
+	private void DestroySkinnedPipeline()
+	{
+		if (mSkinnedUnlitPipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mSkinnedUnlitPipeline);
+		if (mBoneMatricesResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mBoneMatricesResourceLayout);
+		if (mSkinnedPerObjectResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mSkinnedPerObjectResourceLayout);
+		if (mSkinnedVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mSkinnedVertexShader);
 	}
 
 	private static TextureSampleCount SampleCount = TextureSampleCount.None;

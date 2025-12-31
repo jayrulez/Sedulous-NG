@@ -609,29 +609,19 @@ class SandboxApplication : Application
 		// Create texture from model (first texture if available)
 		// Transfer ownership of image from model to texture resource
 		TextureResource modelTexture = null;
-		Debug.WriteLine(scope $"Model has {model.TextureCount} textures");
 		if (model.TextureCount > 0 && model.Textures[0].ImageData != null)
 		{
 			let image = model.Textures[0].ImageData;
-			Debug.WriteLine(scope $"Texture image: {image.Width}x{image.Height}, format={image.Format}");
 			model.Textures[0].ImageData = null;  // Transfer ownership
 			modelTexture = new TextureResource(image, true);
 			modelTexture.SetupFor3D();
-		}
-		else
-		{
-			Debug.WriteLine("No texture or image data found in model");
 		}
 
 		// Create material
 		let material = new UnlitMaterial();
 		material.Color = .White;
-		material.Culling = .None;  // Disable culling to test winding order
 		if (modelTexture != null)
-		{
 			material.MainTexture = engine.ResourceSystem.AddResource(modelTexture);
-			Debug.WriteLine(scope $"Material MainTexture valid: {material.MainTexture.IsValid}");
-		}
 
 		// Convert each mesh primitive and create entities
 		for (int m = 0; m < model.MeshCount; m++)

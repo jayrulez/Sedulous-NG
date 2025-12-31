@@ -68,6 +68,50 @@ struct HiZParams
     public uint32 InputSizeY;
 }
 
+// ============================================
+// GPU-Driven Culling Structures
+// ============================================
+
+/// Per-object data for GPU culling (96 bytes)
+/// Uploaded each frame for all potentially visible objects
+[CRepr, Packed, Align(16)]
+struct GPUObjectData
+{
+    public Matrix WorldMatrix;     // 64 bytes
+    public Vector4 BoundsMin;      // 16 bytes (xyz = min, w = meshIndex as float)
+    public Vector4 BoundsMax;      // 16 bytes (xyz = max, w = materialIndex as float)
+}
+
+/// Per-mesh info for indirect draw (16 bytes)
+/// Static data, updated only when meshes are loaded/unloaded
+[CRepr, Packed, Align(16)]
+struct GPUMeshInfo
+{
+    public uint32 IndexCount;
+    public uint32 FirstIndex;
+    public int32 BaseVertex;
+    public uint32 Padding;
+}
+
+/// Culling uniforms passed to GPU culling compute shader
+[CRepr, Packed, Align(16)]
+struct GPUCullingUniforms
+{
+    public Matrix ViewProjection;
+    public Vector4[6] FrustumPlanes;  // 6 frustum planes (xyz = normal, w = distance)
+    public uint32 ObjectCount;
+    public uint32 HiZWidth;
+    public uint32 HiZHeight;
+    public uint32 Padding;
+}
+
+/// Frame-level uniforms for instanced rendering (used with GPU-driven culling)
+[CRepr, Packed, Align(16)]
+struct InstancedFrameUniforms
+{
+    public Matrix ViewProjection;
+}
+
 static
 {
 	public const int MAX_BONES = 128;
@@ -982,6 +1026,425 @@ static class ShaderSources
 	        }
 
 	        OutputDepth[dispatchThreadId.xy] = maxDepth;
+	    }
+	    """;
+
+	// ============================================
+	// GPU-Driven Culling Compute Shader
+	// ============================================
+
+	public const String GPUCullingCS = """
+	    // GPU-driven occlusion culling compute shader
+	    // Tests objects against frustum and Hi-Z depth, outputs indirect draw args
+
+	    // Per-object data (96 bytes)
+	    struct ObjectData
+	    {
+	        float4x4 WorldMatrix;
+	        float4 BoundsMin;    // xyz = min, w = meshIndex
+	        float4 BoundsMax;    // xyz = max, w = materialIndex
+	    };
+
+	    // Per-mesh info (16 bytes)
+	    struct MeshInfo
+	    {
+	        uint IndexCount;
+	        uint FirstIndex;
+	        int BaseVertex;
+	        uint Padding;
+	    };
+
+	    // Indirect draw arguments (20 bytes)
+	    struct IndirectDrawArgs
+	    {
+	        uint IndexCountPerInstance;
+	        uint InstanceCount;
+	        uint StartIndexLocation;
+	        int BaseVertexLocation;
+	        uint StartInstanceLocation;
+	    };
+
+	    // Input buffers
+	    StructuredBuffer<ObjectData> Objects : register(t0);
+	    StructuredBuffer<MeshInfo> Meshes : register(t1);
+	    Texture2D<float> HiZTexture : register(t2);
+	    SamplerState HiZSampler : register(s0);
+
+	    // Output buffers
+	    RWStructuredBuffer<IndirectDrawArgs> IndirectArgs : register(u0);
+	    RWStructuredBuffer<uint> VisibleIndices : register(u1);
+	    RWByteAddressBuffer DrawCount : register(u2);
+
+	    cbuffer CullingUniforms : register(b0)
+	    {
+	        float4x4 ViewProjection;
+	        float4 FrustumPlanes[6];  // xyz = normal, w = distance
+	        uint ObjectCount;
+	        uint HiZWidth;
+	        uint HiZHeight;
+	        uint Padding;
+	    };
+
+	    // Test AABB against frustum planes
+	    bool FrustumTest(float3 boundsMin, float3 boundsMax)
+	    {
+	        for (int i = 0; i < 6; i++)
+	        {
+	            float4 plane = FrustumPlanes[i];
+	            // Find the corner most aligned with plane normal (p-vertex)
+	            float3 p = float3(
+	                plane.x > 0 ? boundsMax.x : boundsMin.x,
+	                plane.y > 0 ? boundsMax.y : boundsMin.y,
+	                plane.z > 0 ? boundsMax.z : boundsMin.z
+	            );
+	            // If p-vertex is behind plane, AABB is completely outside
+	            if (dot(plane.xyz, p) + plane.w < 0)
+	                return false;
+	        }
+	        return true;
+	    }
+
+	    // Test AABB against Hi-Z depth buffer
+	    bool HiZTest(float3 boundsMin, float3 boundsMax, float4x4 worldMatrix)
+	    {
+	        // Transform AABB corners to clip space
+	        float3 corners[8];
+	        corners[0] = float3(boundsMin.x, boundsMin.y, boundsMin.z);
+	        corners[1] = float3(boundsMax.x, boundsMin.y, boundsMin.z);
+	        corners[2] = float3(boundsMin.x, boundsMax.y, boundsMin.z);
+	        corners[3] = float3(boundsMax.x, boundsMax.y, boundsMin.z);
+	        corners[4] = float3(boundsMin.x, boundsMin.y, boundsMax.z);
+	        corners[5] = float3(boundsMax.x, boundsMin.y, boundsMax.z);
+	        corners[6] = float3(boundsMin.x, boundsMax.y, boundsMax.z);
+	        corners[7] = float3(boundsMax.x, boundsMax.y, boundsMax.z);
+
+	        float minScreenX = 1.0, maxScreenX = 0.0;
+	        float minScreenY = 1.0, maxScreenY = 0.0;
+	        float minZ = 1.0;
+
+	        for (int i = 0; i < 8; i++)
+	        {
+	            // Transform to world space, then to clip space
+	            float4 worldPos = mul(float4(corners[i], 1.0), worldMatrix);
+	            float4 clipPos = mul(worldPos, ViewProjection);
+
+	            // Behind camera - assume visible (conservative)
+	            if (clipPos.w <= 0.001)
+	                return true;
+
+	            // Perspective divide to NDC
+	            float3 ndc = clipPos.xyz / clipPos.w;
+
+	            // Convert to screen space [0, 1]
+	            float screenX = ndc.x * 0.5 + 0.5;
+	            float screenY = -ndc.y * 0.5 + 0.5;  // Flip Y
+
+	            minScreenX = min(minScreenX, screenX);
+	            maxScreenX = max(maxScreenX, screenX);
+	            minScreenY = min(minScreenY, screenY);
+	            maxScreenY = max(maxScreenY, screenY);
+	            minZ = min(minZ, ndc.z);  // Nearest depth
+	        }
+
+	        // Clamp to screen bounds
+	        minScreenX = saturate(minScreenX);
+	        maxScreenX = saturate(maxScreenX);
+	        minScreenY = saturate(minScreenY);
+	        maxScreenY = saturate(maxScreenY);
+
+	        // Off-screen check
+	        if (minScreenX >= maxScreenX || minScreenY >= maxScreenY)
+	            return false;
+
+	        // Calculate Hi-Z texel coordinates
+	        uint x0 = uint(minScreenX * float(HiZWidth - 1));
+	        uint x1 = uint(maxScreenX * float(HiZWidth - 1));
+	        uint y0 = uint(minScreenY * float(HiZHeight - 1));
+	        uint y1 = uint(maxScreenY * float(HiZHeight - 1));
+
+	        // Clamp to valid range
+	        x0 = min(x0, HiZWidth - 1);
+	        x1 = min(x1, HiZWidth - 1);
+	        y0 = min(y0, HiZHeight - 1);
+	        y1 = min(y1, HiZHeight - 1);
+
+	        // Sample Hi-Z texture - find max depth in covered region
+	        float maxHiZDepth = 0.0;
+	        for (uint y = y0; y <= y1; y++)
+	        {
+	            for (uint x = x0; x <= x1; x++)
+	            {
+	                float d = HiZTexture[uint2(x, y)];
+	                maxHiZDepth = max(maxHiZDepth, d);
+	            }
+	        }
+
+	        // Object is occluded if its nearest point is further than max Hi-Z depth
+	        bool isOccluded = minZ > maxHiZDepth;
+	        return !isOccluded;
+	    }
+
+	    [numthreads(64, 1, 1)]
+	    void CS(uint3 dispatchId : SV_DispatchThreadID)
+	    {
+	        uint objectIndex = dispatchId.x;
+	        if (objectIndex >= ObjectCount)
+	            return;
+
+	        ObjectData obj = Objects[objectIndex];
+	        float3 boundsMin = obj.BoundsMin.xyz;
+	        float3 boundsMax = obj.BoundsMax.xyz;
+
+	        // Frustum culling
+	        if (!FrustumTest(boundsMin, boundsMax))
+	            return;
+
+	        // Hi-Z occlusion culling
+	        if (!HiZTest(boundsMin, boundsMax, obj.WorldMatrix))
+	            return;
+
+	        // Object is visible - atomically reserve a slot
+	        uint visibleIndex;
+	        DrawCount.InterlockedAdd(0, 1, visibleIndex);
+
+	        // Get mesh info and write indirect draw args
+	        uint meshIndex = asuint(obj.BoundsMin.w);
+	        MeshInfo mesh = Meshes[meshIndex];
+
+	        IndirectDrawArgs args;
+	        args.IndexCountPerInstance = mesh.IndexCount;
+	        args.InstanceCount = 1;
+	        args.StartIndexLocation = mesh.FirstIndex;
+	        args.BaseVertexLocation = mesh.BaseVertex;
+	        args.StartInstanceLocation = visibleIndex;  // Used as instance ID
+
+	        IndirectArgs[visibleIndex] = args;
+
+	        // Store object index for vertex shader lookup
+	        VisibleIndices[visibleIndex] = objectIndex;
+	    }
+	    """;
+
+	// ============================================
+	// Instanced Vertex Shaders (for GPU-driven rendering)
+	// These shaders look up per-object data from StructuredBuffers using SV_InstanceID
+	// ============================================
+
+	public const String InstancedUnlitVS = """
+	    // Per-object data from GPU buffer
+	    struct ObjectData
+	    {
+	        float4x4 WorldMatrix;
+	        float4 BoundsMin;    // xyz = min, w = meshIndex
+	        float4 BoundsMax;    // xyz = max, w = materialIndex
+	    };
+
+	    // Frame-level constant buffer
+	    cbuffer FrameUniforms : register(b0, space0)
+	    {
+	        float4x4 ViewProjection;
+	    }
+
+	    // Per-object data and visibility buffers
+	    StructuredBuffer<ObjectData> Objects : register(t0, space2);
+	    StructuredBuffer<uint> VisibleIndices : register(t1, space2);
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	    };
+
+	    VSOutput VS(VSInput input, uint instanceId : SV_InstanceID)
+	    {
+	        VSOutput output;
+
+	        // Look up object data using visible index
+	        uint objectIndex = VisibleIndices[instanceId];
+	        ObjectData obj = Objects[objectIndex];
+
+	        // Compute MVP matrix
+	        float4x4 mvp = mul(obj.WorldMatrix, ViewProjection);
+
+	        output.Position = mul(float4(input.Position, 1.0), mvp);
+	        output.TexCoord = input.TexCoord;
+	        output.Color = input.Color;
+	        return output;
+	    }
+	    """;
+
+	public const String InstancedPhongVS = """
+	    // Per-object data from GPU buffer
+	    struct ObjectData
+	    {
+	        float4x4 WorldMatrix;
+	        float4 BoundsMin;    // xyz = min, w = meshIndex
+	        float4 BoundsMax;    // xyz = max, w = materialIndex
+	    };
+
+	    // Frame-level constant buffer
+	    cbuffer FrameUniforms : register(b0, space0)
+	    {
+	        float4x4 ViewProjection;
+	    }
+
+	    // Per-object data and visibility buffers
+	    StructuredBuffer<ObjectData> Objects : register(t0, space2);
+	    StructuredBuffer<uint> VisibleIndices : register(t1, space2);
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        float3 WorldPos : TEXCOORD0;
+	        float3 WorldNormal : TEXCOORD1;
+	        float2 TexCoord : TEXCOORD2;
+	        float4 Color : COLOR;
+	    };
+
+	    VSOutput VS(VSInput input, uint instanceId : SV_InstanceID)
+	    {
+	        VSOutput output;
+
+	        // Look up object data using visible index
+	        uint objectIndex = VisibleIndices[instanceId];
+	        ObjectData obj = Objects[objectIndex];
+
+	        // Compute MVP matrix
+	        float4x4 mvp = mul(obj.WorldMatrix, ViewProjection);
+
+	        output.Position = mul(float4(input.Position, 1.0), mvp);
+	        output.WorldPos = mul(float4(input.Position, 1.0), obj.WorldMatrix).xyz;
+	        output.WorldNormal = normalize(mul(float4(input.Normal, 0.0), obj.WorldMatrix).xyz);
+	        output.TexCoord = input.TexCoord;
+	        output.Color = input.Color;
+	        return output;
+	    }
+	    """;
+
+	public const String InstancedPBRVS = """
+	    // Per-object data from GPU buffer
+	    struct ObjectData
+	    {
+	        float4x4 WorldMatrix;
+	        float4 BoundsMin;    // xyz = min, w = meshIndex
+	        float4 BoundsMax;    // xyz = max, w = materialIndex
+	    };
+
+	    // Frame-level constant buffer
+	    cbuffer FrameUniforms : register(b0, space0)
+	    {
+	        float4x4 ViewProjection;
+	    }
+
+	    // Per-object data and visibility buffers
+	    StructuredBuffer<ObjectData> Objects : register(t0, space2);
+	    StructuredBuffer<uint> VisibleIndices : register(t1, space2);
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        float3 WorldPos : TEXCOORD0;
+	        float3 WorldNormal : TEXCOORD1;
+	        float2 TexCoord : TEXCOORD2;
+	        float4 Color : COLOR;
+	        float3 WorldTangent : TEXCOORD3;
+	    };
+
+	    VSOutput VS(VSInput input, uint instanceId : SV_InstanceID)
+	    {
+	        VSOutput output;
+
+	        // Look up object data using visible index
+	        uint objectIndex = VisibleIndices[instanceId];
+	        ObjectData obj = Objects[objectIndex];
+
+	        // Compute MVP matrix
+	        float4x4 mvp = mul(obj.WorldMatrix, ViewProjection);
+
+	        output.Position = mul(float4(input.Position, 1.0), mvp);
+	        output.WorldPos = mul(float4(input.Position, 1.0), obj.WorldMatrix).xyz;
+	        output.WorldNormal = normalize(mul(float4(input.Normal, 0.0), obj.WorldMatrix).xyz);
+	        output.WorldTangent = normalize(mul(float4(input.Tangent, 0.0), obj.WorldMatrix).xyz);
+	        output.TexCoord = input.TexCoord;
+	        output.Color = input.Color;
+	        return output;
+	    }
+	    """;
+
+	public const String InstancedDepthOnlyVS = """
+	    // Per-object data from GPU buffer
+	    struct ObjectData
+	    {
+	        float4x4 WorldMatrix;
+	        float4 BoundsMin;    // xyz = min, w = meshIndex
+	        float4 BoundsMax;    // xyz = max, w = materialIndex
+	    };
+
+	    // Frame-level constant buffer
+	    cbuffer FrameUniforms : register(b0, space0)
+	    {
+	        float4x4 ViewProjection;
+	    }
+
+	    // Per-object data and visibility buffers
+	    StructuredBuffer<ObjectData> Objects : register(t0, space2);
+	    StructuredBuffer<uint> VisibleIndices : register(t1, space2);
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	    };
+
+	    VSOutput VS(VSInput input, uint instanceId : SV_InstanceID)
+	    {
+	        VSOutput output;
+
+	        // Look up object data using visible index
+	        uint objectIndex = VisibleIndices[instanceId];
+	        ObjectData obj = Objects[objectIndex];
+
+	        // Compute MVP matrix
+	        float4x4 mvp = mul(obj.WorldMatrix, ViewProjection);
+
+	        output.Position = mul(float4(input.Position, 1.0), mvp);
+	        return output;
 	    }
 	    """;
 }

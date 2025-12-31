@@ -164,4 +164,5 @@ Sedulous.Engine.Renderer.RHI/
 | 2025-12-31 | Phase 3.3 complete - Added RenderStatistics with draw call count, triangle count, objects rendered/culled, GPU memory tracking |
 | 2025-12-31 | Phase 3.1 complete - Added depth prepass with depth-only shaders and pipelines for static and skinned meshes |
 | 2025-12-31 | Phase 3.2 complete - Added Hi-Z occlusion culling: compute shader generates 64x64 max-depth pyramid from depth buffer, CPU reads back via staging texture, HiZOcclusionCuller tests bounding boxes against Hi-Z data with one-frame latency |
+| 2025-12-31 | Phase 3.2 upgraded - GPU-driven culling with indirect draw support: removed CPU readback, added GPU culling compute shader (frustum + Hi-Z tests), GPU buffers for object data/indirect args/visibility, instanced vertex shaders, GPUCullingExecute pass in render graph. Full indirect draw rendering ready for integration. |
 

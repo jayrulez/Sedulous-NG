@@ -79,9 +79,6 @@ class RenderModule : SceneModule
 	// Render statistics
 	private RenderStatistics mStatistics;
 
-	// Hi-Z occlusion culling
-	private HiZOcclusionCuller mHiZCuller ~ delete _;
-
 	private EntityQuery mMeshesQuery;
 	private EntityQuery mSkinnedMeshesQuery;
 	private EntityQuery mCamerasQuery;
@@ -98,7 +95,6 @@ class RenderModule : SceneModule
 		mRenderer = renderer;
 		mCache = new RenderCache(renderer, renderer.GPUResources);
 		mDebugRenderer = new DebugRenderer(renderer.GraphicsContext);
-		mHiZCuller = new HiZOcclusionCuller(renderer);
 
 		mMeshesQuery = CreateQuery().With<MeshRenderer>();
 		mSkinnedMeshesQuery = CreateQuery().With<SkinnedMeshRenderer>().With<Animator>();
@@ -157,12 +153,8 @@ class RenderModule : SceneModule
 			mViewFrustum = BoundingFrustum(mViewMatrix * mProjectionMatrix);
 		}
 
-		// Update Hi-Z culler with current frame's view-projection
-		// Note: Hi-Z data is from previous frame (one frame latency)
-		mHiZCuller.BeginFrame();
-		mHiZCuller.SetViewProjection(mViewMatrix * mProjectionMatrix);
-
-		// Collect render commands (with Hi-Z and frustum culling, transparency separation)
+		// Collect render commands (with frustum culling, transparency separation)
+		// Note: GPU-based Hi-Z occlusion culling happens in GPUCullingExecute pass
 		CollectRenderCommands();
 		CollectSkinnedRenderCommands();
 
@@ -332,6 +324,9 @@ class RenderModule : SceneModule
 
 	internal void PrepareGPUResources(CommandBuffer commandBuffer)
 	{
+		// Upload GPU culling data
+		PrepareGPUCullingData(commandBuffer);
+
 		// Create GPU resources for opaque mesh renderers
 		for (var command in mOpaqueMeshCommands)
 		{
@@ -386,6 +381,144 @@ class RenderModule : SceneModule
 
 	/// Total number of skinned mesh commands (opaque + transparent)
 	private int TotalSkinnedCount => mOpaqueSkinnedCommands.Count + mTransparentSkinnedCommands.Count;
+
+	/// Prepare GPU culling data (object data and culling uniforms)
+	private void PrepareGPUCullingData(CommandBuffer commandBuffer)
+	{
+		// Skip if no objects to cull
+		int totalObjects = TotalMeshCount;
+		if (totalObjects == 0)
+			return;
+
+		// Clamp to max GPU objects
+		if (totalObjects > RHIRendererSubsystem.MAX_GPU_OBJECTS)
+			totalObjects = RHIRendererSubsystem.MAX_GPU_OBJECTS;
+
+		// Upload object data (world matrices and bounds)
+		var objectDataMapped = mRenderer.GraphicsContext.MapMemory(mRenderer.ObjectDataBuffer, .Write);
+		if (objectDataMapped.Data != null)
+		{
+			GPUObjectData* objectData = (GPUObjectData*)objectDataMapped.Data;
+			int writeIndex = 0;
+
+			// Write opaque mesh objects
+			for (var command in mOpaqueMeshCommands)
+			{
+				if (writeIndex >= RHIRendererSubsystem.MAX_GPU_OBJECTS)
+					break;
+
+				objectData[writeIndex] = GPUObjectData()
+				{
+					WorldMatrix = command.WorldMatrix,
+					BoundsMin = Vector4(command.WorldBounds.Min, 0),  // meshIndex would go in W
+					BoundsMax = Vector4(command.WorldBounds.Max, 0)   // materialIndex would go in W
+				};
+				writeIndex++;
+			}
+
+			// Write transparent mesh objects
+			for (var command in mTransparentMeshCommands)
+			{
+				if (writeIndex >= RHIRendererSubsystem.MAX_GPU_OBJECTS)
+					break;
+
+				objectData[writeIndex] = GPUObjectData()
+				{
+					WorldMatrix = command.WorldMatrix,
+					BoundsMin = Vector4(command.WorldBounds.Min, 0),
+					BoundsMax = Vector4(command.WorldBounds.Max, 0)
+				};
+				writeIndex++;
+			}
+
+			mRenderer.GraphicsContext.UnmapMemory(mRenderer.ObjectDataBuffer);
+		}
+
+		// Update culling uniforms
+		var viewProjection = mViewMatrix * mProjectionMatrix;
+		var frustumPlanes = ExtractFrustumPlanes(viewProjection);
+
+		var cullingUniforms = GPUCullingUniforms()
+		{
+			ViewProjection = viewProjection,
+			FrustumPlanes = frustumPlanes,
+			ObjectCount = (uint32)totalObjects,
+			HiZWidth = mRenderer.HiZSize,
+			HiZHeight = mRenderer.HiZSize,
+			Padding = 0
+		};
+
+		commandBuffer.UpdateBufferData(mRenderer.CullingUniformsBuffer, &cullingUniforms, (uint32)sizeof(GPUCullingUniforms));
+	}
+
+	/// Extract frustum planes from view-projection matrix (for GPU culling)
+	private Vector4[6] ExtractFrustumPlanes(Matrix viewProjection)
+	{
+		Vector4[6] planes = default;
+
+		// Left plane: row3 + row0
+		planes[0] = Vector4(
+			viewProjection.M14 + viewProjection.M11,
+			viewProjection.M24 + viewProjection.M21,
+			viewProjection.M34 + viewProjection.M31,
+			viewProjection.M44 + viewProjection.M41
+		);
+
+		// Right plane: row3 - row0
+		planes[1] = Vector4(
+			viewProjection.M14 - viewProjection.M11,
+			viewProjection.M24 - viewProjection.M21,
+			viewProjection.M34 - viewProjection.M31,
+			viewProjection.M44 - viewProjection.M41
+		);
+
+		// Bottom plane: row3 + row1
+		planes[2] = Vector4(
+			viewProjection.M14 + viewProjection.M12,
+			viewProjection.M24 + viewProjection.M22,
+			viewProjection.M34 + viewProjection.M32,
+			viewProjection.M44 + viewProjection.M42
+		);
+
+		// Top plane: row3 - row1
+		planes[3] = Vector4(
+			viewProjection.M14 - viewProjection.M12,
+			viewProjection.M24 - viewProjection.M22,
+			viewProjection.M34 - viewProjection.M32,
+			viewProjection.M44 - viewProjection.M42
+		);
+
+		// Near plane: row3 + row2
+		planes[4] = Vector4(
+			viewProjection.M14 + viewProjection.M13,
+			viewProjection.M24 + viewProjection.M23,
+			viewProjection.M34 + viewProjection.M33,
+			viewProjection.M44 + viewProjection.M43
+		);
+
+		// Far plane: row3 - row2
+		planes[5] = Vector4(
+			viewProjection.M14 - viewProjection.M13,
+			viewProjection.M24 - viewProjection.M23,
+			viewProjection.M34 - viewProjection.M33,
+			viewProjection.M44 - viewProjection.M43
+		);
+
+		// Normalize planes
+		for (int i = 0; i < 6; i++)
+		{
+			float length = Math.Sqrt(planes[i].X * planes[i].X + planes[i].Y * planes[i].Y + planes[i].Z * planes[i].Z);
+			if (length > 0.0001f)
+			{
+				planes[i].X /= length;
+				planes[i].Y /= length;
+				planes[i].Z /= length;
+				planes[i].W /= length;
+			}
+		}
+
+		return planes;
+	}
 
 	private void UpdateVertexUniforms()
 	{
@@ -626,14 +759,8 @@ class RenderModule : SceneModule
 				var localBounds = renderer.Mesh.Resource.Mesh.GetBounds();
 				var worldBounds = TransformBounds(localBounds, worldMatrix);
 
-				// Hi-Z occlusion culling - skip objects occluded by geometry (coarse test)
-				if (!mHiZCuller.TestBoundingBox(worldBounds))
-				{
-					mStatistics.ObjectsCulled++;
-					continue;
-				}
-
-				// Frustum culling - skip objects outside view (precise test)
+				// Frustum culling - skip objects outside view
+				// Note: Hi-Z occlusion culling is done on GPU in GPUCullingExecute pass
 				if (mActiveCamera != null && mViewFrustum.Contains(worldBounds) == .Disjoint)
 				{
 					mStatistics.ObjectsCulled++;
@@ -689,14 +816,8 @@ class RenderModule : SceneModule
 				var localBounds = renderer.Mesh.Resource.Mesh.Bounds;
 				var worldBounds = TransformBounds(localBounds, worldMatrix);
 
-				// Hi-Z occlusion culling - skip objects occluded by geometry (coarse test)
-				if (!mHiZCuller.TestBoundingBox(worldBounds))
-				{
-					mStatistics.ObjectsCulled++;
-					continue;
-				}
-
-				// Frustum culling - skip objects outside view (precise test)
+				// Frustum culling - skip objects outside view
+				// Note: Skinned meshes are not GPU-culled in initial implementation
 				if (mActiveCamera != null && mViewFrustum.Contains(worldBounds) == .Disjoint)
 				{
 					mStatistics.ObjectsCulled++;

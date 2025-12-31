@@ -97,6 +97,12 @@ class PipelineManager
 	private LayoutElementDescription[] mHiZLayoutElements ~ delete _;
 	private Buffer mHiZParamsBuffer;
 
+	// GPU-driven culling resources
+	private Shader mGPUCullingShader;
+	private ComputePipelineState mGPUCullingPipeline;
+	private ResourceLayout mGPUCullingResourceLayout;
+	private LayoutElementDescription[] mGPUCullingLayoutElements ~ delete _;
+
 	// Material pipeline registry
 	private MaterialPipelineRegistry mMaterialRegistry = new .() ~ delete _;
 
@@ -115,6 +121,8 @@ class PipelineManager
 	public ComputePipelineState HiZDownsamplePipeline => mHiZDownsamplePipeline;
 	public ResourceLayout HiZResourceLayout => mHiZResourceLayout;
 	public Buffer HiZParamsBuffer => mHiZParamsBuffer;
+	public ComputePipelineState GPUCullingPipeline => mGPUCullingPipeline;
+	public ResourceLayout GPUCullingResourceLayout => mGPUCullingResourceLayout;
 
 	public ResourceLayout UnlitPerObjectResourceLayout => mUnlitPerObjectResourceLayout;
 	public ResourceLayout UnlitMaterialResourceLayout => mUnlitMaterialResourceLayout;
@@ -153,10 +161,12 @@ class PipelineManager
 		CreateDebugLinePipeline(targetFrameBuffer);
 		CreateDepthOnlyPipelines(targetFrameBuffer);
 		CreateHiZPipeline();
+		CreateGPUCullingPipeline();
 	}
 
 	public void Destroy()
 	{
+		DestroyGPUCullingPipeline();
 		DestroyHiZPipeline();
 		DestroyDepthOnlyPipelines();
 		DestroyDebugLinePipeline();
@@ -815,5 +825,52 @@ class PipelineManager
 			mGraphicsContext.Factory.DestroyBuffer(ref mHiZParamsBuffer);
 		if (mHiZDownsampleShader != null)
 			mGraphicsContext.Factory.DestroyShader(ref mHiZDownsampleShader);
+	}
+
+	private void CreateGPUCullingPipeline()
+	{
+		// Compile GPU culling compute shader
+		mGPUCullingShader = mShaderManager.CompileFromSource(ShaderSources.GPUCullingCS, .Compute, "CS");
+
+		// GPU culling resource layout:
+		// t0: ObjectData (StructuredBuffer)
+		// t1: MeshInfo (StructuredBuffer)
+		// t2: HiZTexture (Texture2D)
+		// s0: HiZSampler (SamplerState)
+		// u0: IndirectArgs (RWStructuredBuffer)
+		// u1: VisibleIndices (RWStructuredBuffer)
+		// u2: DrawCount (RWByteAddressBuffer)
+		// b0: CullingUniforms (ConstantBuffer)
+		mGPUCullingLayoutElements = new LayoutElementDescription[](
+			LayoutElementDescription(0, .StructuredBuffer, .Compute),           // t0: ObjectData
+			LayoutElementDescription(1, .StructuredBuffer, .Compute),           // t1: MeshInfo
+			LayoutElementDescription(2, .Texture, .Compute),                    // t2: HiZTexture
+			LayoutElementDescription(0, .Sampler, .Compute),                    // s0: HiZSampler
+			LayoutElementDescription(0, .StructuredBufferReadWrite, .Compute),  // u0: IndirectArgs
+			LayoutElementDescription(1, .StructuredBufferReadWrite, .Compute),  // u1: VisibleIndices
+			LayoutElementDescription(2, .StructuredBufferReadWrite, .Compute),  // u2: DrawCount
+			LayoutElementDescription(0, .ConstantBuffer, .Compute, false, sizeof(GPUCullingUniforms))  // b0: CullingUniforms
+		);
+		ResourceLayoutDescription cullingLayoutDesc = ResourceLayoutDescription(params mGPUCullingLayoutElements);
+		mGPUCullingResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(cullingLayoutDesc);
+
+		// Create GPU culling compute pipeline
+		var resourceLayouts = scope ResourceLayout[](mGPUCullingResourceLayout);
+		var pipelineDesc = ComputePipelineDescription(
+			resourceLayouts,
+			ComputeShaderStateDescription(){ ComputeShader = mGPUCullingShader },
+			64, 1, 1  // Thread group size matches shader [numthreads(64, 1, 1)]
+		);
+		mGPUCullingPipeline = mGraphicsContext.Factory.CreateComputePipeline(pipelineDesc);
+	}
+
+	private void DestroyGPUCullingPipeline()
+	{
+		if (mGPUCullingPipeline != null)
+			mGraphicsContext.Factory.DestroyComputePipeline(ref mGPUCullingPipeline);
+		if (mGPUCullingResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mGPUCullingResourceLayout);
+		if (mGPUCullingShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mGPUCullingShader);
 	}
 }

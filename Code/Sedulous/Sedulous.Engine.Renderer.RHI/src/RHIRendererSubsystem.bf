@@ -93,16 +93,31 @@ class RHIRendererSubsystem : Subsystem
 	// Hi-Z Occlusion Culling resources
 	private const uint32 HIZ_SIZE = 64;  // Fixed Hi-Z texture size
 	private Texture mHiZTexture;
-	private Texture mHiZStagingTexture;  // For CPU readback
 	private ResourceSet mHiZResourceSet;
 	private SamplerState mHiZSampler;
-	private float[] mHiZReadbackData ~ delete _;
-	private bool mHiZDataValid = false;
 
-	public Texture HiZStagingTexture => mHiZStagingTexture;
-	public float[] HiZReadbackData => mHiZReadbackData;
-	public bool HiZDataValid => mHiZDataValid;
+	public Texture HiZTexture => mHiZTexture;
 	public uint32 HiZSize => HIZ_SIZE;
+
+	// GPU-Driven Culling resources
+	public const int MAX_GPU_OBJECTS = 4096;
+	public const int MAX_GPU_MESHES = 1024;
+
+	private Buffer mObjectDataBuffer;       // Per-object data (world matrix, bounds)
+	private Buffer mMeshInfoBuffer;         // Per-mesh info (index count, offsets)
+	private Buffer mIndirectArgsBuffer;     // Indirect draw arguments
+	private Buffer mVisibleIndicesBuffer;   // Object indices for visible objects
+	private Buffer mDrawCountBuffer;        // Atomic counter for visible count
+	private Buffer mCullingUniformsBuffer;  // Culling shader uniforms
+	private ResourceSet mGPUCullingResourceSet;
+
+	public Buffer ObjectDataBuffer => mObjectDataBuffer;
+	public Buffer MeshInfoBuffer => mMeshInfoBuffer;
+	public Buffer IndirectArgsBuffer => mIndirectArgsBuffer;
+	public Buffer VisibleIndicesBuffer => mVisibleIndicesBuffer;
+	public Buffer DrawCountBuffer => mDrawCountBuffer;
+	public Buffer CullingUniformsBuffer => mCullingUniformsBuffer;
+	public ResourceSet GPUCullingResourceSet => mGPUCullingResourceSet;
 
 	public this(Window window, GraphicsContext context)
 	{
@@ -160,6 +175,9 @@ class RHIRendererSubsystem : Subsystem
 		// Create Hi-Z resources
 		CreateHiZResources();
 
+		// Create GPU culling resources
+		CreateGPUCullingResources();
+
 		// Create render graph
 		mRenderGraph = new RenderGraph("Main", mGraphicsContext, mGraphicsContext.Factory);
 		SetupRenderGraph();
@@ -174,6 +192,9 @@ class RHIRendererSubsystem : Subsystem
 		{
 			mRenderGraph.Reset();
 		}
+
+		// GPU culling cleanup
+		DestroyGPUCullingResources();
 
 		// Hi-Z cleanup
 		DestroyHiZResources();
@@ -334,7 +355,7 @@ class RHIRendererSubsystem : Subsystem
 		var depthClearValue = ClearValue(.Depth, 1.0f, 0);
 		depthPrepass.RenderPassDesc = RenderPassDescription(mSwapChain.FrameBuffer, depthClearValue);
 
-		// Add Hi-Z generation pass (after depth prepass, before main render)
+		// Add Hi-Z generation pass (after depth prepass, before GPU culling)
 		var hiZPass = mRenderGraph.AddPass<RenderGraphComputePass>("HiZGenerate",
 			new => HiZGenerateExecute);
 
@@ -342,13 +363,21 @@ class RHIRendererSubsystem : Subsystem
 			.DependsOn(depthPrepass.Handle)  // Depends on depth prepass
 			.Build();
 
-		// Add main render pass - depends on Hi-Z pass
+		// Add GPU culling pass (after Hi-Z generation, before main render)
+		var gpuCullingPass = mRenderGraph.AddPass<RenderGraphComputePass>("GPUCulling",
+			new => GPUCullingExecute);
+
+		gpuCullingPass.Setup(mRenderGraph)
+			.DependsOn(hiZPass.Handle)  // Depends on Hi-Z generation
+			.Build();
+
+		// Add main render pass - depends on GPU culling
 		var mainPass = mRenderGraph.AddPass<RenderGraphGraphicsPass>("MainRender",
 			new => MainRenderPassExecute);
 
 		mainPass.Setup(mRenderGraph)
 			.WriteTexture(mBackBufferHandle)
-			.DependsOn(hiZPass.Handle)  // Depends on Hi-Z generation now
+			.DependsOn(gpuCullingPass.Handle)  // Depends on GPU culling now
 			.Build();
 
 		// Main pass: clear color, load existing depth (from prepass)
@@ -388,10 +417,6 @@ class RHIRendererSubsystem : Subsystem
 		if (mHiZResourceSet == null)
 			return;
 
-		// Read Hi-Z data from previous frame (for use in current frame's culling)
-		// Note: This gives one-frame latency but avoids GPU stalls
-		ReadHiZData();
-
 		// Update Hi-Z params
 		var hiZParams = HiZParams()
 		{
@@ -412,11 +437,42 @@ class RHIRendererSubsystem : Subsystem
 		uint32 groupCountY = (HIZ_SIZE + 7) / 8;
 		cmd.Dispatch(groupCountX, groupCountY, 1);
 
-		// Barrier to ensure compute is done before copy
+		// Barrier to ensure compute is done before GPU culling
 		cmd.ResourceBarrierUnorderedAccessView(mHiZTexture);
+	}
 
-		// Copy Hi-Z texture to staging texture for CPU readback next frame
-		cmd.CopyTextureDataTo(mHiZTexture, 0, 0, 0, 0, 0, mHiZStagingTexture, 0, 0, 0, 0, 0, HIZ_SIZE, HIZ_SIZE, 1, 1);
+	private void GPUCullingExecute(CommandBuffer cmd, RenderGraphContext context)
+	{
+		// Skip if GPU culling resources weren't created
+		if (mGPUCullingResourceSet == null)
+			return;
+
+		// Clear draw count to zero
+		uint32 zero = 0;
+		cmd.UpdateBufferData(mDrawCountBuffer, &zero, sizeof(uint32), 0);
+
+		// Barrier to ensure draw count is cleared before compute
+		cmd.ResourceBarrierUnorderedAccessView(mDrawCountBuffer);
+
+		// Update culling uniforms
+		// Note: RenderModule needs to populate ObjectData and provide the camera info
+		// For now, the uniforms are updated by the first RenderModule in PrepareGPUResources
+
+		// Set compute pipeline and resource set
+		cmd.SetComputePipelineState(mPipelineManager.GPUCullingPipeline);
+		cmd.SetResourceSet(mGPUCullingResourceSet, 0);
+
+		// Dispatch compute shader - one thread per object
+		// Thread group size is 64, so dispatch ceil(objectCount/64) groups
+		// Note: The actual object count is set in the culling uniforms by RenderModule
+		uint32 maxObjects = (uint32)MAX_GPU_OBJECTS;
+		uint32 groupCount = (maxObjects + 63) / 64;
+		cmd.Dispatch(groupCount, 1, 1);
+
+		// Barrier to ensure culling compute is done before rendering
+		cmd.ResourceBarrierUnorderedAccessView(mIndirectArgsBuffer);
+		cmd.ResourceBarrierUnorderedAccessView(mVisibleIndicesBuffer);
+		cmd.ResourceBarrierUnorderedAccessView(mDrawCountBuffer);
 	}
 
 	private void MainRenderPassExecute(CommandBuffer cmd, RenderGraphContext context)
@@ -471,9 +527,6 @@ class RHIRendererSubsystem : Subsystem
 
 	private void CreateHiZResources()
 	{
-		// Allocate readback data buffer
-		mHiZReadbackData = new float[HIZ_SIZE * HIZ_SIZE];
-
 		// Create Hi-Z output texture (UAV for compute shader write)
 		var hiZDesc = TextureDescription()
 		{
@@ -491,24 +544,6 @@ class RHIRendererSubsystem : Subsystem
 			CpuAccess = .None
 		};
 		mHiZTexture = mGraphicsContext.Factory.CreateTexture(hiZDesc, "HiZTexture");
-
-		// Create staging texture for CPU readback
-		var stagingDesc = TextureDescription()
-		{
-			Type = .Texture2D,
-			Format = .R32_Float,
-			Width = HIZ_SIZE,
-			Height = HIZ_SIZE,
-			Depth = 1,
-			MipLevels = 1,
-			ArraySize = 1,
-			Faces = 1,
-			Flags = .None,
-			Usage = .Staging,
-			SampleCount = .None,
-			CpuAccess = .Read
-		};
-		mHiZStagingTexture = mGraphicsContext.Factory.CreateTexture(stagingDesc, "HiZStagingTexture");
 
 		// Create point sampler for depth texture
 		var samplerDesc = SamplerStateDescription()
@@ -542,35 +577,107 @@ class RHIRendererSubsystem : Subsystem
 			mGraphicsContext.Factory.DestroyResourceSet(ref mHiZResourceSet);
 		if (mHiZSampler != null)
 			mGraphicsContext.Factory.DestroySampler(ref mHiZSampler);
-		if (mHiZStagingTexture != null)
-			mGraphicsContext.Factory.DestroyTexture(ref mHiZStagingTexture);
 		if (mHiZTexture != null)
 			mGraphicsContext.Factory.DestroyTexture(ref mHiZTexture);
 	}
 
-	/// Read Hi-Z data from staging texture (call from RenderModule before culling)
-	public void ReadHiZData()
+	private void CreateGPUCullingResources()
 	{
-		if (mHiZStagingTexture == null)
-			return;
+		// Object data buffer - per-object world matrix and bounds (96 bytes each)
+		var objectDataDesc = BufferDescription(
+			(uint32)(MAX_GPU_OBJECTS * sizeof(GPUObjectData)),
+			.ShaderResource | .BufferStructured,
+			.Dynamic,
+			.Write
+		);
+		objectDataDesc.StructureByteStride = (uint32)sizeof(GPUObjectData);
+		mObjectDataBuffer = mGraphicsContext.Factory.CreateBuffer(objectDataDesc, "ObjectDataBuffer");
 
-		// Map the staging texture and copy data
-		var mappedResource = mGraphicsContext.MapMemory(mHiZStagingTexture, .Read);
-		if (mappedResource.Data != null)
-		{
-			// Copy row by row (respecting row pitch)
-			uint8* srcData = (uint8*)mappedResource.Data;
-			for (uint32 y = 0; y < HIZ_SIZE; y++)
-			{
-				float* rowData = (float*)(srcData + y * mappedResource.RowPitch);
-				for (uint32 x = 0; x < HIZ_SIZE; x++)
-				{
-					mHiZReadbackData[y * HIZ_SIZE + x] = rowData[x];
-				}
-			}
-			mHiZDataValid = true;
-			mGraphicsContext.UnmapMemory(mHiZStagingTexture);
-		}
+		// Mesh info buffer - per-mesh index count and offsets (16 bytes each)
+		var meshInfoDesc = BufferDescription(
+			(uint32)(MAX_GPU_MESHES * sizeof(GPUMeshInfo)),
+			.ShaderResource | .BufferStructured,
+			.Dynamic,
+			.Write
+		);
+		meshInfoDesc.StructureByteStride = (uint32)sizeof(GPUMeshInfo);
+		mMeshInfoBuffer = mGraphicsContext.Factory.CreateBuffer(meshInfoDesc, "MeshInfoBuffer");
+
+		// Indirect args buffer - IndirectDrawArgsIndexedInstanced (20 bytes each)
+		// Needs UnorderedAccess for compute write + IndirectBuffer for indirect draw
+		var indirectArgsDesc = BufferDescription(
+			(uint32)(MAX_GPU_OBJECTS * 20),  // 20 bytes per IndirectDrawArgsIndexedInstanced
+			.ShaderResource | .BufferStructured | .UnorderedAccess | .IndirectBuffer,
+			.Default,
+			.None
+		);
+		indirectArgsDesc.StructureByteStride = 20;
+		mIndirectArgsBuffer = mGraphicsContext.Factory.CreateBuffer(indirectArgsDesc, "IndirectArgsBuffer");
+
+		// Visible indices buffer - uint per visible object
+		// Needs UnorderedAccess for compute write + ShaderResource for vertex shader read
+		var visibleIndicesDesc = BufferDescription(
+			(uint32)(MAX_GPU_OBJECTS * sizeof(uint32)),
+			.ShaderResource | .BufferStructured | .UnorderedAccess,
+			.Default,
+			.None
+		);
+		visibleIndicesDesc.StructureByteStride = sizeof(uint32);
+		mVisibleIndicesBuffer = mGraphicsContext.Factory.CreateBuffer(visibleIndicesDesc, "VisibleIndicesBuffer");
+
+		// Draw count buffer - single uint32 atomic counter
+		// Needs UnorderedAccess for atomic operations in compute shader
+		var drawCountDesc = BufferDescription(
+			sizeof(uint32),
+			.ShaderResource | .BufferStructured | .UnorderedAccess,
+			.Default,
+			.None
+		);
+		drawCountDesc.StructureByteStride = sizeof(uint32);
+		mDrawCountBuffer = mGraphicsContext.Factory.CreateBuffer(drawCountDesc, "DrawCountBuffer");
+
+		// Culling uniforms buffer
+		var cullingUniformsDesc = BufferDescription(
+			(uint32)sizeof(GPUCullingUniforms),
+			.ConstantBuffer,
+			.Dynamic,
+			.Write
+		);
+		mCullingUniformsBuffer = mGraphicsContext.Factory.CreateBuffer(cullingUniformsDesc, "CullingUniformsBuffer");
+
+		// Create GPU culling resource set
+		// Layout: t0=ObjectData, t1=MeshInfo, t2=HiZTexture, s0=HiZSampler,
+		//         u0=IndirectArgs, u1=VisibleIndices, u2=DrawCount, b0=CullingUniforms
+		ResourceSetDescription cullingSetDesc = .(
+			mPipelineManager.GPUCullingResourceLayout,
+			mObjectDataBuffer,          // t0: ObjectData
+			mMeshInfoBuffer,            // t1: MeshInfo
+			mHiZTexture,                // t2: HiZTexture
+			mHiZSampler,                // s0: HiZSampler
+			mIndirectArgsBuffer,        // u0: IndirectArgs
+			mVisibleIndicesBuffer,      // u1: VisibleIndices
+			mDrawCountBuffer,           // u2: DrawCount
+			mCullingUniformsBuffer      // b0: CullingUniforms
+		);
+		mGPUCullingResourceSet = mGraphicsContext.Factory.CreateResourceSet(cullingSetDesc);
+	}
+
+	private void DestroyGPUCullingResources()
+	{
+		if (mGPUCullingResourceSet != null)
+			mGraphicsContext.Factory.DestroyResourceSet(ref mGPUCullingResourceSet);
+		if (mCullingUniformsBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mCullingUniformsBuffer);
+		if (mDrawCountBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mDrawCountBuffer);
+		if (mVisibleIndicesBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mVisibleIndicesBuffer);
+		if (mIndirectArgsBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mIndirectArgsBuffer);
+		if (mMeshInfoBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mMeshInfoBuffer);
+		if (mObjectDataBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mObjectDataBuffer);
 	}
 
 	private static TextureSampleCount SampleCount = TextureSampleCount.None;

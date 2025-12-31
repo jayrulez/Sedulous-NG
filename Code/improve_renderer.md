@@ -69,11 +69,11 @@ This document tracks the planned improvements to the Sedulous renderer codebase.
 
 ### 3.1 Add render passes
 - [ ] Depth prepass for better z-rejection
-- [ ] Separate opaque and transparent passes
-- [ ] Sort transparent objects back-to-front
+- [x] Separate opaque and transparent passes
+- [x] Sort transparent objects back-to-front
 
 ### 3.2 Add culling
-- [ ] Frustum culling
+- [x] Frustum culling
 - [ ] Optional occlusion culling
 
 ### 3.3 Add render statistics
@@ -160,4 +160,5 @@ Sedulous.Engine.Renderer.RHI/
 | 2025-12-31 | Phase 2.2 continued - Added SkinnedPhongPipeline for animated meshes with lighting, updated RenderModule to select pipeline based on material type |
 | 2025-12-31 | Scene-based lighting - Created LightingUniforms, added lighting buffer to PipelineManager, RenderModule collects DirectionalLight from scene, removed light properties from PhongMaterial |
 | 2025-12-31 | Phase 2.2 complete - Implemented PBR pipeline with Cook-Torrance BRDF, skinned PBR variant, fixed camera position for view direction, fixed SDLImageLoader for indexed/palette PNG images |
+| 2025-12-31 | Phase 3 partial - Added frustum culling, separate opaque/transparent render passes, proper sorting (front-to-back for opaque, back-to-front for transparent) |
 

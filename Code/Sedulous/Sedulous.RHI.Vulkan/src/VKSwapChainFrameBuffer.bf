@@ -97,7 +97,8 @@ public class VKSwapChainFrameBuffer : VKFrameBufferBase
 				Height = description.Height,
 				Depth = 1,
 				SampleCount = TextureSampleCount.None,
-				Flags = TextureFlags.DepthStencil
+				// Include ShaderResource flag to allow sampling depth for Hi-Z generation
+				Flags = TextureFlags.DepthStencil | TextureFlags.ShaderResource
 			};
 		DepthTargetTexture = vkContext.Factory.CreateTexture(depthDescription);
 		ResolvedDepthTexture = null;

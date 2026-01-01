@@ -181,6 +181,14 @@ public abstract class CommandBuffer : IDisposable
 	public abstract void ResourceBarrierUnorderedAccessView(Texture texture);
 
 	/// <summary>
+	/// Transitions a depth texture from shader read layout back to depth attachment layout.
+	/// Use this after reading depth in a compute shader (e.g., Hi-Z generation) before
+	/// using it in a render pass.
+	/// </summary>
+	/// <param name="depthTexture">The depth texture to transition.</param>
+	public abstract void TransitionDepthToAttachment(Texture depthTexture);
+
+	/// <summary>
 	/// Sets the graphics pipeline state object for this command buffer.
 	/// </summary>
 	/// <param name="pipeline">The graphics pipeline state description.</param>

@@ -509,16 +509,43 @@ public class VKCommandBuffer : CommandBuffer
 	/// <param name="texture">The texture.</param>
 	public override void ResourceBarrierUnorderedAccessView(Texture texture)
 	{
+		VKTexture vkTexture = texture as VKTexture;
 		VkImageMemoryBarrier barrier = VkImageMemoryBarrier()
 			{
-				sType = VkStructureType.VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-				image = (texture as VKTexture).NativeImage,
-				srcAccessMask = VkAccessFlags.VK_ACCESS_NONE,
-				dstAccessMask = (VkAccessFlags.VK_ACCESS_SHADER_READ_BIT | VkAccessFlags.VK_ACCESS_SHADER_WRITE_BIT),
+				sType = VkStructureType.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+				image = vkTexture.NativeImage,
+				oldLayout = VkImageLayout.VK_IMAGE_LAYOUT_GENERAL,
+				newLayout = VkImageLayout.VK_IMAGE_LAYOUT_GENERAL,
+				srcAccessMask = VkAccessFlags.VK_ACCESS_SHADER_WRITE_BIT,
+				dstAccessMask = VkAccessFlags.VK_ACCESS_SHADER_READ_BIT,
 				srcQueueFamilyIndex = uint32.MaxValue,
-				dstQueueFamilyIndex = uint32.MaxValue
+				dstQueueFamilyIndex = uint32.MaxValue,
+				subresourceRange = .()
+				{
+					aspectMask = VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT,
+					baseMipLevel = 0,
+					levelCount = vkTexture.Description.MipLevels,
+					baseArrayLayer = 0,
+					layerCount = vkTexture.Description.ArraySize
+				}
 			};
-		VulkanNative.vkCmdPipelineBarrier(CommandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkDependencyFlags.None, 0, null, 0, null, 1, &barrier);
+		VulkanNative.vkCmdPipelineBarrier(
+			CommandBuffer,
+			VkPipelineStageFlags.VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VkPipelineStageFlags.VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VkDependencyFlags.None,
+			0, null, 0, null, 1, &barrier);
+	}
+
+	/// <inheritdoc />
+	public override void TransitionDepthToAttachment(Texture depthTexture)
+	{
+		VKTexture vkTexture = depthTexture as VKTexture;
+		vkTexture.TransitionImageLayout(
+			CommandBuffer,
+			VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			0, vkTexture.Description.MipLevels,
+			0, vkTexture.Description.ArraySize);
 	}
 
 	/// <inheritdoc />

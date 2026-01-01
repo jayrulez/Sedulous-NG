@@ -458,6 +458,13 @@ class RHIRendererSubsystem : Subsystem
 
 		// Barrier to ensure compute is done before GPU culling
 		cmd.ResourceBarrierUnorderedAccessView(mHiZTexture);
+
+		// Transition depth texture back to attachment layout for subsequent render passes
+		var depthAttachment = mSwapChain.FrameBuffer.DepthStencilTarget;
+		if (depthAttachment.HasValue)
+		{
+			cmd.TransitionDepthToAttachment(depthAttachment.Value.AttachmentTexture);
+		}
 	}
 
 	private void GPUCullingExecute(CommandBuffer cmd, RenderGraphContext context)

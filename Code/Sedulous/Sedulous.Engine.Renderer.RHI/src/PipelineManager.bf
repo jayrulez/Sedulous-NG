@@ -117,6 +117,20 @@ class PipelineManager
 	private ResourceSet mSpritePerObjectResourceSet;
 	private ResourceSet mDefaultSpriteMaterialResourceSet;
 
+	// Picking pipeline resources (GPU-based object picking)
+	private GraphicsPipelineState mPickingPipeline;
+	private GraphicsPipelineState mSkinnedPickingPipeline;
+	private Shader mPickingVertexShader;
+	private Shader mPickingPixelShader;
+	private Shader mSkinnedPickingVertexShader;
+	private ResourceLayout mPickingResourceLayout;
+	// Note: Skinned picking reuses mBoneMatricesResourceLayout from skinned pipeline
+	private LayoutElementDescription[] mPickingLayoutElements ~ delete _;
+	private ResourceLayout[] mPickingPipelineResourceLayouts ~ delete _;
+	private ResourceLayout[] mSkinnedPickingPipelineResourceLayouts ~ delete _;
+	private Buffer mPickingUniformBuffer;
+	private ResourceSet mPickingResourceSet;
+
 	// Material pipeline registry
 	private MaterialPipelineRegistry mMaterialRegistry = new .() ~ delete _;
 
@@ -151,6 +165,13 @@ class PipelineManager
 	public ResourceLayout SkinnedPerObjectResourceLayout => mSkinnedPerObjectResourceLayout;
 	public ResourceLayout BoneMatricesResourceLayout => mBoneMatricesResourceLayout;
 	public ResourceLayout LightingResourceLayout => mLightingResourceLayout;
+
+	// Picking pipeline accessors
+	public GraphicsPipelineState PickingPipeline => mPickingPipeline;
+	public GraphicsPipelineState SkinnedPickingPipeline => mSkinnedPickingPipeline;
+	public ResourceLayout PickingResourceLayout => mPickingResourceLayout;
+	public Buffer PickingUniformBuffer => mPickingUniformBuffer;
+	public ResourceSet PickingResourceSet => mPickingResourceSet;
 
 	public Buffer UnlitVertexCB => mUnlitVertexCB;
 	public Buffer LightingBuffer => mLightingBuffer;
@@ -187,8 +208,15 @@ class PipelineManager
 		CreateSpritePipeline(targetFrameBuffer);
 	}
 
+	/// Initializes picking pipelines. Must be called after main Initialize() and after picking framebuffer is created.
+	public void InitializePickingPipelines(FrameBuffer pickingFrameBuffer)
+	{
+		CreatePickingPipelines(pickingFrameBuffer);
+	}
+
 	public void Destroy()
 	{
+		DestroyPickingPipelines();
 		DestroySpritePipeline();
 		DestroyGPUCullingPipeline();
 		DestroyHiZPipeline();
@@ -1024,5 +1052,131 @@ class PipelineManager
 			mGraphicsContext.Factory.DestroyShader(ref mSpritePixelShader);
 		if (mSpriteVertexShader != null)
 			mGraphicsContext.Factory.DestroyShader(ref mSpriteVertexShader);
+	}
+
+	private void CreatePickingPipelines(FrameBuffer pickingFrameBuffer)
+	{
+		// Compile picking shaders
+		mPickingVertexShader = mShaderManager.CompileFromSource(ShaderSources.PickingShadersVS, .Vertex, "VS");
+		mPickingPixelShader = mShaderManager.CompileFromSource(ShaderSources.PickingShadersPS, .Pixel, "PS");
+		mSkinnedPickingVertexShader = mShaderManager.CompileFromSource(ShaderSources.SkinnedPickingShadersVS, .Vertex, "VS");
+
+		// Create picking constant buffer (supports up to 1000 objects with dynamic offsets)
+		{
+			const int32 MAX_OBJECTS = 1000;
+			const int32 ALIGNMENT = 256;
+			int32 alignedSize = ((sizeof(PickingUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+			var pickingCBDesc = BufferDescription(
+				(uint32)(alignedSize * MAX_OBJECTS),
+				.ConstantBuffer,
+				.Dynamic,
+				.Write
+			);
+			mPickingUniformBuffer = mGraphicsContext.Factory.CreateBuffer(pickingCBDesc);
+		}
+
+		// Standard mesh vertex format (same as unlit)
+		var vertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent));
+		var vertexLayouts = scope InputLayouts();
+		vertexLayouts.Add(vertexFormat);
+
+		// Skinned mesh vertex format
+		var skinnedVertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Normal))
+			.Add(ElementDescription(ElementFormat.Float2, ElementSemanticType.TexCoord))
+			.Add(ElementDescription(ElementFormat.UByte4Normalized, ElementSemanticType.Color))
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Tangent))
+			.Add(ElementDescription(ElementFormat.UShort4, ElementSemanticType.BlendIndices))
+			.Add(ElementDescription(ElementFormat.Float4, ElementSemanticType.BlendWeight));
+		var skinnedVertexLayouts = scope InputLayouts();
+		skinnedVertexLayouts.Add(skinnedVertexFormat);
+
+		// Picking resource layout (just MVP matrix + entity ID)
+		{
+			mPickingLayoutElements = new LayoutElementDescription[](
+				LayoutElementDescription(0, .ConstantBuffer, .Vertex, true, sizeof(PickingUniforms))
+			);
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params mPickingLayoutElements);
+			mPickingResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
+		}
+
+		// Skinned picking reuses the existing BoneMatricesResourceLayout for Set 1
+		// This allows bone resource sets to be shared between skinned unlit and skinned picking pipelines
+		// mBoneMatricesResourceLayout is created in CreateSkinnedPipeline and will be used below
+
+		// Picking render states - depth test enabled, no blending
+		var pickingRenderStates = RenderStateDescription.Default;
+		pickingRenderStates.DepthStencilState.DepthEnable = true;
+		pickingRenderStates.DepthStencilState.DepthWriteMask = true;
+		pickingRenderStates.DepthStencilState.DepthFunction = .Less;
+
+		// Create static mesh picking pipeline
+		var pickingPipelineDesc = GraphicsPipelineDescription
+		{
+			RenderStates = pickingRenderStates,
+			Shaders = .()
+			{
+				VertexShader = mPickingVertexShader,
+				PixelShader = mPickingPixelShader
+			},
+			InputLayouts = vertexLayouts,
+			ResourceLayouts = mPickingPipelineResourceLayouts = new ResourceLayout[](mPickingResourceLayout),
+			PrimitiveTopology = .TriangleList,
+			Outputs = .CreateFromFrameBuffer(pickingFrameBuffer)
+		};
+
+		mPickingPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(pickingPipelineDesc);
+
+		// Create skinned mesh picking pipeline
+		// Layout: Set 0 = picking uniforms, Set 1 = bone matrices (reuses existing layout)
+		var skinnedPickingPipelineDesc = GraphicsPipelineDescription
+		{
+			RenderStates = pickingRenderStates,
+			Shaders = .()
+			{
+				VertexShader = mSkinnedPickingVertexShader,
+				PixelShader = mPickingPixelShader  // Same pixel shader
+			},
+			InputLayouts = skinnedVertexLayouts,
+			ResourceLayouts = mSkinnedPickingPipelineResourceLayouts = new ResourceLayout[](mPickingResourceLayout, mBoneMatricesResourceLayout),
+			PrimitiveTopology = .TriangleList,
+			Outputs = .CreateFromFrameBuffer(pickingFrameBuffer)
+		};
+
+		mSkinnedPickingPipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(skinnedPickingPipelineDesc);
+
+		// Create picking resource set
+		{
+			ResourceSetDescription resourceSetDesc = .(mPickingResourceLayout, mPickingUniformBuffer);
+			mPickingResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
+		}
+	}
+
+	private void DestroyPickingPipelines()
+	{
+		if (mPickingResourceSet != null)
+			mGraphicsContext.Factory.DestroyResourceSet(ref mPickingResourceSet);
+		if (mSkinnedPickingPipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mSkinnedPickingPipeline);
+		if (mPickingPipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mPickingPipeline);
+		// Note: BoneMatricesResourceLayout is destroyed in DestroySkinnedPipeline, not here
+		if (mPickingResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mPickingResourceLayout);
+		if (mPickingUniformBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mPickingUniformBuffer);
+		if (mSkinnedPickingVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mSkinnedPickingVertexShader);
+		if (mPickingPixelShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mPickingPixelShader);
+		if (mPickingVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mPickingVertexShader);
 	}
 }

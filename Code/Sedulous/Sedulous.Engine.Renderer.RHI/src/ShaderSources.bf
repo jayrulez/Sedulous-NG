@@ -141,6 +141,22 @@ struct SpriteFragmentUniforms
     public Vector4 Padding;  // 16 bytes (unused, kept for resource layout compatibility)
 }
 
+// ============================================
+// Picking Structures
+// ============================================
+
+/// Picking uniform buffer - contains MVP matrix and entity ID
+[CRepr, Packed, Align(16)]
+struct PickingUniforms
+{
+    public Matrix MVPMatrix;     // 64 bytes
+    public uint32 EntityId;      // 4 bytes (truncated from uint64, sufficient for < 4 billion entities)
+    public uint32 Padding0;      // 4 bytes
+    public uint32 Padding1;      // 4 bytes
+    public uint32 Padding2;      // 4 bytes
+    // Total: 80 bytes (aligned to 16)
+}
+
 static
 {
 	public const int MAX_BONES = 128;
@@ -1555,6 +1571,151 @@ static class ShaderSources
 	            discard;
 
 	        return finalColor;
+	    }
+	    """;
+
+	// ============================================
+	// Picking Shaders (GPU-based object picking)
+	// ============================================
+
+	/// Picking vertex shader - transforms vertices and passes entity ID to pixel shader
+	public const String PickingShadersVS = """
+	    cbuffer PickingUniforms : register(b0)
+	    {
+	        float4x4 MVPMatrix;
+	        uint EntityId;
+	        uint3 Padding;
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        nointerpolation uint EntityId : ENTITY_ID;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+	        output.Position = mul(float4(input.Position, 1.0), MVPMatrix);
+	        output.EntityId = EntityId;
+	        return output;
+	    }
+	    """;
+
+	/// Picking pixel shader - outputs entity ID as R32_UInt
+	public const String PickingShadersPS = """
+	    struct PSInput
+	    {
+	        float4 Position : SV_POSITION;
+	        nointerpolation uint EntityId : ENTITY_ID;
+	    };
+
+	    uint PS(PSInput input) : SV_TARGET
+	    {
+	        return input.EntityId;
+	    }
+	    """;
+
+	/// Skinned picking vertex shader - for skinned meshes
+	public const String SkinnedPickingShadersVS = """
+	    #define MAX_BONES 128
+
+	    cbuffer PickingUniforms : register(b0, space0)
+	    {
+	        float4x4 MVPMatrix;
+	        uint EntityId;
+	        uint3 Padding;
+	    }
+
+	    cbuffer BoneMatrices : register(b0, space1)
+	    {
+	        float4x4 Bones[MAX_BONES];
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	        uint4 Joints : BLENDINDICES;
+	        float4 Weights : BLENDWEIGHT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        nointerpolation uint EntityId : ENTITY_ID;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+
+	        // Compute skinned position by blending bone transforms
+	        float4x4 skinMatrix =
+	            Bones[input.Joints.x] * input.Weights.x +
+	            Bones[input.Joints.y] * input.Weights.y +
+	            Bones[input.Joints.z] * input.Weights.z +
+	            Bones[input.Joints.w] * input.Weights.w;
+
+	        float4 skinnedPos = mul(float4(input.Position, 1.0), skinMatrix);
+	        output.Position = mul(skinnedPos, MVPMatrix);
+	        output.EntityId = EntityId;
+	        return output;
+	    }
+	    """;
+
+	/// Sprite picking vertex shader - for billboarded sprites
+	public const String SpritePickingShadersVS = """
+	    cbuffer PickingUniforms : register(b0)
+	    {
+	        float4x4 MVPMatrix;
+	        uint EntityId;
+	        uint3 Padding;
+	    }
+
+	    cbuffer SpriteParams : register(b1)
+	    {
+	        float4 SpriteSize;  // xy = size, zw = pivot
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        nointerpolation uint EntityId : ENTITY_ID;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+
+	        // Extract sprite parameters
+	        float2 size = SpriteSize.xy;
+	        float2 pivot = SpriteSize.zw;
+
+	        // Transform unit quad position by size and pivot
+	        float2 localPos = (input.Position.xy - pivot) * size;
+	        float3 worldPos = float3(localPos, 0.0);
+
+	        output.Position = mul(float4(worldPos, 1.0), MVPMatrix);
+	        output.EntityId = EntityId;
+	        return output;
 	    }
 	    """;
 }

@@ -121,6 +121,20 @@ class RHIRendererSubsystem : Subsystem
 	private Buffer mSpriteQuadVertexBuffer;
 	private Buffer mSpriteQuadIndexBuffer;
 
+	// Picking resources (GPU-based object picking)
+	private Texture mPickingRenderTarget;       // R32_UInt render target for entity IDs
+	private Texture mPickingDepthTexture;       // Depth buffer for picking pass
+	private FrameBuffer mPickingFrameBuffer;    // Framebuffer for picking render pass
+	private Texture mPickingStagingTexture;     // Staging texture for CPU readback
+	private bool mPickingResourcesCreated = false;
+
+	// Picking state
+	private bool mPickingRequested = false;
+	private int32 mPickX;
+	private int32 mPickY;
+	private uint32 mLastPickedEntityId = 0;
+	private bool mPickResultReady = false;
+
 	public Buffer ObjectDataBuffer => mObjectDataBuffer;
 	public Buffer MeshInfoBuffer => mMeshInfoBuffer;
 	public Buffer IndirectArgsBuffer => mIndirectArgsBuffer;
@@ -130,6 +144,40 @@ class RHIRendererSubsystem : Subsystem
 	public ResourceSet GPUCullingResourceSet => mGPUCullingResourceSet;
 	public Buffer SpriteQuadVertexBuffer => mSpriteQuadVertexBuffer;
 	public Buffer SpriteQuadIndexBuffer => mSpriteQuadIndexBuffer;
+
+	// Picking accessors
+	public FrameBuffer PickingFrameBuffer => mPickingFrameBuffer;
+	public Texture PickingRenderTarget => mPickingRenderTarget;
+	public bool PickingResourcesCreated => mPickingResourcesCreated;
+	public bool PickResultReady => mPickResultReady;
+	public uint32 LastPickedEntityId => mLastPickedEntityId;
+	public GraphicsPipelineState PickingPipeline => mPipelineManager?.PickingPipeline;
+	public GraphicsPipelineState SkinnedPickingPipeline => mPipelineManager?.SkinnedPickingPipeline;
+	public ResourceLayout PickingResourceLayout => mPipelineManager?.PickingResourceLayout;
+	public Buffer PickingUniformBuffer => mPipelineManager?.PickingUniformBuffer;
+	public ResourceSet PickingResourceSet => mPipelineManager?.PickingResourceSet;
+
+	/// Get the entity that was picked (searches all scenes managed by this subsystem)
+	public Entity GetPickedEntity()
+	{
+		if (!mPickResultReady || mLastPickedEntityId == 0)
+			return null;
+
+		// Search through all scenes for the entity with this ID
+		for (var module in mRenderModules)
+		{
+			if (var entity = module.Scene?.FindEntity((Sedulous.SceneGraph.EntityId)mLastPickedEntityId))
+				return entity;
+		}
+		return null;
+	}
+
+	/// Clear the pick result (call after handling)
+	public void ClearPickResult()
+	{
+		mPickResultReady = false;
+		mLastPickedEntityId = 0;
+	}
 
 	public this(Window window, GraphicsContext context)
 	{
@@ -193,6 +241,9 @@ class RHIRendererSubsystem : Subsystem
 		// Create sprite quad buffers
 		CreateSpriteQuadBuffers();
 
+		// Create picking resources and pipeline
+		CreatePickingResources();
+
 		// Create render graph
 		mRenderGraph = new RenderGraph("Main", mGraphicsContext, mGraphicsContext.Factory);
 		SetupRenderGraph();
@@ -207,6 +258,9 @@ class RHIRendererSubsystem : Subsystem
 		{
 			mRenderGraph.Reset();
 		}
+
+		// Picking resources cleanup
+		DestroyPickingResources();
 
 		// Sprite quad buffers cleanup
 		DestroySpriteQuadBuffers();
@@ -324,11 +378,29 @@ class RHIRendererSubsystem : Subsystem
 
 		mRenderGraph.Execute(commandBuffer);
 
+		// Execute picking pass if requested (outside main render graph)
+		if (mPickingRequested && mPickingResourcesCreated)
+		{
+			for (var module in mRenderModules)
+			{
+				module.RenderForPicking(commandBuffer, mPickingFrameBuffer);
+			}
+
+			// Copy picked pixel to staging texture for CPU readback
+			MarkPickingComplete(commandBuffer);
+		}
+
 		commandBuffer.End();
 		commandBuffer.Commit();
 
 		mCommandQueue.Submit();
 		mCommandQueue.WaitIdle();
+
+		// Read back pick result after GPU work completes
+		if (mPickingRequested)
+		{
+			ReadPickResult();
+		}
 
 		mSwapChain.Present();
 	}
@@ -346,6 +418,9 @@ class RHIRendererSubsystem : Subsystem
 
 		// Recreate Hi-Z resource set since it references the depth texture
 		RecreateHiZResourceSet();
+
+		// Recreate picking resources with new size
+		RecreatePickingResources();
 
 		// Reset render graph on resize
 		if (mRenderGraph != null)
@@ -771,6 +846,225 @@ class RHIRendererSubsystem : Subsystem
 			mGraphicsContext.Factory.DestroyBuffer(ref mSpriteQuadIndexBuffer);
 		if (mSpriteQuadVertexBuffer != null)
 			mGraphicsContext.Factory.DestroyBuffer(ref mSpriteQuadVertexBuffer);
+	}
+
+	private void CreatePickingResources()
+	{
+		// Create picking render target (R32_UInt for entity IDs)
+		var pickingRTDesc = TextureDescription()
+		{
+			Type = .Texture2D,
+			Format = .R32_UInt,
+			Width = mWindow.Width,
+			Height = mWindow.Height,
+			Depth = 1,
+			MipLevels = 1,
+			ArraySize = 1,
+			Faces = 1,
+			Flags = .RenderTarget | .ShaderResource,
+			Usage = .Default,
+			SampleCount = .None,
+			CpuAccess = .None
+		};
+		mPickingRenderTarget = mGraphicsContext.Factory.CreateTexture(pickingRTDesc, "PickingRenderTarget");
+
+		// Create picking depth texture (D32_Float)
+		var pickingDepthDesc = TextureDescription()
+		{
+			Type = .Texture2D,
+			Format = .D32_Float,
+			Width = mWindow.Width,
+			Height = mWindow.Height,
+			Depth = 1,
+			MipLevels = 1,
+			ArraySize = 1,
+			Faces = 1,
+			Flags = .DepthStencil,
+			Usage = .Default,
+			SampleCount = .None,
+			CpuAccess = .None
+		};
+		mPickingDepthTexture = mGraphicsContext.Factory.CreateTexture(pickingDepthDesc, "PickingDepthTexture");
+
+		// Create picking staging texture (same size as RT for proper copy alignment)
+		var stagingDesc = TextureDescription()
+		{
+			Type = .Texture2D,
+			Format = .R32_UInt,
+			Width = mWindow.Width,
+			Height = mWindow.Height,
+			Depth = 1,
+			MipLevels = 1,
+			ArraySize = 1,
+			Faces = 1,
+			Flags = .None,
+			Usage = .Staging,
+			SampleCount = .None,
+			CpuAccess = .Read
+		};
+		mPickingStagingTexture = mGraphicsContext.Factory.CreateTexture(stagingDesc, "PickingStagingTexture");
+
+		// Create picking framebuffer
+		var depthAttachment = FrameBufferAttachment(mPickingDepthTexture, 0, 1);
+		var colorAttachments = FrameBufferAttachmentList(FrameBufferAttachment(mPickingRenderTarget, 0, 1));
+		mPickingFrameBuffer = mGraphicsContext.Factory.CreateFrameBuffer(depthAttachment, colorAttachments, false);
+
+		// Initialize picking pipelines with the picking framebuffer
+		mPipelineManager.InitializePickingPipelines(mPickingFrameBuffer);
+
+		mPickingResourcesCreated = true;
+	}
+
+	private void DestroyPickingResources()
+	{
+		if (!mPickingResourcesCreated)
+			return;
+
+		// Note: Picking pipeline resources are cleaned up by PipelineManager.Destroy()
+
+		if (mPickingFrameBuffer != null)
+			mGraphicsContext.Factory.DestroyFrameBuffer(ref mPickingFrameBuffer);
+		if (mPickingStagingTexture != null)
+			mGraphicsContext.Factory.DestroyTexture(ref mPickingStagingTexture);
+		if (mPickingDepthTexture != null)
+			mGraphicsContext.Factory.DestroyTexture(ref mPickingDepthTexture);
+		if (mPickingRenderTarget != null)
+			mGraphicsContext.Factory.DestroyTexture(ref mPickingRenderTarget);
+
+		mPickingResourcesCreated = false;
+	}
+
+	private void RecreatePickingResources()
+	{
+		if (!mPickingResourcesCreated)
+			return;
+
+		// Destroy old resources (but not pipeline - that stays the same)
+		if (mPickingFrameBuffer != null)
+			mGraphicsContext.Factory.DestroyFrameBuffer(ref mPickingFrameBuffer);
+		if (mPickingStagingTexture != null)
+			mGraphicsContext.Factory.DestroyTexture(ref mPickingStagingTexture);
+		if (mPickingDepthTexture != null)
+			mGraphicsContext.Factory.DestroyTexture(ref mPickingDepthTexture);
+		if (mPickingRenderTarget != null)
+			mGraphicsContext.Factory.DestroyTexture(ref mPickingRenderTarget);
+
+		// Recreate render target and depth with new size
+		var pickingRTDesc = TextureDescription()
+		{
+			Type = .Texture2D,
+			Format = .R32_UInt,
+			Width = mWindow.Width,
+			Height = mWindow.Height,
+			Depth = 1,
+			MipLevels = 1,
+			ArraySize = 1,
+			Faces = 1,
+			Flags = .RenderTarget | .ShaderResource,
+			Usage = .Default,
+			SampleCount = .None,
+			CpuAccess = .None
+		};
+		mPickingRenderTarget = mGraphicsContext.Factory.CreateTexture(pickingRTDesc, "PickingRenderTarget");
+
+		var pickingDepthDesc = TextureDescription()
+		{
+			Type = .Texture2D,
+			Format = .D32_Float,
+			Width = mWindow.Width,
+			Height = mWindow.Height,
+			Depth = 1,
+			MipLevels = 1,
+			ArraySize = 1,
+			Faces = 1,
+			Flags = .DepthStencil,
+			Usage = .Default,
+			SampleCount = .None,
+			CpuAccess = .None
+		};
+		mPickingDepthTexture = mGraphicsContext.Factory.CreateTexture(pickingDepthDesc, "PickingDepthTexture");
+
+		// Recreate staging texture with new size
+		var stagingDesc = TextureDescription()
+		{
+			Type = .Texture2D,
+			Format = .R32_UInt,
+			Width = mWindow.Width,
+			Height = mWindow.Height,
+			Depth = 1,
+			MipLevels = 1,
+			ArraySize = 1,
+			Faces = 1,
+			Flags = .None,
+			Usage = .Staging,
+			SampleCount = .None,
+			CpuAccess = .Read
+		};
+		mPickingStagingTexture = mGraphicsContext.Factory.CreateTexture(stagingDesc, "PickingStagingTexture");
+
+		var depthAttachment = FrameBufferAttachment(mPickingDepthTexture, 0, 1);
+		var colorAttachments = FrameBufferAttachmentList(FrameBufferAttachment(mPickingRenderTarget, 0, 1));
+		mPickingFrameBuffer = mGraphicsContext.Factory.CreateFrameBuffer(depthAttachment, colorAttachments, false);
+	}
+
+	/// Request a pick at the given screen coordinates. The result will be available on the next frame.
+	public void RequestPick(int32 screenX, int32 screenY)
+	{
+		if (!mPickingResourcesCreated)
+			return;
+
+		mPickingRequested = true;
+		mPickX = Math.Clamp(screenX, 0, (int32)mWindow.Width - 1);
+		mPickY = Math.Clamp(screenY, 0, (int32)mWindow.Height - 1);
+		mPickResultReady = false;
+	}
+
+	/// Check if a pick was requested for this frame
+	public bool IsPickingRequested => mPickingRequested;
+
+	/// Get the pick coordinates
+	public void GetPickCoordinates(out int32 x, out int32 y)
+	{
+		x = mPickX;
+		y = mPickY;
+	}
+
+	/// Mark the pick as processed (called after rendering picking pass)
+	public void MarkPickingComplete(CommandBuffer cmd)
+	{
+		if (!mPickingRequested)
+			return;
+
+		// Copy the single pixel from the picking render target to staging texture at the same position
+		// Parameters: source, srcX, srcY, srcZ, srcMip, srcArray, dest, dstX, dstY, dstZ, dstMip, dstArray, width, height, depth, layerCount
+		cmd.CopyTextureDataTo(
+			mPickingRenderTarget, (uint32)mPickX, (uint32)mPickY, 0, 0, 0,
+			mPickingStagingTexture, (uint32)mPickX, (uint32)mPickY, 0, 0, 0,
+			1, 1, 1, 1);
+	}
+
+	/// Read back the picked entity ID from the staging texture (must be called after GPU work completes)
+	public void ReadPickResult()
+	{
+		if (!mPickingRequested)
+			return;
+
+		mPickingRequested = false;
+
+		// Map staging texture to read the picked entity ID at the correct offset
+		var mappedResource = mGraphicsContext.MapMemory(mPickingStagingTexture, .Read);
+		if (mappedResource.Data != null)
+		{
+			// Calculate offset in the mapped memory
+			// RowPitch is the number of bytes per row, pixel size is 4 bytes (R32_UInt)
+			int32 pixelSize = 4;
+			int32 rowPitch = (int32)mappedResource.RowPitch;
+			int32 offset = mPickY * rowPitch + mPickX * pixelSize;
+
+			mLastPickedEntityId = *(uint32*)((uint8*)mappedResource.Data + offset);
+			mGraphicsContext.UnmapMemory(mPickingStagingTexture);
+			mPickResultReady = true;
+		}
 	}
 
 	private static TextureSampleCount SampleCount = TextureSampleCount.None;

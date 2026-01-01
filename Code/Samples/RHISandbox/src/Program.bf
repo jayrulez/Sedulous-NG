@@ -603,6 +603,38 @@ class SandboxApplication : Application
 			}
 		}
 
+		// Object picking with left click (without Alt modifier)
+		{
+			var mouse = inputSubsystem.GetMouse();
+			var keyboard = inputSubsystem.GetKeyboard();
+
+			// Check for pick result from previous frame
+			if (mRHIRenderer == null)
+				mRHIRenderer = ((Engine)info.Engine).GetSubsystem<RHIRendererSubsystem>().Value;
+
+			if (mRHIRenderer.PickResultReady)
+			{
+				var pickedEntity = mRHIRenderer.GetPickedEntity();
+				if (pickedEntity != null)
+				{
+					Debug.WriteLine(scope $"Picked entity: {pickedEntity.Name} (ID: {pickedEntity.Id})");
+				}
+				else
+				{
+					Debug.WriteLine("Picked: Nothing (empty space)");
+				}
+				mRHIRenderer.ClearPickResult();
+			}
+
+			// Request pick on left click (without Alt - Alt is used for orbit)
+			if (mouse.IsButtonPressed(.Left) && !keyboard.IsKeyDown(.LeftAlt))
+			{
+				var mousePos = mouse.Position;
+				mRHIRenderer.RequestPick((int32)mousePos.X, (int32)mousePos.Y);
+				Debug.WriteLine(scope $"Requesting pick at ({mousePos.X}, {mousePos.Y})");
+			}
+		}
+
 		// Animation toggle with N key
 		var keyboard = inputSubsystem.GetKeyboard();
 		if (keyboard.IsKeyPressed(.N))

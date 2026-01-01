@@ -1391,4 +1391,237 @@ class RenderModule : SceneModule
 			uniformIndex++;
 		}
 	}
+
+	private Viewport[] mPickingViewports = new .[1] ~ delete _;
+	private Rectangle[] mPickingScissorRectangles = new .[1] ~ delete _;
+
+	/// Render all objects to the picking buffer with their entity IDs
+	internal void RenderForPicking(CommandBuffer commandBuffer, FrameBuffer pickingFrameBuffer)
+	{
+		if (!mRenderer.PickingResourcesCreated)
+			return;
+
+		// Update picking uniforms
+		UpdatePickingUniforms();
+
+		const int32 ALIGNMENT = 256;
+		int32 alignedSize = ((sizeof(PickingUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+		// Begin picking render pass
+		// Clear to 0 (invalid entity ID) - R32_UInt interprets float bits as uint
+		var clearValue = ClearValue(.Target | .Depth, 1.0f, 0, Vector4(0, 0, 0, 0));
+		var pickingPassDesc = RenderPassDescription(pickingFrameBuffer, clearValue);
+		commandBuffer.BeginRenderPass(pickingPassDesc);
+
+		// Set viewport and scissors to match picking target
+		mPickingViewports[0] = Viewport(0, 0, mRenderer.Width, mRenderer.Height);
+		mPickingScissorRectangles[0] = Rectangle(0, 0, (.)mRenderer.Width, (.)mRenderer.Height);
+		commandBuffer.SetViewports(mPickingViewports);
+		commandBuffer.SetScissorRectangles(mPickingScissorRectangles);
+
+		int uniformIndex = 0;
+
+		// Render opaque meshes
+		if (!mOpaqueMeshCommands.IsEmpty)
+		{
+			commandBuffer.SetGraphicsPipelineState(mRenderer.PickingPipeline);
+
+			for (var command in mOpaqueMeshCommands)
+			{
+				// Set picking resource set with dynamic offset
+				uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
+				commandBuffer.SetResourceSet(mRenderer.PickingResourceSet, 0, scope .(dynamicOffset));
+
+				// Render mesh
+				RenderMeshForPicking(command, commandBuffer);
+				uniformIndex++;
+			}
+		}
+
+		// Render transparent meshes (included for picking even though they're transparent)
+		if (!mTransparentMeshCommands.IsEmpty)
+		{
+			commandBuffer.SetGraphicsPipelineState(mRenderer.PickingPipeline);
+
+			for (var command in mTransparentMeshCommands)
+			{
+				uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
+				commandBuffer.SetResourceSet(mRenderer.PickingResourceSet, 0, scope .(dynamicOffset));
+
+				RenderMeshForPicking(command, commandBuffer);
+				uniformIndex++;
+			}
+		}
+
+		// Render opaque skinned meshes
+		if (!mOpaqueSkinnedCommands.IsEmpty)
+		{
+			commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedPickingPipeline);
+
+			for (var command in mOpaqueSkinnedCommands)
+			{
+				uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
+				commandBuffer.SetResourceSet(mRenderer.PickingResourceSet, 0, scope .(dynamicOffset));
+
+				// Set bone matrices resource set (Set 1 for skinned picking)
+				if (mCache.TryGetBoneResourceSet(command.Animator, let boneResourceSet))
+				{
+					commandBuffer.SetResourceSet(boneResourceSet, 1);
+				}
+
+				RenderSkinnedMeshForPicking(command, commandBuffer);
+				uniformIndex++;
+			}
+		}
+
+		// Render transparent skinned meshes
+		if (!mTransparentSkinnedCommands.IsEmpty)
+		{
+			commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedPickingPipeline);
+
+			for (var command in mTransparentSkinnedCommands)
+			{
+				uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
+				commandBuffer.SetResourceSet(mRenderer.PickingResourceSet, 0, scope .(dynamicOffset));
+
+				if (mCache.TryGetBoneResourceSet(command.Animator, let boneResourceSet))
+				{
+					commandBuffer.SetResourceSet(boneResourceSet, 1);
+				}
+
+				RenderSkinnedMeshForPicking(command, commandBuffer);
+				uniformIndex++;
+			}
+		}
+
+		// Note: Sprites could be added here if needed
+
+		commandBuffer.EndRenderPass();
+	}
+
+	private void UpdatePickingUniforms()
+	{
+		int totalCommands = mOpaqueMeshCommands.Count + mTransparentMeshCommands.Count +
+							mOpaqueSkinnedCommands.Count + mTransparentSkinnedCommands.Count;
+		if (totalCommands == 0)
+			return;
+
+		// Map picking uniform buffer
+		var mapped = mRenderer.GraphicsContext.MapMemory(mRenderer.PickingUniformBuffer, MapMode.Write);
+		if (mapped.Data == null)
+			return;
+
+		const int32 ALIGNMENT = 256;
+		int32 alignedSize = ((sizeof(PickingUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+		int writeIndex = 0;
+
+		// Write opaque mesh picking uniforms
+		for (var command in mOpaqueMeshCommands)
+		{
+			var pickingUniforms = PickingUniforms()
+			{
+				MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+				EntityId = (uint32)command.Entity.Id,
+				Padding0 = 0,
+				Padding1 = 0,
+				Padding2 = 0
+			};
+
+			PickingUniforms* dest = (PickingUniforms*)((uint8*)mapped.Data + writeIndex * alignedSize);
+			*dest = pickingUniforms;
+			writeIndex++;
+		}
+
+		// Write transparent mesh picking uniforms
+		for (var command in mTransparentMeshCommands)
+		{
+			var pickingUniforms = PickingUniforms()
+			{
+				MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+				EntityId = (uint32)command.Entity.Id,
+				Padding0 = 0,
+				Padding1 = 0,
+				Padding2 = 0
+			};
+
+			PickingUniforms* dest = (PickingUniforms*)((uint8*)mapped.Data + writeIndex * alignedSize);
+			*dest = pickingUniforms;
+			writeIndex++;
+		}
+
+		// Write opaque skinned mesh picking uniforms
+		for (var command in mOpaqueSkinnedCommands)
+		{
+			var pickingUniforms = PickingUniforms()
+			{
+				MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+				EntityId = (uint32)command.Entity.Id,
+				Padding0 = 0,
+				Padding1 = 0,
+				Padding2 = 0
+			};
+
+			PickingUniforms* dest = (PickingUniforms*)((uint8*)mapped.Data + writeIndex * alignedSize);
+			*dest = pickingUniforms;
+			writeIndex++;
+		}
+
+		// Write transparent skinned mesh picking uniforms
+		for (var command in mTransparentSkinnedCommands)
+		{
+			var pickingUniforms = PickingUniforms()
+			{
+				MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+				EntityId = (uint32)command.Entity.Id,
+				Padding0 = 0,
+				Padding1 = 0,
+				Padding2 = 0
+			};
+
+			PickingUniforms* dest = (PickingUniforms*)((uint8*)mapped.Data + writeIndex * alignedSize);
+			*dest = pickingUniforms;
+			writeIndex++;
+		}
+
+		mRenderer.GraphicsContext.UnmapMemory(mRenderer.PickingUniformBuffer);
+	}
+
+	private void RenderMeshForPicking(MeshRenderCommand command, CommandBuffer commandBuffer)
+	{
+		if (!mCache.TryGetMesh(command.Renderer, let meshHandle) || !meshHandle.IsValid)
+			return;
+
+		var mesh = meshHandle.Resource;
+		commandBuffer.SetVertexBuffers(scope Buffer[](mesh.VertexBuffer));
+
+		if (mesh.IndexBuffer != null && mesh.IndexCount > 0)
+		{
+			commandBuffer.SetIndexBuffer(mesh.IndexBuffer, .UInt32);
+			commandBuffer.DrawIndexed(mesh.IndexCount);
+		}
+		else
+		{
+			commandBuffer.Draw(mesh.VertexCount);
+		}
+	}
+
+	private void RenderSkinnedMeshForPicking(SkinnedMeshRenderCommand command, CommandBuffer commandBuffer)
+	{
+		if (!mCache.TryGetSkinnedMesh(command.Renderer, let meshHandle) || !meshHandle.IsValid)
+			return;
+
+		var mesh = meshHandle.Resource;
+		commandBuffer.SetVertexBuffers(scope Buffer[](mesh.VertexBuffer));
+
+		if (mesh.IndexBuffer != null && mesh.IndexCount > 0)
+		{
+			commandBuffer.SetIndexBuffer(mesh.IndexBuffer, .UInt32);
+			commandBuffer.DrawIndexed(mesh.IndexCount);
+		}
+		else
+		{
+			commandBuffer.Draw(mesh.VertexCount);
+		}
+	}
 }

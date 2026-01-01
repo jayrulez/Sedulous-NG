@@ -6,6 +6,7 @@ using Sedulous.Mathematics;
 using System.Collections;
 using Sedulous.Engine.Renderer.GPU;
 using Sedulous.Utilities;
+using System.Diagnostics;
 namespace Sedulous.Engine.Renderer.RHI;
 
 public struct RenderStatistics
@@ -1215,39 +1216,81 @@ class RenderModule : SceneModule
 	{
 		var position = spriteTransform.WorldPosition;
 		var scale = spriteTransform.Scale;
-		var cameraPos = mActiveCameraTransform.WorldPosition;
 
-		if (mode == .Full)
+		switch (mode)
 		{
-			// Full billboard: face camera completely
-			var toCamera = cameraPos - position;
+		case .FacePosition:
+			// Position-based: face camera's world position
+			var toCamera = mActiveCameraTransform.WorldPosition - position;
 			if (toCamera.LengthSquared() < 0.0001f)
 				return spriteTransform.WorldMatrix;
 
 			var forward = Vector3.Normalize(toCamera);
+			var right = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, forward));
+			var up = Vector3.Cross(forward, right);
 
-			// Use Matrix.CreateWorld which properly handles axis orientation
-			// CreateWorld expects forward as the direction the object faces
-			var worldMatrix = Matrix.CreateWorld(position, forward, Vector3.UnitY);
+			return Matrix(
+				right.X * scale.X, right.Y * scale.X, right.Z * scale.X, 0,
+				up.X * scale.Y, up.Y * scale.Y, up.Z * scale.Y, 0,
+				forward.X * scale.Z, forward.Y * scale.Z, forward.Z * scale.Z, 0,
+				position.X, position.Y, position.Z, 1
+			);
 
-			// Apply scale
-			return Matrix.CreateScale(scale) * worldMatrix;
-		}
-		else // AxisAligned
-		{
-			// Axis-aligned billboard: rotate around Y axis only (vertical billboard)
-			var toCamera = cameraPos - position;
-			toCamera.Y = 0;  // Ignore Y difference for Y-axis rotation only
-			if (toCamera.LengthSquared() < 0.0001f)
+		case .FacePositionY:
+			// Position-based with Y-axis constraint
+			var toCameraY = mActiveCameraTransform.WorldPosition - position;
+			toCameraY.Y = 0;  // Ignore Y difference
+			if (toCameraY.LengthSquared() < 0.0001f)
 				return spriteTransform.WorldMatrix;
 
-			var forward = Vector3.Normalize(toCamera);
+			var forwardY = Vector3.Normalize(toCameraY);
+			var rightY = Vector3.Cross(Vector3.UnitY, forwardY);
+			var upY = Vector3.UnitY;
 
-			// Use Matrix.CreateWorld which properly handles axis orientation
-			var worldMatrix = Matrix.CreateWorld(position, forward, Vector3.UnitY);
+			return Matrix(
+				rightY.X * scale.X, rightY.Y * scale.X, rightY.Z * scale.X, 0,
+				upY.X * scale.Y, upY.Y * scale.Y, upY.Z * scale.Y, 0,
+				forwardY.X * scale.Z, forwardY.Y * scale.Z, forwardY.Z * scale.Z, 0,
+				position.X, position.Y, position.Z, 1
+			);
 
-			// Apply scale
-			return Matrix.CreateScale(scale) * worldMatrix;
+		case .ViewAligned:
+			// View-aligned: extract camera axes from view matrix (sprite stays screen-aligned)
+			// The view matrix transforms world to camera space, so its rows contain camera axes
+			// Row 0 = camera right, Row 1 = camera up, Row 2 = camera forward (negated look direction)
+			var camRight = Vector3(mViewMatrix.M11, mViewMatrix.M21, mViewMatrix.M31);
+			var camUp = Vector3(mViewMatrix.M12, mViewMatrix.M22, mViewMatrix.M32);
+			var camForward = -Vector3(mViewMatrix.M13, mViewMatrix.M23, mViewMatrix.M33);
+
+			return Matrix(
+				camRight.X * scale.X, camRight.Y * scale.X, camRight.Z * scale.X, 0,
+				camUp.X * scale.Y, camUp.Y * scale.Y, camUp.Z * scale.Y, 0,
+				camForward.X * scale.Z, camForward.Y * scale.Z, camForward.Z * scale.Z, 0,
+				position.X, position.Y, position.Z, 1
+			);
+
+		case .ViewAlignedY:
+			// View-aligned with Y-axis constraint (horizontal screen alignment, vertical world-up)
+			var camRightYC = Vector3(mViewMatrix.M11, mViewMatrix.M21, mViewMatrix.M31);
+			// Project camera right onto XZ plane and normalize
+			camRightYC.Y = 0;
+			if (camRightYC.LengthSquared() < 0.0001f)
+				camRightYC = Vector3.UnitX;  // Fallback if looking straight up/down
+			else
+				camRightYC = Vector3.Normalize(camRightYC);
+
+			var upYC = Vector3.UnitY;
+			var forwardYC = Vector3.Cross(camRightYC, upYC);
+
+			return Matrix(
+				camRightYC.X * scale.X, camRightYC.Y * scale.X, camRightYC.Z * scale.X, 0,
+				upYC.X * scale.Y, upYC.Y * scale.Y, upYC.Z * scale.Y, 0,
+				forwardYC.X * scale.Z, forwardYC.Y * scale.Z, forwardYC.Z * scale.Z, 0,
+				position.X, position.Y, position.Z, 1
+			);
+
+		default:
+			return spriteTransform.WorldMatrix;
 		}
 	}
 

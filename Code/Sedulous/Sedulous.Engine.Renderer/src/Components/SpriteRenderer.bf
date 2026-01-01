@@ -33,9 +33,15 @@ class SpriteRenderer : Component
     // Billboard options (for 3D sprites)
     public enum BillboardMode
     {
-        None,           // Normal sprite, no billboarding
-        Full,           // Always face camera
-        AxisAligned     // Face camera but constrained to Y axis
+        None,              // Normal sprite, no billboarding
+
+        // Position-based: sprite faces camera's world position
+        FacePosition,      // Face camera position (rotates when camera moves)
+        FacePositionY,     // Face camera position, Y-axis only
+
+        // View-aligned: sprite aligns with camera's view plane (screen-aligned)
+        ViewAligned,       // Always flat on screen (rotates with camera view)
+        ViewAlignedY       // Flat on screen horizontally, Y-axis constrained
     }
     public BillboardMode Billboard { get; set; } = .None;
     

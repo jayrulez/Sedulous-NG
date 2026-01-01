@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Platform.SDL3" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.GUI" = "*"}
+
+[Project]
+Name = "GUITest"
+StartupObject = "GUITest.Program"

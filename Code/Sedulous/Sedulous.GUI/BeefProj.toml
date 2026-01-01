@@ -1,4 +1,5 @@
 FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*"}
 
 [Project]
 Name = "Sedulous.GUI"

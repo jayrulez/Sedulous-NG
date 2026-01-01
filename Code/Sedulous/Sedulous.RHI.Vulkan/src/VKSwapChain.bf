@@ -92,7 +92,9 @@ public class VKSwapChain : SwapChain
 	/// <inheritdoc />
 	public override Texture GetCurrentFramebufferTexture()
 	{
-		return (base.FrameBuffer as VKSwapChainFrameBuffer).ColorTargets[currentBackBufferIndex].Texture;
+		// ColorTargets already returns the correct framebuffer's targets based on CurrentBackBufferIndex
+		// Each framebuffer has only 1 color target, so index with 0
+		return (base.FrameBuffer as VKSwapChainFrameBuffer).ColorTargets[0].Texture;
 	}
 
 	/// <summary>

@@ -335,16 +335,44 @@ class RHIRendererSubsystem : Subsystem
 
 	private void OnWindowResized(uint32 width, uint32 height)
 	{
+		// Skip resize if window is minimized (zero size)
+		if (width == 0 || height == 0)
+			return;
+
 		mCommandQueue.WaitIdle();
 		WindowViewports[0] = Viewport(0, 0, mWindow.Width, mWindow.Height);
 		WindowScissors[0] = Rectangle(0, 0, (.)mWindow.Width, (.)mWindow.Height);
 		mSwapChain.ResizeSwapChain((.)width, (.)height);
-		
+
+		// Recreate Hi-Z resource set since it references the depth texture
+		RecreateHiZResourceSet();
+
 		// Reset render graph on resize
 		if (mRenderGraph != null)
 		{
 			mRenderGraph.Reset();
 			SetupRenderGraph();
+		}
+	}
+
+	private void RecreateHiZResourceSet()
+	{
+		// Destroy old resource set that references the old depth texture
+		if (mHiZResourceSet != null)
+			mGraphicsContext.Factory.DestroyResourceSet(ref mHiZResourceSet);
+
+		// Create new resource set with the new depth texture
+		var depthAttachment = mSwapChain.FrameBuffer.DepthStencilTarget;
+		if (depthAttachment.HasValue)
+		{
+			var depthTexture = depthAttachment.Value.AttachmentTexture;
+			ResourceSetDescription hiZSetDesc = .(
+				mPipelineManager.HiZResourceLayout,
+				depthTexture,                     // Input depth texture
+				mHiZTexture,                      // Output Hi-Z texture (UAV)
+				mPipelineManager.HiZParamsBuffer  // Params constant buffer
+			);
+			mHiZResourceSet = mGraphicsContext.Factory.CreateResourceSet(hiZSetDesc);
 		}
 	}
 

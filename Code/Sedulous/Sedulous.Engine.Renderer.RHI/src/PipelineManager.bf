@@ -103,6 +103,20 @@ class PipelineManager
 	private ResourceLayout mGPUCullingResourceLayout;
 	private LayoutElementDescription[] mGPUCullingLayoutElements ~ delete _;
 
+	// Sprite pipeline resources
+	private GraphicsPipelineState mSpritePipeline;
+	private Shader mSpriteVertexShader;
+	private Shader mSpritePixelShader;
+	private ResourceLayout mSpritePerObjectResourceLayout;
+	private ResourceLayout mSpriteMaterialResourceLayout;
+	private LayoutElementDescription[] mSpritePerObjectLayoutElements ~ delete _;
+	private LayoutElementDescription[] mSpriteMaterialLayoutElements ~ delete _;
+	private ResourceLayout[] mSpritePipelineResourceLayouts ~ delete _;
+	private Buffer mSpriteVertexCB;
+	private Buffer mDefaultSpriteMaterialCB;
+	private ResourceSet mSpritePerObjectResourceSet;
+	private ResourceSet mDefaultSpriteMaterialResourceSet;
+
 	// Material pipeline registry
 	private MaterialPipelineRegistry mMaterialRegistry = new .() ~ delete _;
 
@@ -123,6 +137,14 @@ class PipelineManager
 	public Buffer HiZParamsBuffer => mHiZParamsBuffer;
 	public ComputePipelineState GPUCullingPipeline => mGPUCullingPipeline;
 	public ResourceLayout GPUCullingResourceLayout => mGPUCullingResourceLayout;
+
+	public GraphicsPipelineState SpritePipeline => mSpritePipeline;
+	public ResourceLayout SpritePerObjectResourceLayout => mSpritePerObjectResourceLayout;
+	public ResourceLayout SpriteMaterialResourceLayout => mSpriteMaterialResourceLayout;
+	public Buffer SpriteVertexCB => mSpriteVertexCB;
+	public Buffer DefaultSpriteMaterialCB => mDefaultSpriteMaterialCB;
+	public ResourceSet SpritePerObjectResourceSet => mSpritePerObjectResourceSet;
+	public ResourceSet DefaultSpriteMaterialResourceSet => mDefaultSpriteMaterialResourceSet;
 
 	public ResourceLayout UnlitPerObjectResourceLayout => mUnlitPerObjectResourceLayout;
 	public ResourceLayout UnlitMaterialResourceLayout => mUnlitMaterialResourceLayout;
@@ -162,10 +184,12 @@ class PipelineManager
 		CreateDepthOnlyPipelines(targetFrameBuffer);
 		CreateHiZPipeline();
 		CreateGPUCullingPipeline();
+		CreateSpritePipeline(targetFrameBuffer);
 	}
 
 	public void Destroy()
 	{
+		DestroySpritePipeline();
 		DestroyGPUCullingPipeline();
 		DestroyHiZPipeline();
 		DestroyDepthOnlyPipelines();
@@ -872,5 +896,133 @@ class PipelineManager
 			mGraphicsContext.Factory.DestroyResourceLayout(ref mGPUCullingResourceLayout);
 		if (mGPUCullingShader != null)
 			mGraphicsContext.Factory.DestroyShader(ref mGPUCullingShader);
+	}
+
+	private void CreateSpritePipeline(FrameBuffer targetFrameBuffer)
+	{
+		// Compile sprite shaders
+		mSpriteVertexShader = mShaderManager.CompileFromSource(ShaderSources.SpriteShadersVS, .Vertex, "VS");
+		mSpritePixelShader = mShaderManager.CompileFromSource(ShaderSources.SpriteShadersPS, .Pixel, "PS");
+
+		// Create per-sprite constant buffer (supports up to 1000 sprites with dynamic offsets)
+		{
+			const int32 MAX_SPRITES = 1000;
+			const int32 ALIGNMENT = 256;
+			int32 alignedSize = ((sizeof(SpriteVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+			var perSpriteCBDesc = BufferDescription(
+				(uint32)(alignedSize * MAX_SPRITES),
+				.ConstantBuffer,
+				.Dynamic,
+				.Write
+			);
+			mSpriteVertexCB = mGraphicsContext.Factory.CreateBuffer(perSpriteCBDesc);
+		}
+
+		// Create default sprite material buffer (unused, kept for layout compatibility)
+		{
+			var defaultMaterial = SpriteFragmentUniforms()
+			{
+				Padding = Vector4(0, 0, 0, 0)
+			};
+
+			var defaultMaterialBufferDesc = BufferDescription(
+				sizeof(SpriteFragmentUniforms),
+				.ConstantBuffer,
+				.Dynamic
+			);
+			mDefaultSpriteMaterialCB = mGraphicsContext.Factory.CreateBuffer(&defaultMaterial, defaultMaterialBufferDesc);
+		}
+
+		// Sprite vertex format (position only - size/pivot/UV/color come from uniforms)
+		var vertexFormat = scope LayoutDescription()
+			.Add(ElementDescription(ElementFormat.Float3, ElementSemanticType.Position));
+		var vertexLayouts = scope InputLayouts();
+		vertexLayouts.Add(vertexFormat);
+
+		// Sprite per-object resource layout
+		{
+			mSpritePerObjectLayoutElements = new LayoutElementDescription[](
+				LayoutElementDescription(0, .ConstantBuffer, .Vertex, true, sizeof(SpriteVertexUniforms))
+			);
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params mSpritePerObjectLayoutElements);
+			mSpritePerObjectResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
+		}
+
+		// Sprite material resource layout (tint + texture + sampler)
+		{
+			mSpriteMaterialLayoutElements = new LayoutElementDescription[](
+				LayoutElementDescription(0, .ConstantBuffer, .Pixel, false, sizeof(SpriteFragmentUniforms)),
+				LayoutElementDescription(0, .Texture, .Pixel),
+				LayoutElementDescription(0, .Sampler, .Pixel)
+			);
+			ResourceLayoutDescription resourceLayoutDesc = ResourceLayoutDescription(params mSpriteMaterialLayoutElements);
+			mSpriteMaterialResourceLayout = mGraphicsContext.Factory.CreateResourceLayout(resourceLayoutDesc);
+		}
+
+		// Sprite render states - alpha blending enabled, depth test but no write
+		var spriteRenderStates = RenderStateDescription.Default;
+		spriteRenderStates.BlendState.RenderTarget0.BlendEnable = true;
+		spriteRenderStates.BlendState.RenderTarget0.SourceBlendColor = .SourceAlpha;
+		spriteRenderStates.BlendState.RenderTarget0.DestinationBlendColor = .InverseSourceAlpha;
+		spriteRenderStates.BlendState.RenderTarget0.BlendOperationColor = .Add;
+		spriteRenderStates.BlendState.RenderTarget0.SourceBlendAlpha = .One;
+		spriteRenderStates.BlendState.RenderTarget0.DestinationBlendAlpha = .InverseSourceAlpha;
+		spriteRenderStates.BlendState.RenderTarget0.BlendOperationAlpha = .Add;
+		spriteRenderStates.DepthStencilState.DepthEnable = true;
+		spriteRenderStates.DepthStencilState.DepthWriteMask = false;  // Don't write depth for sprites
+		spriteRenderStates.RasterizerState.CullMode = .None;  // Sprites can face either way
+
+		// Create sprite pipeline
+		var pipelineDescription = GraphicsPipelineDescription
+		{
+			RenderStates = spriteRenderStates,
+			Shaders = .()
+			{
+				VertexShader = mSpriteVertexShader,
+				PixelShader = mSpritePixelShader
+			},
+			InputLayouts = vertexLayouts,
+			ResourceLayouts = mSpritePipelineResourceLayouts = new ResourceLayout[](mSpritePerObjectResourceLayout, mSpriteMaterialResourceLayout),
+			PrimitiveTopology = .TriangleList,
+			Outputs = .CreateFromFrameBuffer(targetFrameBuffer)
+		};
+
+		mSpritePipeline = mGraphicsContext.Factory.CreateGraphicsPipeline(pipelineDescription);
+
+		// Per-sprite resource set
+		{
+			ResourceSetDescription resourceSetDesc = .(mSpritePerObjectResourceLayout, mSpriteVertexCB);
+			mSpritePerObjectResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
+		}
+
+		// Default sprite material resource set
+		{
+			var defaultWhiteTexture = mRenderer.GetDefaultWhiteTexture();
+			ResourceSetDescription resourceSetDesc = .(mSpriteMaterialResourceLayout, mDefaultSpriteMaterialCB, defaultWhiteTexture.Resource.Texture, mGraphicsContext.DefaultSampler);
+			mDefaultSpriteMaterialResourceSet = mGraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
+		}
+	}
+
+	private void DestroySpritePipeline()
+	{
+		if (mDefaultSpriteMaterialResourceSet != null)
+			mGraphicsContext.Factory.DestroyResourceSet(ref mDefaultSpriteMaterialResourceSet);
+		if (mSpritePerObjectResourceSet != null)
+			mGraphicsContext.Factory.DestroyResourceSet(ref mSpritePerObjectResourceSet);
+		if (mSpriteMaterialResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mSpriteMaterialResourceLayout);
+		if (mSpritePerObjectResourceLayout != null)
+			mGraphicsContext.Factory.DestroyResourceLayout(ref mSpritePerObjectResourceLayout);
+		if (mSpritePipeline != null)
+			mGraphicsContext.Factory.DestroyGraphicsPipeline(ref mSpritePipeline);
+		if (mDefaultSpriteMaterialCB != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mDefaultSpriteMaterialCB);
+		if (mSpriteVertexCB != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mSpriteVertexCB);
+		if (mSpritePixelShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mSpritePixelShader);
+		if (mSpriteVertexShader != null)
+			mGraphicsContext.Factory.DestroyShader(ref mSpriteVertexShader);
 	}
 }

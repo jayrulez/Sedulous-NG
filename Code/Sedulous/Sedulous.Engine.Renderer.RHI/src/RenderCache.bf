@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using Sedulous.RHI;
+using Sedulous.Mathematics;
 using Sedulous.Engine.Renderer.GPU;
 
 namespace Sedulous.Engine.Renderer.RHI;
@@ -26,6 +27,12 @@ class RenderCache
 
 	// Material resource set cache
 	private Dictionary<GPUMaterial, ResourceSet> mMaterialResourceSets = new .() ~ delete _;
+
+	// Sprite resource set cache (texture bindings only, no uniform buffer needed)
+	private Dictionary<SpriteRenderer, ResourceSet> mSpriteResourceSets = new .() ~ delete _;
+
+	// Sprite texture cache (keeps GPU texture handles alive)
+	private Dictionary<SpriteRenderer, GPUResourceHandle<GPUTexture>> mSpriteTextures = new .() ~ delete _;
 
 	public this(RHIRendererSubsystem renderer, GPUResourceManager resourceManager)
 	{
@@ -75,6 +82,16 @@ class RenderCache
 		for (var entry in mMaterialResourceSets)
 			mRenderer.GraphicsContext.Factory.DestroyResourceSet(ref entry.value);
 		mMaterialResourceSets.Clear();
+
+		// Destroy sprite resource sets
+		for (var entry in mSpriteResourceSets)
+			mRenderer.GraphicsContext.Factory.DestroyResourceSet(ref entry.value);
+		mSpriteResourceSets.Clear();
+
+		// Release sprite texture handles
+		for (var entry in mSpriteTextures)
+			entry.value.Release();
+		mSpriteTextures.Clear();
 	}
 
 	// ============================================
@@ -255,5 +272,53 @@ class RenderCache
 	public bool TryGetMaterial(MeshRenderer renderer, out GPUResourceHandle<GPUMaterial> material)
 	{
 		return mMeshMaterials.TryGetValue(renderer, out material);
+	}
+
+	// ============================================
+	// Sprite Resources
+	// ============================================
+
+	/// Get or create resource set for a SpriteRenderer (texture + sampler only, tint is in vertex uniforms)
+	public ResourceSet GetOrCreateSpriteResourceSet(SpriteRenderer renderer)
+	{
+		if (mSpriteResourceSets.TryGetValue(renderer, let existing))
+			return existing;
+
+		// Get GPU texture from resource manager
+		Texture texture = null;
+		if (renderer.Texture.IsValid && renderer.Texture.Resource != null)
+		{
+			var gpuTextureHandle = mResourceManager.GetOrCreateTexture(renderer.Texture.Resource);
+			if (gpuTextureHandle.IsValid && gpuTextureHandle.Resource != null)
+			{
+				texture = gpuTextureHandle.Resource.Texture;
+				// Store the handle to keep the texture alive and release it later
+				mSpriteTextures[renderer] = gpuTextureHandle;
+			}
+		}
+
+		// Fallback to default white texture
+		if (texture == null)
+		{
+			var defaultTex = mRenderer.GetDefaultWhiteTexture();
+			if (defaultTex.IsValid && defaultTex.Resource != null)
+				texture = defaultTex.Resource.Texture;
+		}
+
+		if (texture == null)
+			return null;
+
+		// Create resource set: (texture, sampler) - no constant buffer needed
+		// Note: The layout still expects a CB at slot 0, but we bind the default one
+		var resourceSetDesc = ResourceSetDescription(
+			mRenderer.SpriteMaterialResourceLayout,
+			mRenderer.DefaultSpriteMaterialCB,  // Dummy CB for layout compatibility
+			texture,
+			mRenderer.GraphicsContext.DefaultSampler
+		);
+		var resourceSet = mRenderer.GraphicsContext.Factory.CreateResourceSet(resourceSetDesc);
+		mSpriteResourceSets[renderer] = resourceSet;
+
+		return resourceSet;
 	}
 }

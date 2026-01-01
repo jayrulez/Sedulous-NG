@@ -70,6 +70,7 @@ class RHIRendererSubsystem : Subsystem
 	public GraphicsPipelineState DebugLinePipeline => mPipelineManager.DebugLinePipeline;
 	public GraphicsPipelineState DepthOnlyPipeline => mPipelineManager.DepthOnlyPipeline;
 	public GraphicsPipelineState SkinnedDepthOnlyPipeline => mPipelineManager.SkinnedDepthOnlyPipeline;
+	public GraphicsPipelineState SpritePipeline => mPipelineManager.SpritePipeline;
 	public ResourceLayout SkinnedPerObjectResourceLayout => mPipelineManager.SkinnedPerObjectResourceLayout;
 	public ResourceLayout BoneMatricesResourceLayout => mPipelineManager.BoneMatricesResourceLayout;
 	public ResourceLayout UnlitMaterialResourceLayout => mPipelineManager.UnlitMaterialResourceLayout;
@@ -81,6 +82,11 @@ class RHIRendererSubsystem : Subsystem
 	public MaterialPipelineRegistry MaterialRegistry => mPipelineManager.MaterialRegistry;
 	public Buffer LightingBuffer => mPipelineManager.LightingBuffer;
 	public ResourceSet LightingResourceSet => mPipelineManager.LightingResourceSet;
+	public Buffer SpriteVertexCB => mPipelineManager.SpriteVertexCB;
+	public Buffer DefaultSpriteMaterialCB => mPipelineManager.DefaultSpriteMaterialCB;
+	public ResourceSet SpritePerObjectResourceSet => mPipelineManager.SpritePerObjectResourceSet;
+	public ResourceSet DefaultSpriteMaterialResourceSet => mPipelineManager.DefaultSpriteMaterialResourceSet;
+	public ResourceLayout SpriteMaterialResourceLayout => mPipelineManager.SpriteMaterialResourceLayout;
 
 	private delegate void(uint32, uint32) mResizeDelegate ~ delete _;
 	private Viewport[] WindowViewports = new .[1] ~ delete _;
@@ -111,6 +117,10 @@ class RHIRendererSubsystem : Subsystem
 	private Buffer mCullingUniformsBuffer;  // Culling shader uniforms
 	private ResourceSet mGPUCullingResourceSet;
 
+	// Sprite quad buffers (for dynamic quad generation)
+	private Buffer mSpriteQuadVertexBuffer;
+	private Buffer mSpriteQuadIndexBuffer;
+
 	public Buffer ObjectDataBuffer => mObjectDataBuffer;
 	public Buffer MeshInfoBuffer => mMeshInfoBuffer;
 	public Buffer IndirectArgsBuffer => mIndirectArgsBuffer;
@@ -118,6 +128,8 @@ class RHIRendererSubsystem : Subsystem
 	public Buffer DrawCountBuffer => mDrawCountBuffer;
 	public Buffer CullingUniformsBuffer => mCullingUniformsBuffer;
 	public ResourceSet GPUCullingResourceSet => mGPUCullingResourceSet;
+	public Buffer SpriteQuadVertexBuffer => mSpriteQuadVertexBuffer;
+	public Buffer SpriteQuadIndexBuffer => mSpriteQuadIndexBuffer;
 
 	public this(Window window, GraphicsContext context)
 	{
@@ -178,6 +190,9 @@ class RHIRendererSubsystem : Subsystem
 		// Create GPU culling resources
 		CreateGPUCullingResources();
 
+		// Create sprite quad buffers
+		CreateSpriteQuadBuffers();
+
 		// Create render graph
 		mRenderGraph = new RenderGraph("Main", mGraphicsContext, mGraphicsContext.Factory);
 		SetupRenderGraph();
@@ -192,6 +207,9 @@ class RHIRendererSubsystem : Subsystem
 		{
 			mRenderGraph.Reset();
 		}
+
+		// Sprite quad buffers cleanup
+		DestroySpriteQuadBuffers();
 
 		// GPU culling cleanup
 		DestroyGPUCullingResources();
@@ -396,6 +414,7 @@ class RHIRendererSubsystem : Subsystem
 			module.PrepareGPUResources(cmd);
 			module.UpdateLightingBuffer(cmd);
 			module.UpdateDebugBuffers(cmd);
+			module.UpdateSpriteUniforms();
 		}
 	}
 
@@ -484,6 +503,7 @@ class RHIRendererSubsystem : Subsystem
 		{
 			module.RenderMeshes(cmd);
 			module.RenderSkinnedMeshes(cmd);
+			module.RenderSprites(cmd);
 			module.RenderDebugLines(cmd);
 		}
 	}
@@ -678,6 +698,44 @@ class RHIRendererSubsystem : Subsystem
 			mGraphicsContext.Factory.DestroyBuffer(ref mMeshInfoBuffer);
 		if (mObjectDataBuffer != null)
 			mGraphicsContext.Factory.DestroyBuffer(ref mObjectDataBuffer);
+	}
+
+	private void CreateSpriteQuadBuffers()
+	{
+		// Sprite quad vertex buffer (4 vertices, static unit quad)
+		// Unit quad corners: (0,0), (1,0), (1,1), (0,1)
+		SpriteVertex[4] vertices = .(
+			SpriteVertex() { Position = Vector3(0, 0, 0) },  // Bottom-left
+			SpriteVertex() { Position = Vector3(1, 0, 0) },  // Bottom-right
+			SpriteVertex() { Position = Vector3(1, 1, 0) },  // Top-right
+			SpriteVertex() { Position = Vector3(0, 1, 0) }   // Top-left
+		);
+
+		var vertexBufferDesc = BufferDescription(
+			(uint32)(sizeof(SpriteVertex) * 4),
+			.VertexBuffer,
+			.Default,
+			.None
+		);
+		mSpriteQuadVertexBuffer = mGraphicsContext.Factory.CreateBuffer(&vertices[0], vertexBufferDesc, "SpriteQuadVertexBuffer");
+
+		// Sprite quad index buffer (6 indices for 2 triangles, static)
+		uint16[6] indices = .(0, 1, 2, 0, 2, 3);
+		var indexBufferDesc = BufferDescription(
+			(uint32)(sizeof(uint16) * 6),
+			.IndexBuffer,
+			.Default,
+			.None
+		);
+		mSpriteQuadIndexBuffer = mGraphicsContext.Factory.CreateBuffer(&indices[0], indexBufferDesc, "SpriteQuadIndexBuffer");
+	}
+
+	private void DestroySpriteQuadBuffers()
+	{
+		if (mSpriteQuadIndexBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mSpriteQuadIndexBuffer);
+		if (mSpriteQuadVertexBuffer != null)
+			mGraphicsContext.Factory.DestroyBuffer(ref mSpriteQuadVertexBuffer);
 	}
 
 	private static TextureSampleCount SampleCount = TextureSampleCount.None;

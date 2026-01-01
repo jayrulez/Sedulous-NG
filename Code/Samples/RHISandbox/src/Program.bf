@@ -277,6 +277,9 @@ class SandboxApplication : Application
 
 		planeRenderer.Mesh = engine.ResourceSystem.AddResource(new MeshResource(planeMesh, true));
 
+		// Create sprites demonstrating different billboard modes
+		CreateSpriteDemo(engine, scene);
+
 		// Load GLTF model
 		LoadGLTFModel(engine, scene);
 
@@ -974,6 +977,115 @@ class SandboxApplication : Application
 		}
 
 		Debug.WriteLine(scope $"Loaded Duck model with PBR material: {model.MeshCount} meshes, {model.TextureCount} textures");
+	}
+
+	private void CreateSpriteDemo(Engine engine, Scene scene)
+	{
+		// Sprite 1: No billboard (static orientation)
+		{
+			var texture = TextureResource.CreateCheckerboard(128, 16);
+			texture.SetupForSprite();
+			var texHandle = engine.ResourceSystem.AddResource(texture).Value;
+
+			var sprite1 = scene.CreateEntity("Sprite_NoBillboard");
+			sprite1.Transform.Position = Vector3(-3, 1, 2);
+			sprite1.Transform.Scale = Vector3(1, 1, 1);
+			// Rotate it 45 degrees so we can see it's not billboarding
+			sprite1.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(Math.PI_f * 0.25f, 0, 0);
+
+			var renderer = sprite1.AddComponent<SpriteRenderer>();
+			renderer.Texture = texHandle;
+			renderer.Color = .White;
+			renderer.Size = Vector2(1.5f, 1.5f);
+			renderer.Billboard = .None;
+			renderer.SortingLayer = 0;
+			renderer.OrderInLayer = 0;
+		}
+
+		// Sprite 2: Full billboard (always faces camera)
+		{
+			var texture = TextureResource.CreateGradient(128, 128, .Cyan, .Magenta);
+			texture.SetupForSprite();
+			var texHandle = engine.ResourceSystem.AddResource(texture).Value;
+
+			var sprite2 = scene.CreateEntity("Sprite_FullBillboard");
+			sprite2.Transform.Position = Vector3(0, 1, 2);
+			sprite2.Transform.Scale = Vector3(1, 1, 1);
+
+			var renderer = sprite2.AddComponent<SpriteRenderer>();
+			renderer.Texture = texHandle;
+			renderer.Color = .White;
+			renderer.Size = Vector2(1.5f, 1.5f);
+			renderer.Billboard = .Full;
+			renderer.SortingLayer = 0;
+			renderer.OrderInLayer = 1;
+		}
+
+		// Sprite 3: Axis-aligned billboard (rotates around Y only)
+		{
+			var texture = TextureResource.CreateSolidColor(64, 64, .Red);
+			texture.SetupForSprite();
+			var texHandle = engine.ResourceSystem.AddResource(texture).Value;
+
+			var sprite3 = scene.CreateEntity("Sprite_AxisAligned");
+			sprite3.Transform.Position = Vector3(3, 1, 2);
+			sprite3.Transform.Scale = Vector3(1, 1, 1);
+
+			var renderer = sprite3.AddComponent<SpriteRenderer>();
+			renderer.Texture = texHandle;
+			renderer.Color = .White;
+			renderer.Size = Vector2(1.5f, 1.5f);
+			renderer.Billboard = .AxisAligned;
+			renderer.SortingLayer = 0;
+			renderer.OrderInLayer = 2;
+		}
+
+		// Sprite 4: With color tinting and flip
+		{
+			var texture = TextureResource.CreateCheckerboard(128, 16);
+			texture.SetupForSprite();
+			var texHandle = engine.ResourceSystem.AddResource(texture).Value;
+
+			var sprite4 = scene.CreateEntity("Sprite_Tinted");
+			sprite4.Transform.Position = Vector3(-1.5f, 2.5f, 2);
+			sprite4.Transform.Scale = Vector3(1, 1, 1);
+
+			var renderer = sprite4.AddComponent<SpriteRenderer>();
+			renderer.Texture = texHandle;
+			renderer.Color = Color(255, 200, 100, 200);  // Orange tint with some transparency
+			renderer.Size = Vector2(1.0f, 1.0f);
+			renderer.Billboard = .Full;
+			renderer.FlipX = true;
+			renderer.SortingLayer = 1;  // Higher layer, renders on top
+			renderer.OrderInLayer = 0;
+		}
+
+		// Sprite 5: Different pivot point (bottom-center)
+		{
+			var texture = TextureResource.CreateGradient(128, 128, .Cyan, .Magenta);
+			texture.SetupForSprite();
+			var texHandle = engine.ResourceSystem.AddResource(texture).Value;
+
+			var sprite5 = scene.CreateEntity("Sprite_BottomPivot");
+			sprite5.Transform.Position = Vector3(1.5f, 2.5f, 2);
+			sprite5.Transform.Scale = Vector3(1, 1, 1);
+
+			var renderer = sprite5.AddComponent<SpriteRenderer>();
+			renderer.Texture = texHandle;
+			renderer.Color = .White;
+			renderer.Size = Vector2(1.0f, 1.0f);
+			renderer.Pivot = Vector2(0.5f, 0.0f);  // Bottom-center pivot
+			renderer.Billboard = .Full;
+			renderer.SortingLayer = 1;
+			renderer.OrderInLayer = 1;
+		}
+
+		Debug.WriteLine("Created sprite demo with 5 sprites:");
+		Debug.WriteLine("  - Sprite_NoBillboard: Static orientation (checkerboard)");
+		Debug.WriteLine("  - Sprite_FullBillboard: Always faces camera (gradient)");
+		Debug.WriteLine("  - Sprite_AxisAligned: Rotates around Y axis only (red)");
+		Debug.WriteLine("  - Sprite_Tinted: Color tint and transparency (orange checkerboard)");
+		Debug.WriteLine("  - Sprite_BottomPivot: Bottom-center pivot point (gradient)");
 	}
 }
 

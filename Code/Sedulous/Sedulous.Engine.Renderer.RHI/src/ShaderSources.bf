@@ -112,6 +112,35 @@ struct InstancedFrameUniforms
     public Matrix ViewProjection;
 }
 
+// ============================================
+// Sprite Rendering Structures
+// ============================================
+
+/// Sprite vertex (simple unit quad vertex) - 12 bytes
+[CRepr, Packed]
+struct SpriteVertex
+{
+    public Vector3 Position;   // 12 bytes (unit quad: 0-1 range)
+}
+
+/// Sprite per-object uniforms (includes all sprite parameters)
+[CRepr, Packed, Align(16)]
+struct SpriteVertexUniforms
+{
+    public Matrix MVPMatrix;   // 64 bytes
+    public Vector4 SpriteParams;  // xy = size, zw = pivot (16 bytes)
+    public Vector4 UVBounds;      // xy = uvMin, zw = uvMax (16 bytes)
+    public Vector4 TintColor;     // rgba tint color (16 bytes)
+    // Total: 112 bytes, aligned to 16
+}
+
+/// Sprite material uniforms (just for texture binding, color moved to vertex uniforms)
+[CRepr, Packed, Align(16)]
+struct SpriteFragmentUniforms
+{
+    public Vector4 Padding;  // 16 bytes (unused, kept for resource layout compatibility)
+}
+
 static
 {
 	public const int MAX_BONES = 128;
@@ -1445,6 +1474,87 @@ static class ShaderSources
 
 	        output.Position = mul(float4(input.Position, 1.0), mvp);
 	        return output;
+	    }
+	    """;
+
+	// ============================================
+	// Sprite Shaders
+	// ============================================
+
+	public const String SpriteShadersVS = """
+	    // Per-sprite constant buffer
+	    cbuffer SpriteUniforms : register(b0)
+	    {
+	        float4x4 MVPMatrix;
+	        float4 SpriteParams;  // xy = size, zw = pivot
+	        float4 UVBounds;      // xy = uvMin, zw = uvMax
+	        float4 TintColor;     // rgba tint
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;  // Unit quad: (0,0), (1,0), (1,1), (0,1)
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+
+	        // Extract sprite parameters
+	        float2 size = SpriteParams.xy;
+	        float2 pivot = SpriteParams.zw;
+	        float2 uvMin = UVBounds.xy;
+	        float2 uvMax = UVBounds.zw;
+
+	        // Transform unit quad position by size and pivot
+	        // Unit quad is 0-1, pivot is 0-1, size is world units
+	        float2 localPos = (input.Position.xy - pivot) * size;
+	        float3 worldPos = float3(localPos, 0.0);
+
+	        output.Position = mul(float4(worldPos, 1.0), MVPMatrix);
+
+	        // Interpolate UVs from unit quad position
+	        output.TexCoord = lerp(uvMin, uvMax, input.Position.xy);
+
+	        // Pass tint color to pixel shader
+	        output.Color = TintColor;
+
+	        return output;
+	    }
+	    """;
+
+	public const String SpriteShadersPS = """
+	    // Sprite texture (material buffer kept for layout compatibility but unused)
+	    Texture2D SpriteTexture : register(t0, space1);
+	    SamplerState SpriteSampler : register(s0, space1);
+
+	    struct PSInput
+	    {
+	        float4 Position : SV_POSITION;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;  // Tint color from vertex shader
+	    };
+
+	    float4 PS(PSInput input) : SV_TARGET0
+	    {
+	        // Sample texture
+	        float4 texColor = SpriteTexture.Sample(SpriteSampler, input.TexCoord);
+
+	        // Combine texture * tint color (from vertex shader)
+	        float4 finalColor = texColor * input.Color;
+
+	        // Alpha test - discard fully transparent pixels
+	        if (finalColor.a < 0.01)
+	            discard;
+
+	        return finalColor;
 	    }
 	    """;
 }

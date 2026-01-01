@@ -47,6 +47,16 @@ struct SkinnedMeshRenderCommand
 	public bool IsTransparent;
 }
 
+struct SpriteRenderCommand
+{
+	public Entity Entity;
+	public Matrix WorldMatrix;
+	public SpriteRenderer Renderer;
+	public float DistanceToCamera;
+	public int32 SortingLayer;
+	public int32 OrderInLayer;
+}
+
 class RenderModule : SceneModule
 {
 	public override StringView Name => "Render";
@@ -59,6 +69,7 @@ class RenderModule : SceneModule
 	private List<MeshRenderCommand> mTransparentMeshCommands = new .() ~ delete _;
 	private List<SkinnedMeshRenderCommand> mOpaqueSkinnedCommands = new .() ~ delete _;
 	private List<SkinnedMeshRenderCommand> mTransparentSkinnedCommands = new .() ~ delete _;
+	private List<SpriteRenderCommand> mSpriteCommands = new .() ~ delete _;
 
 	// Cached frustum for culling
 	private BoundingFrustum mViewFrustum;
@@ -81,6 +92,7 @@ class RenderModule : SceneModule
 
 	private EntityQuery mMeshesQuery;
 	private EntityQuery mSkinnedMeshesQuery;
+	private EntityQuery mSpritesQuery;
 	private EntityQuery mCamerasQuery;
 	private EntityQuery mDirectionalLightsQuery;
 
@@ -98,6 +110,7 @@ class RenderModule : SceneModule
 
 		mMeshesQuery = CreateQuery().With<MeshRenderer>();
 		mSkinnedMeshesQuery = CreateQuery().With<SkinnedMeshRenderer>().With<Animator>();
+		mSpritesQuery = CreateQuery().With<SpriteRenderer>();
 		mCamerasQuery = CreateQuery().With<Camera>();
 		mDirectionalLightsQuery = CreateQuery().With<DirectionalLight>();
 
@@ -125,6 +138,7 @@ class RenderModule : SceneModule
 
 		DestroyQuery(mMeshesQuery);
 		DestroyQuery(mSkinnedMeshesQuery);
+		DestroyQuery(mSpritesQuery);
 		DestroyQuery(mCamerasQuery);
 		DestroyQuery(mDirectionalLightsQuery);
 	}
@@ -146,6 +160,7 @@ class RenderModule : SceneModule
 		mTransparentMeshCommands.Clear();
 		mOpaqueSkinnedCommands.Clear();
 		mTransparentSkinnedCommands.Clear();
+		mSpriteCommands.Clear();
 
 		// Create view frustum for culling
 		if (mActiveCamera != null)
@@ -157,9 +172,11 @@ class RenderModule : SceneModule
 		// Note: GPU-based Hi-Z occlusion culling happens in GPUCullingExecute pass
 		CollectRenderCommands();
 		CollectSkinnedRenderCommands();
+		CollectSpriteRenderCommands();
 
 		// Sort render commands
 		SortRenderCommands();
+		SortSpriteCommands();
 
 		// Update GPU memory statistic
 		mStatistics.GPUMemoryUsed = mRenderer.GPUResources.TotalGPUMemory;
@@ -1151,5 +1168,184 @@ class RenderModule : SceneModule
 
 		mStatistics.DrawCalls++;
 		mStatistics.ObjectsRendered++;
+	}
+
+	private void CollectSpriteRenderCommands()
+	{
+		for (var entity in mSpritesQuery.GetEntities(Scene, .. scope .()))
+		{
+			if (entity.HasComponent<SpriteRenderer>())
+			{
+				var renderer = entity.GetComponent<SpriteRenderer>();
+				var transform = entity.Transform;
+
+				// Skip if no texture
+				if (!renderer.Texture.IsValid || renderer.Texture.Resource == null)
+					continue;
+
+				var worldMatrix = transform.WorldMatrix;
+
+				// Apply billboarding if needed
+				if (renderer.Billboard != .None && mActiveCamera != null)
+				{
+					worldMatrix = ComputeBillboardMatrix(transform, renderer.Billboard);
+				}
+
+				var command = SpriteRenderCommand()
+				{
+					Entity = entity,
+					WorldMatrix = worldMatrix,
+					Renderer = renderer,
+					DistanceToCamera = 0,
+					SortingLayer = renderer.SortingLayer,
+					OrderInLayer = renderer.OrderInLayer
+				};
+
+				if (mActiveCamera != null)
+				{
+					command.DistanceToCamera = Vector3.Distance(transform.Position, mActiveCameraTransform.Position);
+				}
+
+				mSpriteCommands.Add(command);
+			}
+		}
+	}
+
+	private Matrix ComputeBillboardMatrix(Transform spriteTransform, SpriteRenderer.BillboardMode mode)
+	{
+		var position = spriteTransform.WorldPosition;
+		var scale = spriteTransform.Scale;
+		var cameraPos = mActiveCameraTransform.WorldPosition;
+
+		if (mode == .Full)
+		{
+			// Full billboard: face camera completely
+			var toCamera = cameraPos - position;
+			if (toCamera.LengthSquared() < 0.0001f)
+				return spriteTransform.WorldMatrix;
+
+			var forward = Vector3.Normalize(toCamera);
+
+			// Use Matrix.CreateWorld which properly handles axis orientation
+			// CreateWorld expects forward as the direction the object faces
+			var worldMatrix = Matrix.CreateWorld(position, forward, Vector3.UnitY);
+
+			// Apply scale
+			return Matrix.CreateScale(scale) * worldMatrix;
+		}
+		else // AxisAligned
+		{
+			// Axis-aligned billboard: rotate around Y axis only (vertical billboard)
+			var toCamera = cameraPos - position;
+			toCamera.Y = 0;  // Ignore Y difference for Y-axis rotation only
+			if (toCamera.LengthSquared() < 0.0001f)
+				return spriteTransform.WorldMatrix;
+
+			var forward = Vector3.Normalize(toCamera);
+
+			// Use Matrix.CreateWorld which properly handles axis orientation
+			var worldMatrix = Matrix.CreateWorld(position, forward, Vector3.UnitY);
+
+			// Apply scale
+			return Matrix.CreateScale(scale) * worldMatrix;
+		}
+	}
+
+	private void SortSpriteCommands()
+	{
+		// Sort by: SortingLayer -> OrderInLayer -> Distance (back-to-front for alpha blending)
+		mSpriteCommands.Sort(scope (lhs, rhs) => {
+			// First by sorting layer
+			if (lhs.SortingLayer != rhs.SortingLayer)
+				return lhs.SortingLayer <=> rhs.SortingLayer;
+
+			// Then by order in layer
+			if (lhs.OrderInLayer != rhs.OrderInLayer)
+				return lhs.OrderInLayer <=> rhs.OrderInLayer;
+
+			// Finally by distance (back-to-front)
+			return rhs.DistanceToCamera.CompareTo(lhs.DistanceToCamera);
+		});
+	}
+
+	internal void UpdateSpriteUniforms()
+	{
+		if (mSpriteCommands.IsEmpty)
+			return;
+
+		// Update sprite uniform buffer with all sprite parameters
+		var mapped = mRenderer.GraphicsContext.MapMemory(mRenderer.SpriteVertexCB, MapMode.Write);
+
+		const int32 ALIGNMENT = 256;
+		int32 alignedSize = ((sizeof(SpriteVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+		int writeIndex = 0;
+		for (var command in mSpriteCommands)
+		{
+			var renderer = command.Renderer;
+			var size = renderer.GetRenderSize();
+			var pivot = renderer.Pivot;
+
+			// Get UVs (handles source rect and flipping)
+			Vector2 uvMin, uvMax;
+			renderer.GetUVs(out uvMin, out uvMax);
+
+			// Get tint color as Vector4
+			var tintColor = renderer.Color.ToVector4();
+
+			var vertexUniforms = SpriteVertexUniforms()
+			{
+				MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+				SpriteParams = Vector4(size.X, size.Y, pivot.X, pivot.Y),
+				UVBounds = Vector4(uvMin.X, uvMin.Y, uvMax.X, uvMax.Y),
+				TintColor = tintColor
+			};
+
+			SpriteVertexUniforms* dest = (SpriteVertexUniforms*)((uint8*)mapped.Data + writeIndex * alignedSize);
+			*dest = vertexUniforms;
+			writeIndex++;
+		}
+
+		mRenderer.GraphicsContext.UnmapMemory(mRenderer.SpriteVertexCB);
+	}
+
+	internal void RenderSprites(CommandBuffer commandBuffer)
+	{
+		if (mSpriteCommands.IsEmpty)
+			return;
+
+		commandBuffer.SetGraphicsPipelineState(mRenderer.SpritePipeline);
+
+		// Set static vertex and index buffers once for all sprites
+		commandBuffer.SetVertexBuffers(scope Buffer[](mRenderer.SpriteQuadVertexBuffer));
+		commandBuffer.SetIndexBuffer(mRenderer.SpriteQuadIndexBuffer, .UInt16);
+
+		const int32 ALIGNMENT = 256;
+		int32 alignedSize = ((sizeof(SpriteVertexUniforms) + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+
+		// Render each sprite using the static quad
+		int uniformIndex = 0;
+		for (var command in mSpriteCommands)
+		{
+			// Set per-sprite resource set with dynamic offset
+			uint32 dynamicOffset = (uint32)(uniformIndex * alignedSize);
+			commandBuffer.SetResourceSet(mRenderer.SpritePerObjectResourceSet, 0, scope .(dynamicOffset));
+
+			// Get or create sprite material resource set (for texture binding)
+			var materialResourceSet = mCache.GetOrCreateSpriteResourceSet(command.Renderer);
+			if (materialResourceSet != null)
+				commandBuffer.SetResourceSet(materialResourceSet, 1);
+			else
+				commandBuffer.SetResourceSet(mRenderer.DefaultSpriteMaterialResourceSet, 1);
+
+			// Draw the static unit quad (vertex shader applies size/pivot/UV transforms)
+			commandBuffer.DrawIndexed(6);
+
+			mStatistics.DrawCalls++;
+			mStatistics.TriangleCount += 2;
+			mStatistics.ObjectsRendered++;
+
+			uniformIndex++;
+		}
 	}
 }

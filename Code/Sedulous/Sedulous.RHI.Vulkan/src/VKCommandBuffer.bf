@@ -113,17 +113,15 @@ public class VKCommandBuffer : CommandBuffer
 	{
 		FrameBuffer frameBuffer = description.FrameBuffer;
 		ClearValue clearValue = description.ClearValue;
-		if (clearValue.Flags == ClearFlags.None)
+		// Always transition images to the correct layout before the render pass
+		FrameBufferAttachmentList colorTargets = frameBuffer.ColorTargets;
+		for (FrameBufferAttachment attachment in colorTargets)
 		{
-			FrameBufferAttachmentList colorTargets = frameBuffer.ColorTargets;
-			for (FrameBufferAttachment attachment in colorTargets)
-			{
-				(attachment.Texture as VKTexture).TransitionImageLayout(CommandBuffer, VkImageLayout.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0, 1, 0, 1);
-			}
-			if (frameBuffer.DepthStencilTarget.HasValue)
-			{
-				(frameBuffer.DepthStencilTarget.Value.Texture as VKTexture).TransitionImageLayout(CommandBuffer, VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 0, 1, 0, 1);
-			}
+			(attachment.Texture as VKTexture).TransitionImageLayout(CommandBuffer, VkImageLayout.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0, 1, 0, 1);
+		}
+		if (frameBuffer.DepthStencilTarget.HasValue)
+		{
+			(frameBuffer.DepthStencilTarget.Value.Texture as VKTexture).TransitionImageLayout(CommandBuffer, VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 0, 1, 0, 1);
 		}
 		if (activeFrameBuffer == null || activeFrameBuffer != frameBuffer)
 		{

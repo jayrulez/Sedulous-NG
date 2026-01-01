@@ -342,8 +342,10 @@ public class VKTexture : Texture
 			barrier.oldLayout = VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 			barrier.newLayout = VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			barrier.srcAccessMask = VkAccessFlags.VK_ACCESS_TRANSFER_WRITE_BIT;
-			barrier.dstAccessMask = VkAccessFlags.VK_ACCESS_SHADER_READ_BIT;
-			VulkanNative.vkCmdPipelineBarrier(context.CopyCommandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VkPipelineStageFlags.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VkPipelineStageFlags.VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkDependencyFlags.None, 0, null, 0, null, 1, &barrier);
+			// Use BOTTOM_OF_PIPE as destination stage since this runs on a transfer-only queue.
+			// Actual synchronization with graphics stages happens through semaphores between queues.
+			barrier.dstAccessMask = VkAccessFlags.VK_ACCESS_NONE;
+			VulkanNative.vkCmdPipelineBarrier(context.CopyCommandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VkDependencyFlags.None, 0, null, 0, null, 1, &barrier);
 			for (int i = 0; i < subResourceCount; i++)
 			{
 				ImageLayouts[i] = VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -852,11 +854,37 @@ public class VKTexture : Texture
 						depth = subResourceInfo.MipDepth
 					}
 			};
-		TransitionImageLayout(commandBuffer, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subResourceInfo.MipLevel, 1, subResourceInfo.ArrayLayer, Description.ArraySize * Description.Faces);
-		VulkanNative.vkCmdCopyBufferToImage(vkContext.CopyCommandBuffer, vkContext.TextureUploader.NativeBuffer, NativeImage, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, regionCount, copyRegions);
+		// Use transfer-compatible barriers since this runs on a transfer-only queue
+		VkImageMemoryBarrier barrier = VkImageMemoryBarrier()
+			{
+				sType = VkStructureType.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+				image = NativeImage,
+				oldLayout = VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED,
+				newLayout = VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				srcAccessMask = VkAccessFlags.VK_ACCESS_NONE,
+				dstAccessMask = VkAccessFlags.VK_ACCESS_TRANSFER_WRITE_BIT,
+				subresourceRange = .()
+					{
+						aspectMask = VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT,
+						baseMipLevel = subResourceInfo.MipLevel,
+						levelCount = 1,
+						baseArrayLayer = subResourceInfo.ArrayLayer,
+						layerCount = Description.ArraySize * Description.Faces
+					},
+				srcQueueFamilyIndex = uint32.MaxValue,
+				dstQueueFamilyIndex = uint32.MaxValue
+			};
+		VulkanNative.vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkDependencyFlags.None, 0, null, 0, null, 1, &barrier);
+		VulkanNative.vkCmdCopyBufferToImage(commandBuffer, vkContext.TextureUploader.NativeBuffer, NativeImage, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, regionCount, copyRegions);
 		if ((Description.Flags & TextureFlags.ShaderResource) != TextureFlags.None)
 		{
-			TransitionImageLayout(commandBuffer, VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subResourceInfo.MipLevel, 1, subResourceInfo.ArrayLayer, Description.ArraySize * Description.Faces);
+			barrier.oldLayout = VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			barrier.newLayout = VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.srcAccessMask = VkAccessFlags.VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VkAccessFlags.VK_ACCESS_NONE;
+			VulkanNative.vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VkDependencyFlags.None, 0, null, 0, null, 1, &barrier);
+			uint32 subResourceIndex = Helpers.CalculateSubResource(Description, subResourceInfo.MipLevel, subResourceInfo.ArrayLayer);
+			ImageLayouts[subResourceIndex] = VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		}
 	}
 

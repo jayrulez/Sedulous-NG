@@ -1,4 +1,4 @@
-using System;
+/*using System;
 using System.Collections;
 using Sedulous.Foundation.Core;
 using Sedulous.RHI;
@@ -96,4 +96,4 @@ class ShaderVariant
     {
         // Shaders are destroyed by the graphics context
     }
-}
+}*/

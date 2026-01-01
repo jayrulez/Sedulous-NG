@@ -1,4 +1,4 @@
-using Sedulous.RHI;
+/*using Sedulous.RHI;
 using Sedulous.Logging.Abstractions;
 using System.Collections;
 using System;
@@ -169,7 +169,7 @@ class ShaderCache
         var byteCode = scope List<uint8>();
         
         // Use the extension method from RHIRendererSubsystemExtensions
-        RHIRendererSubsystem.CompileShaderFromSource(
+        ShaderManager.CompileShaderFromSource(
             mGraphicsContext, 
             scope String(source), 
             stage, 
@@ -267,4 +267,4 @@ class ShaderCache
         
         mLogger.LogInformation("Cleared shader cache");
     }
-}
+}*/

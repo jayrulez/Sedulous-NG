@@ -218,7 +218,7 @@ class SandboxApplication : Application
 			var geometry = scene.CreateEntity(scope $"Geometry{i}");
 			geometry.Transform.Position = Vector3(i * 2 - 4, 0, 0);
 			geometry.Transform.Scale = Vector3(1, 1, 1);
-			geometry.AddComponent<RotateComponent>();
+			//geometry.AddComponent<RotateComponent>();
 			var renderer = geometry.AddComponent<MeshRenderer>();
 			renderer.Color = Color.White;
 

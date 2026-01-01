@@ -7,12 +7,12 @@ using Sedulous.Engine.Renderer.GPU;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.RHI.VertexFormats;
-using Sedulous.Engine.Renderer.RHI.Shaders;
+//using Sedulous.Engine.Renderer.RHI.Shaders;
 namespace Sedulous.Engine.Renderer.RHI;
 
 using internal Sedulous.Engine.Renderer.RHI;
 
-// Extension to integrate shader system into renderer
+/*// Extension to integrate shader system into renderer
 extension RHIRendererSubsystem
 {
     private ShaderCache mShaderCache ~ delete _;
@@ -280,4 +280,4 @@ struct RenderContext
     public int32 LightCount;
     public bool IsDepthPass;
     public bool IsShadowPass;
-}
+}*/

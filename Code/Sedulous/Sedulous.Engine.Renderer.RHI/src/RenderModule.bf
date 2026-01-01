@@ -1216,6 +1216,8 @@ class RenderModule : SceneModule
 	{
 		var position = spriteTransform.WorldPosition;
 		var scale = spriteTransform.Scale;
+		var scaleMatrix = Matrix.CreateScale(scale);
+		var translationMatrix = Matrix.CreateTranslation(position);
 
 		switch (mode)
 		{
@@ -1229,12 +1231,13 @@ class RenderModule : SceneModule
 			var right = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, forward));
 			var up = Vector3.Cross(forward, right);
 
-			return Matrix(
-				right.X * scale.X, right.Y * scale.X, right.Z * scale.X, 0,
-				up.X * scale.Y, up.Y * scale.Y, up.Z * scale.Y, 0,
-				forward.X * scale.Z, forward.Y * scale.Z, forward.Z * scale.Z, 0,
-				position.X, position.Y, position.Z, 1
+			var rotationMatrix = Matrix(
+				right.X, right.Y, right.Z, 0,
+				up.X, up.Y, up.Z, 0,
+				forward.X, forward.Y, forward.Z, 0,
+				0, 0, 0, 1
 			);
+			return scaleMatrix * rotationMatrix * translationMatrix;
 
 		case .FacePositionY:
 			// Position-based with Y-axis constraint
@@ -1247,27 +1250,28 @@ class RenderModule : SceneModule
 			var rightY = Vector3.Cross(Vector3.UnitY, forwardY);
 			var upY = Vector3.UnitY;
 
-			return Matrix(
-				rightY.X * scale.X, rightY.Y * scale.X, rightY.Z * scale.X, 0,
-				upY.X * scale.Y, upY.Y * scale.Y, upY.Z * scale.Y, 0,
-				forwardY.X * scale.Z, forwardY.Y * scale.Z, forwardY.Z * scale.Z, 0,
-				position.X, position.Y, position.Z, 1
+			var rotationMatrixY = Matrix(
+				rightY.X, rightY.Y, rightY.Z, 0,
+				upY.X, upY.Y, upY.Z, 0,
+				forwardY.X, forwardY.Y, forwardY.Z, 0,
+				0, 0, 0, 1
 			);
+			return scaleMatrix * rotationMatrixY * translationMatrix;
 
 		case .ViewAligned:
 			// View-aligned: extract camera axes from view matrix (sprite stays screen-aligned)
 			// The view matrix transforms world to camera space, so its rows contain camera axes
-			// Row 0 = camera right, Row 1 = camera up, Row 2 = camera forward (negated look direction)
 			var camRight = Vector3(mViewMatrix.M11, mViewMatrix.M21, mViewMatrix.M31);
 			var camUp = Vector3(mViewMatrix.M12, mViewMatrix.M22, mViewMatrix.M32);
 			var camForward = -Vector3(mViewMatrix.M13, mViewMatrix.M23, mViewMatrix.M33);
 
-			return Matrix(
-				camRight.X * scale.X, camRight.Y * scale.X, camRight.Z * scale.X, 0,
-				camUp.X * scale.Y, camUp.Y * scale.Y, camUp.Z * scale.Y, 0,
-				camForward.X * scale.Z, camForward.Y * scale.Z, camForward.Z * scale.Z, 0,
-				position.X, position.Y, position.Z, 1
+			var viewRotationMatrix = Matrix(
+				camRight.X, camRight.Y, camRight.Z, 0,
+				camUp.X, camUp.Y, camUp.Z, 0,
+				camForward.X, camForward.Y, camForward.Z, 0,
+				0, 0, 0, 1
 			);
+			return scaleMatrix * viewRotationMatrix * translationMatrix;
 
 		case .ViewAlignedY:
 			// View-aligned with Y-axis constraint (horizontal screen alignment, vertical world-up)
@@ -1282,12 +1286,13 @@ class RenderModule : SceneModule
 			var upYC = Vector3.UnitY;
 			var forwardYC = Vector3.Cross(camRightYC, upYC);
 
-			return Matrix(
-				camRightYC.X * scale.X, camRightYC.Y * scale.X, camRightYC.Z * scale.X, 0,
-				upYC.X * scale.Y, upYC.Y * scale.Y, upYC.Z * scale.Y, 0,
-				forwardYC.X * scale.Z, forwardYC.Y * scale.Z, forwardYC.Z * scale.Z, 0,
-				position.X, position.Y, position.Z, 1
+			var viewRotationMatrixY = Matrix(
+				camRightYC.X, camRightYC.Y, camRightYC.Z, 0,
+				upYC.X, upYC.Y, upYC.Z, 0,
+				forwardYC.X, forwardYC.Y, forwardYC.Z, 0,
+				0, 0, 0, 1
 			);
+			return scaleMatrix * viewRotationMatrixY * translationMatrix;
 
 		default:
 			return spriteTransform.WorldMatrix;

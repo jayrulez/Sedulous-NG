@@ -414,21 +414,21 @@ public class Mesh
 			}
 		}
 		
-		// Set indices with REVERSED winding order (clockwise when viewed from outside)
+		// Set indices with counter-clockwise winding order (CCW when viewed from outside)
 		int32 idx = 0;
 		for (int32 face = 0; face < 6; face++)
 		{
 			int32 baseVertex = face * 4;
-			
-			// Clockwise winding: 0,2,1 (reversed from standard 0,1,2)
+
+			// Counter-clockwise winding: 0,1,2
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 1));
-			
-			// Clockwise winding: 0,3,2 (reversed from standard 0,2,3)
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
-			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 3));
 			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
+
+			// Counter-clockwise winding: 0,2,3
+			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 0));
+			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 2));
+			mesh.Indices.SetIndex(idx++, (uint32)(baseVertex + 3));
 		}
 		
 		// Generate tangents
@@ -476,7 +476,7 @@ public class Mesh
 			}
 		}
 		
-		// Generate indices with REVERSED winding order
+		// Generate indices with counter-clockwise winding order (CCW when viewed from outside)
 		int32 idx = 0;
 		for (int32 y = 0; y < rings; y++)
 		{
@@ -486,16 +486,16 @@ public class Mesh
 				int32 b = a + 1;
 				int32 c = a + segments + 1;
 				int32 d = c + 1;
-				
-				// First triangle (reversed: a,b,c -> a,c,b)
+
+				// First triangle: a,b,c (CCW)
 				mesh.Indices.SetIndex(idx++, (uint32)a);
-				mesh.Indices.SetIndex(idx++, (uint32)c);
-				mesh.Indices.SetIndex(idx++, (uint32)b);
-				
-				// Second triangle (reversed: b,d,c -> b,c,d)
 				mesh.Indices.SetIndex(idx++, (uint32)b);
 				mesh.Indices.SetIndex(idx++, (uint32)c);
+
+				// Second triangle: b,d,c (CCW)
+				mesh.Indices.SetIndex(idx++, (uint32)b);
 				mesh.Indices.SetIndex(idx++, (uint32)d);
+				mesh.Indices.SetIndex(idx++, (uint32)c);
 			}
 		}
 		

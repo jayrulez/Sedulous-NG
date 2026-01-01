@@ -122,7 +122,7 @@ class GPUResourceManager
         // Cache the raw pointer
         mMeshCache[meshResource] = gpuMesh;
         
-        mGraphicsContext.Logger.LogInformation("Created GPU Mesh: {} (Total: {})", meshResource.Name.Ptr, mMeshCache.Count);
+        mGraphicsContext.Logger.LogInformation("Created GPU Mesh: {} (Total: {})", meshResource.Name, mMeshCache.Count);
         
         // Return a handle (this adds the first ref)
         return GPUResourceHandle<GPUMesh>(gpuMesh);
@@ -196,7 +196,7 @@ class GPUResourceManager
         // Cache the raw object
         mTextureCache[textureResource] = gpuTexture;
         
-        mGraphicsContext.Logger.LogInformation("Created GPU Texture: {} (Total: {})", textureResource.Name.Ptr, mTextureCache.Count);
+        mGraphicsContext.Logger.LogInformation("Created GPU Texture: {} (Total: {})", textureResource.Name, mTextureCache.Count);
         
         // Return a handle (this adds the first ref)
         return GPUResourceHandle<GPUTexture>(gpuTexture);
@@ -254,7 +254,7 @@ class GPUResourceManager
         // Cache the raw pointer
         mMaterialCache[materialResource] = gpuMaterial;
 
-        mGraphicsContext.Logger.LogInformation("Created GPU Material: {} (Total: {})", materialResource.Name.Ptr, mMaterialCache.Count);
+        mGraphicsContext.Logger.LogInformation("Created GPU Material: {} (Total: {})", materialResource.Name, mMaterialCache.Count);
 
         // Return a handle (this adds the first ref)
         return GPUResourceHandle<GPUMaterial>(gpuMaterial);

@@ -199,26 +199,31 @@ public class VKBuffer : Sedulous.RHI.Buffer
 				dstQueueFamilyIndex = uint32.MaxValue,
 				size = uint64.MaxValue
 			};
-		VulkanNative.vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkDependencyFlags.None, 0, null, 1, &barrier, 0, null);
+		VulkanNative.vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkDependencyFlags.None, 0, null, 1, &barrier, 0, null);
 		VulkanNative.vkCmdCopyBuffer(commandBuffer, vkContext.BufferUploader.NativeBuffer, NativeBuffer, 1, &copyRegion);
 		barrier.srcAccessMask = barrier.dstAccessMask;
+		VkPipelineStageFlags dstStage = VkPipelineStageFlags.VK_PIPELINE_STAGE_NONE;
 		if ((vkUsage & VkBufferUsageFlags.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) != VkBufferUsageFlags.None)
 		{
 			barrier.dstAccessMask = VkAccessFlags.VK_ACCESS_UNIFORM_READ_BIT;
+			dstStage = VkPipelineStageFlags.VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VkPipelineStageFlags.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VkPipelineStageFlags.VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 		}
 		else if ((vkUsage & VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT) != VkBufferUsageFlags.None)
 		{
-			barrier.dstAccessMask = VkAccessFlags.VK_ACCESS_INDEX_READ_BIT;
+			barrier.dstAccessMask = VkAccessFlags.VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+			dstStage = VkPipelineStageFlags.VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
 		}
 		else if ((vkUsage & VkBufferUsageFlags.VK_BUFFER_USAGE_INDEX_BUFFER_BIT) != VkBufferUsageFlags.None)
 		{
 			barrier.dstAccessMask = VkAccessFlags.VK_ACCESS_INDEX_READ_BIT;
+			dstStage = VkPipelineStageFlags.VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
 		}
 		else
 		{
 			barrier.dstAccessMask = VkAccessFlags.VK_ACCESS_SHADER_READ_BIT;
+			dstStage = VkPipelineStageFlags.VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VkPipelineStageFlags.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VkPipelineStageFlags.VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 		}
-		VulkanNative.vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkDependencyFlags.None, 0, null, 1, &barrier, 0, null);
+		VulkanNative.vkCmdPipelineBarrier(commandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, dstStage, VkDependencyFlags.None, 0, null, 1, &barrier, 0, null);
 	}
 
 	/// <summary>

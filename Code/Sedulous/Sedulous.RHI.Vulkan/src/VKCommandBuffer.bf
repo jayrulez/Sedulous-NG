@@ -485,7 +485,7 @@ public class VKCommandBuffer : CommandBuffer
 	}
 
 	/// <summary>
-	/// Sets a resource barrier for a texture.
+	/// Sets a resource barrier for a buffer.
 	/// </summary>
 	/// <param name="buffer">The buffer.</param>
 	public override void ResourceBarrierUnorderedAccessView(Sedulous.RHI.Buffer buffer)
@@ -494,13 +494,18 @@ public class VKCommandBuffer : CommandBuffer
 			{
 				sType = VkStructureType.VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
 				buffer = (buffer as VKBuffer).NativeBuffer,
-				srcAccessMask = VkAccessFlags.VK_ACCESS_NONE,
-				dstAccessMask = (VkAccessFlags.VK_ACCESS_SHADER_READ_BIT | VkAccessFlags.VK_ACCESS_SHADER_WRITE_BIT),
+				srcAccessMask = VkAccessFlags.VK_ACCESS_SHADER_WRITE_BIT,
+				dstAccessMask = VkAccessFlags.VK_ACCESS_SHADER_READ_BIT,
 				srcQueueFamilyIndex = uint32.MaxValue,
 				dstQueueFamilyIndex = uint32.MaxValue,
 				size = uint64.MaxValue
 			};
-		VulkanNative.vkCmdPipelineBarrier(CommandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkDependencyFlags.None, 0, null, 1, &barrier, 0, null);
+		VulkanNative.vkCmdPipelineBarrier(
+			CommandBuffer,
+			VkPipelineStageFlags.VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VkPipelineStageFlags.VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VkDependencyFlags.None,
+			0, null, 1, &barrier, 0, null);
 	}
 
 	/// <summary>

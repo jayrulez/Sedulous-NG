@@ -335,15 +335,15 @@ public class VKTexture : Texture
 				srcQueueFamilyIndex = uint32.MaxValue,
 				dstQueueFamilyIndex = uint32.MaxValue
 			};
-		VulkanNative.vkCmdPipelineBarrier(context.CopyCommandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkDependencyFlags.None, 0, null, 0, null, 1, &barrier);
+		VulkanNative.vkCmdPipelineBarrier(context.CopyCommandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkDependencyFlags.None, 0, null, 0, null, 1, &barrier);
 		VulkanNative.vkCmdCopyBufferToImage(context.CopyCommandBuffer, context.TextureUploader.NativeBuffer, NativeImage, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, regionCount, copyRegions);
 		if ((Description.Flags & TextureFlags.ShaderResource) != TextureFlags.None)
 		{
 			barrier.oldLayout = VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 			barrier.newLayout = VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			barrier.srcAccessMask = VkAccessFlags.VK_ACCESS_TRANSFER_WRITE_BIT;
-			barrier.dstAccessMask = VkAccessFlags.VK_ACCESS_SHADER_READ_BIT | VkAccessFlags.VK_ACCESS_SHADER_WRITE_BIT;
-			VulkanNative.vkCmdPipelineBarrier(context.CopyCommandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkDependencyFlags.None, 0, null, 0, null, 1, &barrier);
+			barrier.dstAccessMask = VkAccessFlags.VK_ACCESS_SHADER_READ_BIT;
+			VulkanNative.vkCmdPipelineBarrier(context.CopyCommandBuffer, VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT, VkPipelineStageFlags.VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VkPipelineStageFlags.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VkPipelineStageFlags.VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkDependencyFlags.None, 0, null, 0, null, 1, &barrier);
 			for (int i = 0; i < subResourceCount; i++)
 			{
 				ImageLayouts[i] = VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

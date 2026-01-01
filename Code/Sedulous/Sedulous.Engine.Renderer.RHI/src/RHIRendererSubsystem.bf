@@ -135,6 +135,11 @@ class RHIRendererSubsystem : Subsystem
 	private uint32 mLastPickedEntityId = 0;
 	private bool mPickResultReady = false;
 
+	// Selection state (for outline rendering)
+	private Entity mSelectedEntity = null;
+	private Vector4 mOutlineColor = Vector4(1.0f, 0.5f, 0.0f, 1.0f);  // Orange by default
+	private float mOutlineThickness = 0.02f;
+
 	public Buffer ObjectDataBuffer => mObjectDataBuffer;
 	public Buffer MeshInfoBuffer => mMeshInfoBuffer;
 	public Buffer IndirectArgsBuffer => mIndirectArgsBuffer;
@@ -153,9 +158,31 @@ class RHIRendererSubsystem : Subsystem
 	public uint32 LastPickedEntityId => mLastPickedEntityId;
 	public GraphicsPipelineState PickingPipeline => mPipelineManager?.PickingPipeline;
 	public GraphicsPipelineState SkinnedPickingPipeline => mPipelineManager?.SkinnedPickingPipeline;
+	public GraphicsPipelineState SpritePickingPipeline => mPipelineManager?.SpritePickingPipeline;
 	public ResourceLayout PickingResourceLayout => mPipelineManager?.PickingResourceLayout;
+	public ResourceLayout SpritePickingResourceLayout => mPipelineManager?.SpritePickingResourceLayout;
 	public Buffer PickingUniformBuffer => mPipelineManager?.PickingUniformBuffer;
+	public Buffer SpritePickingParamsBuffer => mPipelineManager?.SpritePickingParamsBuffer;
 	public ResourceSet PickingResourceSet => mPipelineManager?.PickingResourceSet;
+	public ResourceSet SpritePickingResourceSet => mPipelineManager?.SpritePickingResourceSet;
+
+	// Outline/Selection accessors
+	public GraphicsPipelineState OutlinePipeline => mPipelineManager?.OutlinePipeline;
+	public GraphicsPipelineState SkinnedOutlinePipeline => mPipelineManager?.SkinnedOutlinePipeline;
+	public ResourceLayout OutlineResourceLayout => mPipelineManager?.OutlineResourceLayout;
+	public Buffer OutlineUniformBuffer => mPipelineManager?.OutlineUniformBuffer;
+	public ResourceSet OutlineResourceSet => mPipelineManager?.OutlineResourceSet;
+	public Entity SelectedEntity => mSelectedEntity;
+	public Vector4 OutlineColor
+	{
+		get => mOutlineColor;
+		set => mOutlineColor = value;
+	}
+	public float OutlineThickness
+	{
+		get => mOutlineThickness;
+		set => mOutlineThickness = value;
+	}
 
 	/// Get the entity that was picked (searches all scenes managed by this subsystem)
 	public Entity GetPickedEntity()
@@ -177,6 +204,18 @@ class RHIRendererSubsystem : Subsystem
 	{
 		mPickResultReady = false;
 		mLastPickedEntityId = 0;
+	}
+
+	/// Set the currently selected entity (will be rendered with an outline)
+	public void SetSelectedEntity(Entity entity)
+	{
+		mSelectedEntity = entity;
+	}
+
+	/// Clear the current selection
+	public void ClearSelection()
+	{
+		mSelectedEntity = null;
 	}
 
 	public this(Window window, GraphicsContext context)
@@ -518,6 +557,7 @@ class RHIRendererSubsystem : Subsystem
 			module.UpdateLightingBuffer(cmd);
 			module.UpdateDebugBuffers(cmd);
 			module.UpdateSpriteUniforms();
+			module.UpdateOutlineUniforms(cmd);
 		}
 	}
 
@@ -614,6 +654,7 @@ class RHIRendererSubsystem : Subsystem
 			module.RenderMeshes(cmd);
 			module.RenderSkinnedMeshes(cmd);
 			module.RenderSprites(cmd);
+			module.RenderOutline(cmd);  // Render selection outline after meshes
 			module.RenderDebugLines(cmd);
 		}
 	}

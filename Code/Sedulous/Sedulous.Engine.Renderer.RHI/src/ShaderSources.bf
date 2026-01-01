@@ -157,6 +157,24 @@ struct PickingUniforms
     // Total: 80 bytes (aligned to 16)
 }
 
+// ============================================
+// Outline Structures
+// ============================================
+
+/// Outline uniform buffer - contains MVP matrix, outline thickness and color
+[CRepr, Packed, Align(16)]
+struct OutlineUniforms
+{
+    public Matrix MVPMatrix;       // 64 bytes
+    public Matrix ModelMatrix;     // 64 bytes
+    public Vector4 OutlineColor;   // 16 bytes (rgba)
+    public float OutlineThickness; // 4 bytes
+    public float Padding0;         // 4 bytes
+    public float Padding1;         // 4 bytes
+    public float Padding2;         // 4 bytes
+    // Total: 160 bytes (aligned to 16)
+}
+
 static
 {
 	public const int MAX_BONES = 128;
@@ -1715,6 +1733,130 @@ static class ShaderSources
 
 	        output.Position = mul(float4(worldPos, 1.0), MVPMatrix);
 	        output.EntityId = EntityId;
+	        return output;
+	    }
+	    """;
+
+	// ============================================
+	// Outline Shaders (Selection highlighting)
+	// ============================================
+
+	/// Outline vertex shader - expands vertices along normals for inverted hull outline
+	public const String OutlineShadersVS = """
+	    cbuffer OutlineUniforms : register(b0)
+	    {
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
+	        float4 OutlineColor;
+	        float OutlineThickness;
+	        float3 Padding;
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+
+	        // Expand vertex position along normal in model space
+	        float3 expandedPos = input.Position + input.Normal * OutlineThickness;
+
+	        // Transform to clip space
+	        output.Position = mul(float4(expandedPos, 1.0), MVPMatrix);
+
+	        return output;
+	    }
+	    """;
+
+	/// Outline pixel shader - outputs solid outline color
+	public const String OutlineShadersPS = """
+	    cbuffer OutlineUniforms : register(b0)
+	    {
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
+	        float4 OutlineColor;
+	        float OutlineThickness;
+	        float3 Padding;
+	    }
+
+	    struct PSInput
+	    {
+	        float4 Position : SV_POSITION;
+	    };
+
+	    float4 PS(PSInput input) : SV_TARGET
+	    {
+	        return OutlineColor;
+	    }
+	    """;
+
+	/// Skinned outline vertex shader - for skinned meshes with bone animation
+	public const String SkinnedOutlineShadersVS = """
+	    #define MAX_BONES 128
+
+	    cbuffer OutlineUniforms : register(b0, space0)
+	    {
+	        float4x4 MVPMatrix;
+	        float4x4 ModelMatrix;
+	        float4 OutlineColor;
+	        float OutlineThickness;
+	        float3 Padding;
+	    }
+
+	    cbuffer BoneMatrices : register(b0, space1)
+	    {
+	        float4x4 Bones[MAX_BONES];
+	    }
+
+	    struct VSInput
+	    {
+	        float3 Position : POSITION;
+	        float3 Normal : NORMAL;
+	        float2 TexCoord : TEXCOORD0;
+	        float4 Color : COLOR;
+	        float3 Tangent : TANGENT;
+	        uint4 Joints : BLENDINDICES;
+	        float4 Weights : BLENDWEIGHT;
+	    };
+
+	    struct VSOutput
+	    {
+	        float4 Position : SV_POSITION;
+	    };
+
+	    VSOutput VS(VSInput input)
+	    {
+	        VSOutput output;
+
+	        // Compute skinned position and normal by blending bone transforms
+	        float4x4 skinMatrix =
+	            Bones[input.Joints.x] * input.Weights.x +
+	            Bones[input.Joints.y] * input.Weights.y +
+	            Bones[input.Joints.z] * input.Weights.z +
+	            Bones[input.Joints.w] * input.Weights.w;
+
+	        // Transform normal (using 3x3 part of skin matrix)
+	        float3 skinnedNormal = normalize(mul(float4(input.Normal, 0.0), skinMatrix).xyz);
+
+	        // Skin position and expand along skinned normal
+	        float4 skinnedPos = mul(float4(input.Position, 1.0), skinMatrix);
+	        skinnedPos.xyz += skinnedNormal * OutlineThickness;
+
+	        // Transform to clip space
+	        output.Position = mul(skinnedPos, MVPMatrix);
+
 	        return output;
 	    }
 	    """;

@@ -618,10 +618,14 @@ class SandboxApplication : Application
 				if (pickedEntity != null)
 				{
 					Debug.WriteLine(scope $"Picked entity: {pickedEntity.Name} (ID: {pickedEntity.Id})");
+					// Set as selected entity for outline rendering
+					mRHIRenderer.SetSelectedEntity(pickedEntity);
 				}
 				else
 				{
 					Debug.WriteLine("Picked: Nothing (empty space)");
+					// Clear selection when clicking empty space
+					mRHIRenderer.ClearSelection();
 				}
 				mRHIRenderer.ClearPickResult();
 			}
@@ -632,6 +636,13 @@ class SandboxApplication : Application
 				var mousePos = mouse.Position;
 				mRHIRenderer.RequestPick((int32)mousePos.X, (int32)mousePos.Y);
 				Debug.WriteLine(scope $"Requesting pick at ({mousePos.X}, {mousePos.Y})");
+			}
+
+			// ESC to clear selection
+			if (keyboard.IsKeyPressed(.Escape))
+			{
+				mRHIRenderer.ClearSelection();
+				Debug.WriteLine("Selection cleared");
 			}
 		}
 

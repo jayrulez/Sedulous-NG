@@ -1494,16 +1494,48 @@ class RenderModule : SceneModule
 			}
 		}
 
-		// Note: Sprites could be added here if needed
+		// Render sprites
+		if (!mSpriteCommands.IsEmpty && mRenderer.SpritePickingPipeline != null)
+		{
+			commandBuffer.SetGraphicsPipelineState(mRenderer.SpritePickingPipeline);
+
+			// Set static vertex and index buffers for sprites
+			commandBuffer.SetVertexBuffers(scope Buffer[](mRenderer.SpriteQuadVertexBuffer));
+			commandBuffer.SetIndexBuffer(mRenderer.SpriteQuadIndexBuffer, .UInt16);
+
+			const int32 PICKING_ALIGNMENT = 256;
+			int32 pickingAlignedSize = ((sizeof(PickingUniforms) + PICKING_ALIGNMENT - 1) / PICKING_ALIGNMENT) * PICKING_ALIGNMENT;
+
+			const int32 SPRITE_ALIGNMENT = 256;
+			int32 spriteAlignedSize = ((sizeof(Vector4) + SPRITE_ALIGNMENT - 1) / SPRITE_ALIGNMENT) * SPRITE_ALIGNMENT;
+
+			int spriteIndex = 0;
+			for (var command in mSpriteCommands)
+			{
+				// Dynamic offsets for both picking uniforms and sprite params
+				uint32 pickingOffset = (uint32)((mSpritePickingStartIndex + spriteIndex) * pickingAlignedSize);
+				uint32 spriteOffset = (uint32)(spriteIndex * spriteAlignedSize);
+
+				commandBuffer.SetResourceSet(mRenderer.SpritePickingResourceSet, 0, scope .(pickingOffset, spriteOffset));
+
+				// Draw the sprite quad
+				commandBuffer.DrawIndexed(6);
+				spriteIndex++;
+			}
+		}
 
 		commandBuffer.EndRenderPass();
 	}
 
+	// Track sprite picking uniform start index (after mesh uniforms)
+	private int mSpritePickingStartIndex = 0;
+
 	private void UpdatePickingUniforms()
 	{
-		int totalCommands = mOpaqueMeshCommands.Count + mTransparentMeshCommands.Count +
+		int meshCommands = mOpaqueMeshCommands.Count + mTransparentMeshCommands.Count +
 							mOpaqueSkinnedCommands.Count + mTransparentSkinnedCommands.Count;
-		if (totalCommands == 0)
+		int spriteCommands = mSpriteCommands.Count;
+		if (meshCommands == 0 && spriteCommands == 0)
 			return;
 
 		// Map picking uniform buffer
@@ -1584,7 +1616,54 @@ class RenderModule : SceneModule
 			writeIndex++;
 		}
 
+		// Record where sprite uniforms start
+		mSpritePickingStartIndex = writeIndex;
+
+		// Write sprite picking uniforms
+		for (var command in mSpriteCommands)
+		{
+			var pickingUniforms = PickingUniforms()
+			{
+				MVPMatrix = command.WorldMatrix * mViewMatrix * mProjectionMatrix,
+				EntityId = (uint32)command.Entity.Id,
+				Padding0 = 0,
+				Padding1 = 0,
+				Padding2 = 0
+			};
+
+			PickingUniforms* dest = (PickingUniforms*)((uint8*)mapped.Data + writeIndex * alignedSize);
+			*dest = pickingUniforms;
+			writeIndex++;
+		}
+
 		mRenderer.GraphicsContext.UnmapMemory(mRenderer.PickingUniformBuffer);
+
+		// Also populate sprite params buffer
+		if (mSpriteCommands.Count > 0)
+		{
+			var spriteParamsMapped = mRenderer.GraphicsContext.MapMemory(mRenderer.SpritePickingParamsBuffer, MapMode.Write);
+			if (spriteParamsMapped.Data != null)
+			{
+				const int32 SPRITE_ALIGNMENT = 256;
+				int32 spriteAlignedSize = ((sizeof(Vector4) + SPRITE_ALIGNMENT - 1) / SPRITE_ALIGNMENT) * SPRITE_ALIGNMENT;
+
+				int spriteIndex = 0;
+				for (var command in mSpriteCommands)
+				{
+					var renderer = command.Renderer;
+					var size = renderer.GetRenderSize();
+					var pivot = renderer.Pivot;
+
+					var spriteParams = Vector4(size.X, size.Y, pivot.X, pivot.Y);
+
+					Vector4* dest = (Vector4*)((uint8*)spriteParamsMapped.Data + spriteIndex * spriteAlignedSize);
+					*dest = spriteParams;
+					spriteIndex++;
+				}
+
+				mRenderer.GraphicsContext.UnmapMemory(mRenderer.SpritePickingParamsBuffer);
+			}
+		}
 	}
 
 	private void RenderMeshForPicking(MeshRenderCommand command, CommandBuffer commandBuffer)
@@ -1623,5 +1702,205 @@ class RenderModule : SceneModule
 		{
 			commandBuffer.Draw(mesh.VertexCount);
 		}
+	}
+
+	// Cached outline render data (set during UpdateOutlineUniforms, used during RenderOutline)
+	private MeshRenderCommand? mOutlineMeshCommand = null;
+	private SkinnedMeshRenderCommand? mOutlineSkinnedCommand = null;
+	private SpriteRenderCommand? mOutlineSpriteCommand = null;  // Sprites don't use inverted hull, but track for future
+
+	/// Update outline uniform buffer (must be called outside render pass)
+	internal void UpdateOutlineUniforms(CommandBuffer commandBuffer)
+	{
+		var selectedEntity = mRenderer.SelectedEntity;
+		mOutlineMeshCommand = null;
+		mOutlineSkinnedCommand = null;
+		mOutlineSpriteCommand = null;
+
+		if (selectedEntity == null)
+			return;
+
+		// Find the selected entity in our render commands and cache it
+		// Try static meshes first
+		for (var command in mOpaqueMeshCommands)
+		{
+			if (command.Entity == selectedEntity)
+			{
+				mOutlineMeshCommand = command;
+				break;
+			}
+		}
+
+		if (mOutlineMeshCommand == null)
+		{
+			for (var command in mTransparentMeshCommands)
+			{
+				if (command.Entity == selectedEntity)
+				{
+					mOutlineMeshCommand = command;
+					break;
+				}
+			}
+		}
+
+		// Try skinned meshes if not found in static
+		if (mOutlineMeshCommand == null)
+		{
+			for (var command in mOpaqueSkinnedCommands)
+			{
+				if (command.Entity == selectedEntity)
+				{
+					mOutlineSkinnedCommand = command;
+					break;
+				}
+			}
+
+			if (mOutlineSkinnedCommand == null)
+			{
+				for (var command in mTransparentSkinnedCommands)
+				{
+					if (command.Entity == selectedEntity)
+					{
+						mOutlineSkinnedCommand = command;
+						break;
+					}
+				}
+			}
+		}
+
+		// Try sprites if not found in meshes
+		// Note: Sprites don't support inverted hull outline - would need different technique
+		if (mOutlineMeshCommand == null && mOutlineSkinnedCommand == null)
+		{
+			for (var command in mSpriteCommands)
+			{
+				if (command.Entity == selectedEntity)
+				{
+					mOutlineSpriteCommand = command;
+					break;
+				}
+			}
+		}
+
+		// Update the uniform buffer with the found command
+		if (mOutlineMeshCommand != null)
+		{
+			var cmd = mOutlineMeshCommand.Value;
+			// Extract approximate scale from world matrix to make outline thickness scale-independent
+			float scaleX = Vector3(cmd.WorldMatrix.M11, cmd.WorldMatrix.M12, cmd.WorldMatrix.M13).Length();
+			float scaleY = Vector3(cmd.WorldMatrix.M21, cmd.WorldMatrix.M22, cmd.WorldMatrix.M23).Length();
+			float scaleZ = Vector3(cmd.WorldMatrix.M31, cmd.WorldMatrix.M32, cmd.WorldMatrix.M33).Length();
+			float avgScale = (scaleX + scaleY + scaleZ) / 3.0f;
+			float adjustedThickness = mRenderer.OutlineThickness / Math.Max(avgScale, 0.001f);
+
+			var outlineUniforms = OutlineUniforms()
+			{
+				MVPMatrix = cmd.WorldMatrix * mViewMatrix * mProjectionMatrix,
+				ModelMatrix = cmd.WorldMatrix,
+				OutlineColor = mRenderer.OutlineColor,
+				OutlineThickness = adjustedThickness,
+				Padding0 = 0,
+				Padding1 = 0,
+				Padding2 = 0
+			};
+			commandBuffer.UpdateBufferData(mRenderer.OutlineUniformBuffer, &outlineUniforms, (uint32)sizeof(OutlineUniforms));
+		}
+		else if (mOutlineSkinnedCommand != null)
+		{
+			var cmd = mOutlineSkinnedCommand.Value;
+			// Extract approximate scale from world matrix to make outline thickness scale-independent
+			float scaleX = Vector3(cmd.WorldMatrix.M11, cmd.WorldMatrix.M12, cmd.WorldMatrix.M13).Length();
+			float scaleY = Vector3(cmd.WorldMatrix.M21, cmd.WorldMatrix.M22, cmd.WorldMatrix.M23).Length();
+			float scaleZ = Vector3(cmd.WorldMatrix.M31, cmd.WorldMatrix.M32, cmd.WorldMatrix.M33).Length();
+			float avgScale = (scaleX + scaleY + scaleZ) / 3.0f;
+			float adjustedThickness = mRenderer.OutlineThickness / Math.Max(avgScale, 0.001f);
+
+			var outlineUniforms = OutlineUniforms()
+			{
+				MVPMatrix = cmd.WorldMatrix * mViewMatrix * mProjectionMatrix,
+				ModelMatrix = cmd.WorldMatrix,
+				OutlineColor = mRenderer.OutlineColor,
+				OutlineThickness = adjustedThickness,
+				Padding0 = 0,
+				Padding1 = 0,
+				Padding2 = 0
+			};
+			commandBuffer.UpdateBufferData(mRenderer.OutlineUniformBuffer, &outlineUniforms, (uint32)sizeof(OutlineUniforms));
+		}
+	}
+
+	/// Render outline for the currently selected entity
+	internal void RenderOutline(CommandBuffer commandBuffer)
+	{
+		if (mOutlineMeshCommand != null)
+		{
+			RenderMeshOutline(mOutlineMeshCommand.Value, commandBuffer);
+		}
+		else if (mOutlineSkinnedCommand != null)
+		{
+			RenderSkinnedMeshOutline(mOutlineSkinnedCommand.Value, commandBuffer);
+		}
+	}
+
+	private void RenderMeshOutline(MeshRenderCommand command, CommandBuffer commandBuffer)
+	{
+		if (!mCache.TryGetMesh(command.Renderer, let meshHandle) || !meshHandle.IsValid)
+			return;
+
+		// Set pipeline and resource set (uniform buffer already updated in UpdateOutlineUniforms)
+		commandBuffer.SetGraphicsPipelineState(mRenderer.OutlinePipeline);
+		commandBuffer.SetResourceSet(mRenderer.OutlineResourceSet, 0);
+
+		// Render the mesh
+		var mesh = meshHandle.Resource;
+		commandBuffer.SetVertexBuffers(scope Buffer[](mesh.VertexBuffer));
+
+		if (mesh.IndexBuffer != null && mesh.IndexCount > 0)
+		{
+			commandBuffer.SetIndexBuffer(mesh.IndexBuffer, .UInt32);
+			commandBuffer.DrawIndexed(mesh.IndexCount);
+		}
+		else
+		{
+			commandBuffer.Draw(mesh.VertexCount);
+		}
+
+		mStatistics.DrawCalls++;
+	}
+
+	private void RenderSkinnedMeshOutline(SkinnedMeshRenderCommand command, CommandBuffer commandBuffer)
+	{
+		if (!mCache.TryGetSkinnedMesh(command.Renderer, let meshHandle) || !meshHandle.IsValid)
+			return;
+
+		// Set pipeline and resource sets (uniform buffer already updated in UpdateOutlineUniforms)
+		commandBuffer.SetGraphicsPipelineState(mRenderer.SkinnedOutlinePipeline);
+		commandBuffer.SetResourceSet(mRenderer.OutlineResourceSet, 0);
+
+		// Set bone matrices resource set (Set 1 for skinned outline)
+		if (mCache.TryGetBoneResourceSet(command.Animator, let boneResourceSet))
+		{
+			commandBuffer.SetResourceSet(boneResourceSet, 1);
+		}
+		else
+		{
+			return;  // Can't render without bones
+		}
+
+		// Render the mesh
+		var mesh = meshHandle.Resource;
+		commandBuffer.SetVertexBuffers(scope Buffer[](mesh.VertexBuffer));
+
+		if (mesh.IndexBuffer != null && mesh.IndexCount > 0)
+		{
+			commandBuffer.SetIndexBuffer(mesh.IndexBuffer, .UInt32);
+			commandBuffer.DrawIndexed(mesh.IndexCount);
+		}
+		else
+		{
+			commandBuffer.Draw(mesh.VertexCount);
+		}
+
+		mStatistics.DrawCalls++;
 	}
 }

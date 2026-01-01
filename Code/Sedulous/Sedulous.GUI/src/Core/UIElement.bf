@@ -45,6 +45,7 @@ abstract class UIElement
 	private bool mIsHitTestVisible = true;
 	private float mOpacity = 1.0f;
 	private bool mFocusable = false;
+	private bool mIsDisposed = false;
 
 	// === Event Handlers ===
 	protected Dictionary<RoutedEvent, List<Delegate>> mEventHandlers ~ {
@@ -112,6 +113,8 @@ abstract class UIElement
 
 	public bool IsFocused => FocusManager.FocusedElement == this;
 
+	public bool IsDisposed => mIsDisposed;
+
 	// === Constructor/Destructor ===
 	public this()
 	{
@@ -119,6 +122,8 @@ abstract class UIElement
 
 	public ~this()
 	{
+		mIsDisposed = true;
+
 		// Delete all visual children (we own them)
 		for (let child in mVisualChildren)
 			delete child;

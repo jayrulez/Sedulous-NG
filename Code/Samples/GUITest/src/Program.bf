@@ -157,7 +157,7 @@ class Program
 		slider.Maximum = 100;
 		slider.Value = 50;
 		slider.Width = 300;
-		slider.ValueChanged.Add(new [&sliderLabel] (sl, value) =>
+		slider.ValueChanged.Add(new (sl, value) =>
 			{
 				sliderLabel.Text = scope $"Volume: {(int)value}";
 			});

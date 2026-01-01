@@ -41,6 +41,9 @@ static class EventManager
 		for (var i = path.Count - 1; i >= 0 && !args.Handled; i--)
 		{
 			let element = path[i];
+			// Stop if element was disposed during event handling
+			if (element.IsDisposed)
+				break;
 			args.Source = element;
 			element.[Friend]InvokeEventHandlers(args);
 		}
@@ -53,9 +56,14 @@ static class EventManager
 
 		while (current != null && !args.Handled)
 		{
+			// Stop if element was disposed during event handling
+			if (current.IsDisposed)
+				break;
+			// Save parent before invoking handlers (element may be deleted during handling)
+			let parent = current.VisualParent;
 			args.Source = current;
 			current.[Friend]InvokeEventHandlers(args);
-			current = current.VisualParent;
+			current = parent;
 		}
 	}
 

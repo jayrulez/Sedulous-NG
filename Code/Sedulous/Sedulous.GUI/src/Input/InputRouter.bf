@@ -46,6 +46,15 @@ class InputRouter
 		mRoot = root;
 	}
 
+	/// Transforms screen coordinates to root-local coordinates for hit testing
+	private Point2F ScreenToRootLocal(Point2F screenPosition)
+	{
+		if (mRoot == null)
+			return screenPosition;
+		// Subtract root's position since rendering pushes root.Bounds as initial transform
+		return .(screenPosition.X - mRoot.Bounds.X, screenPosition.Y - mRoot.Bounds.Y);
+	}
+
 	private void OnMouseMoved(Point2F position, Point2F delta)
 	{
 		if (mRoot == null)
@@ -54,7 +63,12 @@ class InputRouter
 		// Determine target (captured or hit test)
 		UIElement target = MouseCapture.CapturedElement;
 		if (target == null)
-			target = mRoot.HitTest(position);
+		{
+			// Check dialogs first (they're rendered on top and block input)
+			target = DialogManager.HitTestDialogs(position);
+			if (target == null)
+				target = mRoot.HitTest(ScreenToRootLocal(position));
+		}
 
 		// Handle mouse enter/leave
 		UpdateMouseOver(target, position);
@@ -79,7 +93,12 @@ class InputRouter
 		// Determine target
 		UIElement target = MouseCapture.CapturedElement;
 		if (target == null)
-			target = mRoot.HitTest(position);
+		{
+			// Check dialogs first (they're rendered on top and block input)
+			target = DialogManager.HitTestDialogs(position);
+			if (target == null)
+				target = mRoot.HitTest(ScreenToRootLocal(position));
+		}
 
 		if (target == null)
 			return;
@@ -109,7 +128,12 @@ class InputRouter
 		// Determine target
 		UIElement target = MouseCapture.CapturedElement;
 		if (target == null)
-			target = mRoot.HitTest(position);
+		{
+			// Check dialogs first (they're rendered on top and block input)
+			target = DialogManager.HitTestDialogs(position);
+			if (target == null)
+				target = mRoot.HitTest(ScreenToRootLocal(position));
+		}
 
 		if (target == null)
 			return;
@@ -131,7 +155,12 @@ class InputRouter
 
 		UIElement target = MouseCapture.CapturedElement;
 		if (target == null)
-			target = mRoot.HitTest(position);
+		{
+			// Check dialogs first (they're rendered on top and block input)
+			target = DialogManager.HitTestDialogs(position);
+			if (target == null)
+				target = mRoot.HitTest(ScreenToRootLocal(position));
+		}
 
 		if (target == null)
 			return;

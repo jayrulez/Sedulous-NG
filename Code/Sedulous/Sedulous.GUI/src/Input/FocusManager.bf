@@ -37,6 +37,24 @@ static class FocusManager
 		SetFocus(null);
 	}
 
+	/// Clears focus if the focused element is the given element or a descendant of it
+	public static void ClearFocusIfDescendantOf(UIElement ancestor)
+	{
+		if (sFocusedElement == null || ancestor == null)
+			return;
+
+		var current = sFocusedElement;
+		while (current != null)
+		{
+			if (current == ancestor)
+			{
+				ClearFocus();
+				return;
+			}
+			current = current.VisualParent;
+		}
+	}
+
 	public static bool MoveFocus(FocusNavigationDirection direction)
 	{
 		if (sFocusedElement == null)

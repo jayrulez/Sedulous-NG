@@ -24,6 +24,15 @@ class SDL3InputProvider : IInputProvider
 	private EventAccessor<GUIKeyEventHandler> mKeyReleased = new .() ~ delete _;
 	private EventAccessor<GUITextInputEventHandler> mTextInput = new .() ~ delete _;
 
+	
+	private MouseButtonEventHandler mOnMouseButtonPressed  = null;
+	private MouseButtonEventHandler mOnMouseButtonReleased  = null;
+	private MouseMoveEventHandler mOnMouseMoved  = null;
+	private MouseWheelEventHandler mOnMouseWheelScrolled  = null;
+	private KeyPressedEventHandler mOnKeyPressed  = null;
+	private KeyReleasedEventHandler mOnKeyReleased  = null;
+	private TextInputEventHandler mOnTextInput  = null;
+
 	public this(InputSystem inputSystem)
 	{
 		mInputSystem = inputSystem;
@@ -31,13 +40,24 @@ class SDL3InputProvider : IInputProvider
 		mKeyboard = inputSystem.GetKeyboard();
 
 		// Subscribe to platform input events
-		mMouse.ButtonPressed.Subscribe(new => OnMouseButtonPressed);
-		mMouse.ButtonReleased.Subscribe(new => OnMouseButtonReleased);
-		mMouse.Moved.Subscribe(new => OnMouseMoved);
-		mMouse.WheelScrolled.Subscribe(new => OnMouseWheel);
-		mKeyboard.KeyPressed.Subscribe(new => OnKeyPressed);
-		mKeyboard.KeyReleased.Subscribe(new => OnKeyReleased);
-		mKeyboard.TextInput.Subscribe(new => OnTextInput);
+		mMouse.ButtonPressed.Subscribe(mOnMouseButtonPressed = new => OnMouseButtonPressed);
+		mMouse.ButtonReleased.Subscribe(mOnMouseButtonReleased = new => OnMouseButtonReleased);
+		mMouse.Moved.Subscribe(mOnMouseMoved = new => OnMouseMoved);
+		mMouse.WheelScrolled.Subscribe(mOnMouseWheelScrolled = new => OnMouseWheel);
+		mKeyboard.KeyPressed.Subscribe(mOnKeyPressed = new => OnKeyPressed);
+		mKeyboard.KeyReleased.Subscribe(mOnKeyReleased = new => OnKeyReleased);
+		mKeyboard.TextInput.Subscribe(mOnTextInput = new => OnTextInput);
+	}
+
+	public ~this()
+	{
+		mMouse.ButtonPressed.Unsubscribe(mOnMouseButtonPressed);
+		mMouse.ButtonReleased.Unsubscribe(mOnMouseButtonReleased);
+		mMouse.Moved.Unsubscribe(mOnMouseMoved);
+		mMouse.WheelScrolled.Unsubscribe(mOnMouseWheelScrolled);
+		mKeyboard.KeyPressed.Unsubscribe(mOnKeyPressed);
+		mKeyboard.KeyReleased.Unsubscribe(mOnKeyReleased);
+		mKeyboard.TextInput.Unsubscribe(mOnTextInput);
 	}
 
 	// === IInputProvider Implementation ===

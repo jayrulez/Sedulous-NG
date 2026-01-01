@@ -7,6 +7,7 @@ using System.Collections;
 static class DialogManager
 {
 	private static List<Dialog> sOpenDialogs = new .() ~ delete _;
+	private static List<Dialog> sPendingDeletion = new .() ~ delete _;
 
 	public static bool HasOpenDialogs => !sOpenDialogs.IsEmpty;
 
@@ -21,6 +22,21 @@ static class DialogManager
 	public static void Close(Dialog dialog)
 	{
 		sOpenDialogs.Remove(dialog);
+	}
+
+	/// Queues a dialog for deletion at a safe time (after event processing)
+	public static void QueueForDeletion(Dialog dialog)
+	{
+		if (dialog != null && !sPendingDeletion.Contains(dialog))
+			sPendingDeletion.Add(dialog);
+	}
+
+	/// Processes pending deletions - call this at a safe time (e.g., end of Update)
+	public static void ProcessPendingDeletions()
+	{
+		for (let dialog in sPendingDeletion)
+			delete dialog;
+		sPendingDeletion.Clear();
 	}
 
 	public static void CloseAll()

@@ -50,6 +50,10 @@ class UIApplication
 		if (mRoot == null || mRenderer == null)
 			return;
 
+		// Process any pending dialog deletions from previous frame
+		// (safe to do here, before any event processing)
+		DialogManager.ProcessPendingDeletions();
+
 		// Layout pass
 		let viewportSize = mRenderer.ViewportSize;
 		mRoot.Measure(viewportSize);

@@ -40,6 +40,24 @@ static class MouseCapture
 			Release();
 	}
 
+	/// Releases capture if the captured element is the given element or a descendant of it
+	public static void ReleaseIfCapturedByOrDescendantOf(UIElement ancestor)
+	{
+		if (sCapturedElement == null || ancestor == null)
+			return;
+
+		var current = sCapturedElement;
+		while (current != null)
+		{
+			if (current == ancestor)
+			{
+				Release();
+				return;
+			}
+			current = current.VisualParent;
+		}
+	}
+
 	private static void OnGotCapture(UIElement element)
 	{
 		// Can raise a GotMouseCapture event if needed

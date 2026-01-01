@@ -2,17 +2,19 @@ namespace Sedulous.GUI;
 
 using Sedulous.Mathematics;
 using System;
+using System.Collections;
 
 delegate void DialogClosedHandler(Dialog dialog, DialogResult result);
 
 class Dialog : Border
 {
-	public Event<DialogClosedHandler> Closed ~ _.Dispose();
+	public Event<DialogClosedHandler> Closed /*~ _.Dispose()*/;
 
-	private TextBlock mTitleBlock ~ delete _;
-	private StackPanel mContentArea ~ delete _;
-	private StackPanel mButtonArea ~ delete _;
-	private StackPanel mMainPanel ~ delete _;
+	private TextBlock mTitleBlock /*~ delete _*/;
+	private StackPanel mContentArea /*~ delete _*/;
+	private StackPanel mButtonArea /*~ delete _*/;
+	private StackPanel mMainPanel /*~ delete _*/;
+	private List<delegate void(Button)> mButtonClickHandlers = new .() /*~ DeleteContainerAndItems!(_)*/~ delete _;
 
 	public DialogResult Result { get; private set; } = .None;
 
@@ -82,11 +84,13 @@ class Dialog : Border
 		button.Child = textBlock;
 		button.MinWidth = 80;
 
-		button.Click.Add(new [=result, &](btn) =>
+		delegate void(Button) clickHandler = new [=result, &](btn) =>
 		{
 			Result = result;
 			Close();
-		});
+		};
+		mButtonClickHandlers.Add(clickHandler);
+		button.Click.Add(clickHandler);
 
 		mButtonArea.AddChild(button);
 		return button;
@@ -100,6 +104,11 @@ class Dialog : Border
 
 	public void Close()
 	{
+		// Release mouse capture and focus if held by any element in this dialog
+		// This prevents crashes when dialog is deleted while an element has capture/focus
+		MouseCapture.ReleaseIfCapturedByOrDescendantOf(this);
+		FocusManager.ClearFocusIfDescendantOf(this);
+
 		DialogManager.Close(this);
 		Closed.Invoke(this, Result);
 	}
